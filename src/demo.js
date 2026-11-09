@@ -1,0 +1,87 @@
+/* ============================================================
+   Demo database — used when the page runs outside claude.ai (GitHub Pages, local file).
+   Same API as the artifact db (collection().onSnapshot, doc().set/update/delete/onSnapshot).
+   Data is fictional sample data and stays in this browser (localStorage).
+   ============================================================ */
+function DemoDB(){
+  const KEY = 'lo.demo.v1';
+  const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); };
+  const ahead = n => ago(-n);
+  const iso = nowIso();
+  function seed(){
+    const F = {p:'demofolderpers1', w:'demofolderwork1', f:'demofolderfina1'};
+    const fld = (id,name,type,x={}) => ({id,name,type,...x});
+    const task = (id, boardId, col, pos, title, x={}) => ({id, boardId, col, pos, title, notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:iso, updated:iso, ...x});
+    const bill = (id, asset, category, institution, start, end, period, amount, x={}) => ({id, active:true, asset, category, institution, start, end, period, amount, ref:'', notes:'', paid:{}, history:[], stopped:'', created:ago(60), prevId:'', ...x});
+    return {
+      folders:[{id:F.p,name:'Personal',order:0},{id:F.w,name:'Work',order:1},{id:F.f,name:'Finance',order:2}],
+      items:[
+        {id:'demonotestart01', type:'note', name:'Start here', folderId:F.p, order:0, created:iso, updated:iso, body:
+`This is a **demo** of Life Organiser with made-up sample data. Changes you make stay in this browser only.
+
+## Item types
+- **Kanban**: boards of one-off tasks. See [[Home]].
+- **Note**: pages like this one, with - [ ] checkboxes and [[links]].
+- **Collection**: a table with your own fields. See [[Coupons & vouchers]].
+- **Tracker**: dated numbers with a chart. See [[Home loan rate]].
+- **Checklist**: a reusable tick list.
+- **Bills**: recurring bills on a yearly timeline. See [[Bills & renewals]].
+
+## Try it
+- [ ] Drag a card on [[Home]] to In Progress
+- [ ] Tick a payment on [[Bills & renewals]]
+- [x] Open the demo
+
+Press ? for keyboard shortcuts.`},
+        {id:'demokanbanhome1', type:'kanban', name:'Home', folderId:F.p, order:1, color:'teal', created:iso, updated:iso},
+        {id:'demokanbanwork1', type:'kanban', name:'Work', folderId:F.w, order:0, color:'blue', created:iso, updated:iso},
+        {id:'demobillsitem01', type:'bills', name:'Bills & renewals', folderId:F.f, order:0, created:iso, updated:iso, bills:[
+          bill('demobill1','Car','Insurance','Acme Insurance', ago(250), ahead(115), 12, 980),
+          bill('demobill2','House','Insurance','Harbour Mutual', ago(100), ahead(265), 12, 1420),
+          bill('demobill3','House','Council rates','City Council', ago(400), '', 3, 480, {paid:{}}),
+          bill('demobill4','House','Electricity','Bright Energy', ago(200), '', 3, 390),
+          bill('demobill5','House','Internet','Fastnet', ago(300), '', 1, 79),
+          bill('demobill6','Side business','Company renewal','Business registry', ago(320), ahead(45), 12, 310),
+        ]},
+        {id:'democollcoupon1', type:'collection', name:'Coupons & vouchers', folderId:F.f, order:1, created:iso, updated:iso, sort:null, fields:[
+          fld('dcf1','Store','text'), fld('dcf2','Value','currency'), fld('dcf3','Code','text'), fld('dcf4','Expires','date',{home:true}), fld('dcf5','Used','checkbox'), fld('dcf6','Notes','text')]},
+        {id:'demotrackrate01', type:'tracker', name:'Home loan rate', folderId:F.f, order:2, created:iso, updated:iso, unit:'%', decimals:2, step:true, points:[
+          {id:'dp1',date:ago(900),value:5.89,note:'Fixed term ended'},{id:'dp2',date:ago(640),value:6.14,note:'Rate rise'},{id:'dp3',date:ago(380),value:5.99,note:'Cut'},{id:'dp4',date:ago(120),value:5.74,note:'Cut'}]},
+        {id:'demochecklist01', type:'checklist', name:'Travel packing', folderId:F.p, order:2, created:iso, updated:iso, entries:['Passport','Phone charger','Travel adapter','Headphones','Toiletries'].map((t,i)=>({id:'dce'+i, text:t, done:i<2}))},
+      ],
+      tasks:[
+        task('dt1','demokanbanhome1','todo',1024,'Book car service',{due:ahead(3), priority:'med'}),
+        task('dt2','demokanbanhome1','todo',2048,'Renew passport',{flag:'waiting', flagWho:'Passport office', priority:'high', checklist:[{id:'c1',text:'Photos',done:true},{id:'c2',text:'Lodge form',done:false}]}),
+        task('dt3','demokanbanhome1','doing',1024,'Clean gutters'),
+        task('dt4','demokanbanhome1','backburner',1024,'Repaint the fence'),
+        task('dt5','demokanbanhome1','done',1024,'Pay parking fine',{doneAt:iso}),
+        task('dt6','demokanbanwork1','todo',1024,'Submit timesheet',{due:ahead(1), priority:'high'}),
+        task('dt7','demokanbanwork1','upcoming',1024,'Plan training course'),
+      ],
+      rows:[
+        {id:'dr1', itemId:'democollcoupon1', pos:0, values:{dcf1:'Bookshop', dcf2:25, dcf3:'READ25', dcf4:ahead(20), dcf5:false}, created:iso, updated:iso},
+        {id:'dr2', itemId:'democollcoupon1', pos:1, values:{dcf1:'Cinema', dcf2:15, dcf3:'MOVIE15', dcf4:ahead(75), dcf5:false}, created:iso, updated:iso},
+      ],
+      meta:[],
+    };
+  }
+  let raw = null; try{ raw = JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){}
+  const src = raw || seed();
+  const data = {}; for(const k of ['folders','items','tasks','rows','meta']) data[k] = new Map((src[k]||[]).map(d=>{ const {id,...b}=d; return [id, b]; }));
+  const persist = () => { try{ const o={}; for(const k in data) o[k]=[...data[k].entries()].map(([id,b])=>({id,...b})); localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){} };
+  const subs = {}, docSubs = {};
+  const cp = o => JSON.parse(JSON.stringify(o));
+  const snap = c => ({docs:[...(data[c]||new Map()).entries()].map(([id,b])=>({id, data:()=>cp(b)})), metadata:{fromCache:false}});
+  const emit = (c, path) => { (subs[c]||[]).forEach(cb=>setTimeout(()=>cb(snap(c)),0)); (docSubs[path]||[]).forEach(cb=>setTimeout(()=>{ const [cc,id]=path.split('/'); cb({exists:data[cc].has(id), data:()=>cp(data[cc].get(id)||{})}); },0)); persist(); };
+  window.__demoData = data;
+  return {
+    reset(){ try{ localStorage.removeItem(KEY); }catch(e){} location.reload(); },
+    collection(c){ return {onSnapshot(cb){ (subs[c]=subs[c]||[]).push(cb); setTimeout(()=>cb(snap(c)),0); return ()=>{}; }}; },
+    doc(path){ const [c,id]=path.split('/'); data[c]=data[c]||new Map(); return {
+      onSnapshot(cb){ (docSubs[path]=docSubs[path]||[]).push(cb); setTimeout(()=>cb({exists:data[c].has(id), data:()=>cp(data[c].get(id)||{})}),0); return ()=>{}; },
+      async set(b){ data[c].set(id, cp(b)); emit(c, path); },
+      async update(p){ data[c].set(id, {...(data[c].get(id)||{}), ...cp(p)}); emit(c, path); },
+      async delete(){ data[c].delete(id); emit(c, path); },
+    }; },
+  };
+}
