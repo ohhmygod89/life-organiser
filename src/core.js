@@ -694,7 +694,7 @@ function openNewItem({folderId, type='note', opener}={}){
 }
 
 /* ----- touch gestures (phone) -----
-   Swipe sideways anywhere to move the board; swipe right from the left edge, or past the first column, to open the menu. */
+   Swipe sideways anywhere to move the board; swipe right at the first column to open the menu. Screen edges are left to the browser. */
 (() => {
   const narrow = () => matchMedia('(max-width:860px)').matches;
   const side = $('#side');
@@ -709,9 +709,10 @@ function openNewItem({folderId, type='note', opener}={}){
     if(e.touches.length!==1 || S.dragging || window.__sheetOpen || modalOpen() || menuEl) return;
     const t = e.touches[0], el = e.target;
     if(el.closest('input,textarea,select,[contenteditable="true"],.menu')) return;
+    if(t.clientX < 24 || t.clientX > innerWidth-24) return;   // leave the screen edges to the browser's back / forward swipe
     const isOpen = document.body.classList.contains('side-open');
     g = {x0:t.clientX, y0:t.clientY, t0:Date.now(), axis:null, el, isOpen,
-         edge: t.clientX < 28, own: hScroller(el), board: boardScroller(), mode:null};
+         own: hScroller(el), board: boardScroller(), mode:null};
     if(g.own === side) g.own = null;
   }, {passive:true});
   document.addEventListener('touchmove', e => {
@@ -720,7 +721,7 @@ function openNewItem({folderId, type='note', opener}={}){
     if(!g.axis){ if(Math.abs(dx)<10 && Math.abs(dy)<10) return; g.axis = Math.abs(dx) > Math.abs(dy)*1.2 ? 'x' : 'y'; if(g.axis==='y'){ g=null; return; }
       const nw = narrow();
       if(g.isOpen && nw) g.mode='close';
-      else if(nw && dx>0 && (g.edge || (!g.own && (!g.board || g.board.scrollLeft<=8)) || (g.own && g.own.scrollLeft<=8))) g.mode='open';
+      else if(nw && dx>0 && ((!g.own && (!g.board || g.board.scrollLeft<=8)) || (g.own && g.own.scrollLeft<=8))) g.mode='open';
       else if(g.own) g.mode=null;                         // the browser scrolls it natively
       else if(g.board){ g.mode='board'; g.sl=g.board.scrollLeft; g.board.style.scrollSnapType='none'; }
       if(!g.mode){ g=null; return; }

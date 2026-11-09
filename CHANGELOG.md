@@ -2,6 +2,13 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.10] - 2026-11-09
+### Changed
+- Every Kanban now uses the same layout as the stacked board: same column size, compact cards, + in each column header.
+- Phone: two columns fit across the screen; swiping moves one column at a time.
+- Horizontal scroll bars under boards are hidden.
+- Swipes that start at the very edge of the screen are left to Safari (back / forward). Open the menu by swiping right while on the first column.
+
 ## [1.0.0-beta.9] - 2026-11-09
 ### Added
 - All tasks opens as a **stacked board**: one band per Kanban, clearly labelled, sharing one sideways scroll so the columns line up. Drag a card to another column or another Kanban. List view is still one tap away.

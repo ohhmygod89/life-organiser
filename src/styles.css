@@ -620,7 +620,7 @@ body.is-dragging .lcol .drop-hint{border-color:var(--fill);padding:8px;text-alig
 .card.compact .tick{top:8px;right:8px;width:22px;height:22px}
 @media (max-width:760px){
   .lanes{scroll-snap-type:x mandatory;margin-inline:-22px;padding-inline:22px;scroll-padding-inline:22px}
-  .lanes-in{--cw:72vw;min-width:0;width:max-content}
+  .lanes-in{--cw:calc((100vw - 54px) / 2);min-width:0;width:max-content}
   .lane-h{width:calc(100vw - 44px);max-width:none}
   .tb-filters{flex-wrap:nowrap;overflow-x:auto;margin-inline:-22px;padding-inline:22px;padding-bottom:4px;scrollbar-width:none}
   .tb-filters::-webkit-scrollbar{display:none}
@@ -631,3 +631,14 @@ body.is-dragging .lcol .drop-hint{border-color:var(--fill);padding:8px;text-alig
 .lcol{scroll-snap-align:start}
 body.is-dragging .lanes,body.is-dragging .board{scroll-snap-type:none}
 @media (pointer:coarse){.card.compact{min-height:66px;padding-right:42px}.card.compact .tick{width:28px;height:28px;top:6px;right:6px}.card.compact .mv{width:28px;height:28px;bottom:4px;right:6px}}
+.lanes,.board{scrollbar-width:none}
+.lanes::-webkit-scrollbar,.board::-webkit-scrollbar{display:none}
+.lanes{padding-bottom:0}
+@media (max-width:760px){
+  .lcol-h{font-size:11px;letter-spacing:.04em;padding-left:10px}
+  .card.compact{padding:8px 34px 8px 10px;font-size:13.5px;min-height:64px}
+  .card.compact .tick{width:26px;height:26px;top:5px;right:5px}
+  .card.compact .mv{width:26px;height:26px;bottom:4px;right:5px}
+  .card.compact .meta{gap:4px 8px}
+  .lcol .cards{padding:2px 5px 6px}
+}

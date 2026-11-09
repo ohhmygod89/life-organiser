@@ -65,35 +65,22 @@ TYPE_VIEWS.kanban = (() => {
     if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); } }
   }
 
-  function view(it, root){
-    if(adding && adding.board!==it.id) adding = null;
-    root.innerHTML = `<div class="board" id="board" data-hs="board-${esc(it.id)}">` + COLS.map(c => {
-      let ts = tasksIn(it.id, c.id); const total = ts.length; let more = '';
-      if(c.id==='done' && ts.length>DONE_LIMIT){ const all=showAllDone[it.id]; more=`<button class="more" data-act="more" data-board="${esc(it.id)}">${all?'Show fewer':'Show '+(ts.length-DONE_LIMIT)+' more'}</button>`; if(!all) ts=ts.slice(0,DONE_LIMIT); }
-      return `<section class="col ${c.id}" aria-label="${c.name}, ${plural(total,'task')}">
-        <div class="col-h"><h2>${c.name}</h2><span class="count">${total}</span>${c.hint?`<span class="hint">${c.hint}</span>`:''}</div>
-        <div class="cards" data-col="${c.id}" data-board="${esc(it.id)}">${ts.map(t=>cardHTML(t)).join('')}<div class="drop-hint">${c.id==='done'?'Finished tasks land here':'Drop tasks here'}</div></div>
-        ${more}
-        ${c.id==='done' ? '<div style="height:8px"></div>' : addRowHTML(it.id, c)}
-      </section>`;
-    }).join('') + `</div>`;
-    bindSortables(root);
-  }
+  function view(it, root){ lanes([it], root, {bb:true, single:true}); }
 
   /* Stacked view: one band per Kanban, all sharing one sideways scroller so the columns line up. */
   const LANE_DONE = 3;
-  function lanes(boards, root, {bb=false, test=null}={}){
+  function lanes(boards, root, {bb=false, test=null, single=false}={}){
     const cols = COLS.filter(c => (bb || c.id!=='backburner') && (!test || c.id!=='done'));
     if(adding && !boards.some(b=>b.id===adding.board)) adding = null;
     const keep = t => !test || test(t);
     root.innerHTML = `<div class="lanes" data-hs="lanes" style="--n:${cols.length}"><div class="lanes-in">` + boards.map(b => {
       const open = S.tasks.filter(t=>t.boardId===b.id && !['done','backburner'].includes(t.col) && keep(t)).length;
       return `<section class="lane" style="--board:${itemColor(b)}" aria-label="${esc(b.name)}" data-key="lane-${esc(b.id)}">
-        <div class="lane-h"><div class="lane-hi"><span class="lane-dot" aria-hidden="true"></span><h2>${esc(b.name)}</h2><span class="count">${plural(open,'open task')}</span>
-          <a class="link lane-open" href="#i-${esc(b.id)}">Open</a></div></div>
+        ${single ? '' : `<div class="lane-h"><div class="lane-hi"><span class="lane-dot" aria-hidden="true"></span><h2>${esc(b.name)}</h2><span class="count">${plural(open,'open task')}</span>
+          <a class="link lane-open" href="#i-${esc(b.id)}">Open</a></div></div>`}
         <div class="lane-cols">${cols.map(c => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
-          if(c.id==='done' && ts.length>LANE_DONE){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-LANE_DONE)+' more'}</button>`; if(!all) ts=ts.slice(0,LANE_DONE); }
+          const lim = single ? DONE_LIMIT : LANE_DONE; if(c.id==='done' && ts.length>lim){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-lim)+' more'}</button>`; if(!all) ts=ts.slice(0,lim); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
             <div class="lcol-h"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
