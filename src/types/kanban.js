@@ -31,7 +31,7 @@ TYPE_VIEWS.kanban = (() => {
   }
   const toggleDone = t => moveTo(t, t.col==='done' ? (t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo') : 'done');
 
-  function cardHTML(t){
+  function cardHTML(t, compact){
     const isDone = t.col==='done'; const parts = [];
     if(isDone && t.doneAt) parts.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
     if(t.due && !isDone){ const d=dueLabel(t.due); parts.push(`<span class="${d.cls}">${ICON.cal}${esc(d.t)}</span>`); }
@@ -39,40 +39,82 @@ TYPE_VIEWS.kanban = (() => {
     if(cl.length && !isDone) parts.push(`<span aria-label="${cl.filter(c=>c.done).length} of ${cl.length} checklist items done">${ICON.list}${cl.filter(c=>c.done).length}/${cl.length}</span>`);
     if(!isDone && ((t.notes||'').trim() || (t.log||[]).length)) parts.push(`<span title="Has notes" aria-label="Has notes">${ICON.notes}</span>`);
     const back = colName(t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo');
-    return `<article class="card ${isDone?'is-done':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
+    const showCl = cl.length && !isDone && !compact;
+    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       <button class="tick" data-tick="" title="${isDone?'Not done, back to '+back:'Mark done'}" aria-label="${isDone?'Mark not done':'Mark done'}: ${esc(t.title)}">${ICON.check}</button>
+      <button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>
       ${!isDone && flagOf(t.flag) ? chipHTML(t) : ''}
       <div class="title">${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
-      ${cl.length && !isDone ? `<ul class="cl">${cl.slice(0,8).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span>${esc(c.text)}</span></li>`).join('')}${cl.length>8?`<li class="more-c">+${cl.length-8} more</li>`:''}</ul>` : ''}
+      ${showCl ? `<ul class="cl">${cl.slice(0,8).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span>${esc(c.text)}</span></li>`).join('')}${cl.length>8?`<li class="more-c">+${cl.length-8} more</li>`:''}</ul>` : ''}
       ${parts.length?`<div class="meta">${parts.join('')}</div>`:''}
     </article>`;
   }
-
-  function view(it, root){
+  function addRowHTML(bid, c){
+    const isAdding = adding?.board===bid && adding?.col===c.id;
+    return isAdding ? `<div class="add-row"><textarea class="add-input" id="kbAdd" rows="2" placeholder="Task name" aria-label="New task in ${c.name}">${esc(draft)}</textarea><div class="add-tip">Enter to add another · Esc to finish</div></div>`
+      : `<div class="add-row"><button class="add-btn" data-add="${c.id}">${ICON.plus} Add task</button></div>`;
+  }
+  function bindSortables(root){
     sortables.forEach(s=>s.destroy()); sortables = [];
-    if(adding && adding.board!==it.id) adding = null;
-    root.innerHTML = `<div class="board" id="board">` + COLS.map(c => {
-      let ts = tasksIn(it.id, c.id); const total = ts.length; let more = '';
-      if(c.id==='done' && ts.length>DONE_LIMIT){ const all=showAllDone[it.id]; more=`<button class="more" data-act="more">${all?'Show fewer':'Show '+(ts.length-DONE_LIMIT)+' more'}</button>`; if(!all) ts=ts.slice(0,DONE_LIMIT); }
-      const isAdding = adding?.col===c.id;
-      return `<section class="col ${c.id}" aria-label="${c.name}, ${plural(total,'task')}">
-        <div class="col-h"><h2>${c.name}</h2><span class="count">${total}</span>${c.hint?`<span class="hint">${c.hint}</span>`:''}</div>
-        <div class="cards" data-col="${c.id}">${ts.map(cardHTML).join('')}<div class="drop-hint">${c.id==='done'?'Finished tasks land here':'Drop tasks here'}</div></div>
-        ${more}
-        ${c.id==='done' ? '<div style="height:8px"></div>' : `<div class="add-row">${isAdding?`<textarea class="add-input" id="kbAdd" rows="2" placeholder="Task name" aria-label="New task in ${c.name}">${esc(draft)}</textarea><div class="add-tip">Enter to add another · Esc to finish</div>`:`<button class="add-btn" data-add="${c.id}">${ICON.plus} Add task</button>`}</div>`}
-      </section>`;
-    }).join('') + `</div>`;
     $$('.cards', root).forEach(list => sortables.push(Sortable.create(list, {
-      group:'cards', animation:RM?0:180, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.tick,.cbox', preventOnFilter:false,
-      delay:160, delayOnTouchOnly:true, touchStartThreshold:4, forceFallback:true, fallbackOnBody:true, fallbackClass:'dragging',
+      group:'cards', animation:RM?0:180, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.tick,.cbox,.mv', preventOnFilter:false,
+      delay:220, delayOnTouchOnly:true, touchStartThreshold:6, forceFallback:true, fallbackOnBody:true, fallbackClass:'dragging',
       scroll:true, bubbleScroll:true, scrollSensitivity:80,
-      onStart(){ S.dragging=true }, onEnd(evt){ S.dragging=false; onDrop(evt); render(true); }
+      onStart(){ S.dragging=true; document.body.classList.add('is-dragging'); }, onEnd(evt){ S.dragging=false; document.body.classList.remove('is-dragging'); onDrop(evt); render(true); }
     })));
     if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); } }
   }
+
+  function view(it, root){
+    if(adding && adding.board!==it.id) adding = null;
+    root.innerHTML = `<div class="board" id="board" data-hs="board-${esc(it.id)}">` + COLS.map(c => {
+      let ts = tasksIn(it.id, c.id); const total = ts.length; let more = '';
+      if(c.id==='done' && ts.length>DONE_LIMIT){ const all=showAllDone[it.id]; more=`<button class="more" data-act="more" data-board="${esc(it.id)}">${all?'Show fewer':'Show '+(ts.length-DONE_LIMIT)+' more'}</button>`; if(!all) ts=ts.slice(0,DONE_LIMIT); }
+      return `<section class="col ${c.id}" aria-label="${c.name}, ${plural(total,'task')}">
+        <div class="col-h"><h2>${c.name}</h2><span class="count">${total}</span>${c.hint?`<span class="hint">${c.hint}</span>`:''}</div>
+        <div class="cards" data-col="${c.id}" data-board="${esc(it.id)}">${ts.map(t=>cardHTML(t)).join('')}<div class="drop-hint">${c.id==='done'?'Finished tasks land here':'Drop tasks here'}</div></div>
+        ${more}
+        ${c.id==='done' ? '<div style="height:8px"></div>' : addRowHTML(it.id, c)}
+      </section>`;
+    }).join('') + `</div>`;
+    bindSortables(root);
+  }
+
+  /* Stacked view: one band per Kanban, all sharing one sideways scroller so the columns line up. */
+  const LANE_DONE = 3;
+  function lanes(boards, root, {bb=false, test=null}={}){
+    const cols = COLS.filter(c => (bb || c.id!=='backburner') && (!test || c.id!=='done'));
+    if(adding && !boards.some(b=>b.id===adding.board)) adding = null;
+    const keep = t => !test || test(t);
+    root.innerHTML = `<div class="lanes" data-hs="lanes" style="--n:${cols.length}"><div class="lanes-in">` + boards.map(b => {
+      const open = S.tasks.filter(t=>t.boardId===b.id && !['done','backburner'].includes(t.col) && keep(t)).length;
+      return `<section class="lane" style="--board:${itemColor(b)}" aria-label="${esc(b.name)}" data-key="lane-${esc(b.id)}">
+        <div class="lane-h"><div class="lane-hi"><span class="lane-dot" aria-hidden="true"></span><h2>${esc(b.name)}</h2><span class="count">${plural(open,'open task')}</span>
+          <a class="link lane-open" href="#i-${esc(b.id)}">Open</a></div></div>
+        <div class="lane-cols">${cols.map(c => {
+          let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
+          if(c.id==='done' && ts.length>LANE_DONE){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-LANE_DONE)+' more'}</button>`; if(!all) ts=ts.slice(0,LANE_DONE); }
+          return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
+            <div class="lcol-h"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
+            ${more}${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
+          </div>`;
+        }).join('')}</div>
+      </section>`;
+    }).join('') + `</div></div>`;
+    bindSortables(root);
+  }
+
   function onDrop(evt){
     const t = S.tasks.find(x=>x.id===evt.item.dataset.id); if(!t) return;
-    const col = evt.to.dataset.col;
+    const col = evt.to.dataset.col, bid = evt.to.dataset.board || t.boardId;
+    if(bid!==t.boardId){
+      const from={boardId:t.boardId, col:t.col, pos:t.pos??1024, doneAt:t.doneAt||'', prevCol:t.prevCol||''};
+      const p = {boardId:bid, col, pos:endPos(bid, col, t.id)}; if(col==='done' && t.col!=='done'){ p.doneAt=nowIso(); p.prevCol=t.col; }
+      docPatch('tasks', t.id, p); touchItem(bid);
+      toast('Moved to '+(itemById(bid)?.name||'board')+' · '+colName(col), () => docPatch('tasks', t.id, clone(from)));
+      return;
+    }
     if(col==='done'){ if(t.col!=='done') moveTo(t,'done'); return; }
     const ids = $$('.card', evt.to).map(c=>c.dataset.id); const i = ids.indexOf(t.id);
     const get = k => S.tasks.find(x=>x.id===k);
@@ -81,12 +123,13 @@ TYPE_VIEWS.kanban = (() => {
     if(col===t.col && pos===t.pos) return;
     if(prev && next && Math.abs(next.pos-prev.pos)<1e-6){ ids.forEach((k,j)=>{ if(k!==t.id) docPatch('tasks', k, {pos:(j+1)*1024}); }); pos=(i+1)*1024; }
     const p = {col, pos}; if(t.col==='done') p.prevCol = '';
+    if(col!==t.col) toast('Moved to '+colName(col), ()=>docPatch('tasks', t.id, {col:t.col, pos:t.pos??1024}));
     docPatch('tasks', t.id, p);
   }
-  function addTask(it, col, title){
+  function addTask(bid, col, title){
     if(!title.trim()) return;
-    docSet('tasks', {id:uid(), boardId:it.id, col, pos:endPos(it.id,col), title:title.trim(), notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
-    touchItem(it.id);
+    docSet('tasks', {id:uid(), boardId:bid, col, pos:endPos(bid,col), title:title.trim(), notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
+    touchItem(bid);
   }
   function keyMove(t, key){
     const ci = COLS.findIndex(c=>c.id===t.col);
@@ -95,22 +138,27 @@ TYPE_VIEWS.kanban = (() => {
     render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"]`);
   }
 
-  function click(e, it){
+  function click(e){
+    const cardOf = el => S.tasks.find(x=>x.id===el.closest('.card').dataset.id);
     const tick = e.target.closest('[data-tick]');
-    if(tick){ e.stopPropagation(); const t=S.tasks.find(x=>x.id===tick.closest('.card').dataset.id); if(t){ toggleDone(t); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-tick]`); } return; }
+    if(tick){ e.stopPropagation(); const t=cardOf(tick); if(t){ toggleDone(t); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-tick]`); } return true; }
+    const mv = e.target.closest('[data-mv]');
+    if(mv){ e.stopPropagation(); const t=cardOf(mv); if(t) openMenu(mv, COLS.map(c=>({label:c.name, value:c.id, checked:c.id===t.col})), v => { if(v!==t.col){ moveTo(t, v); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"]`); } }, 'Move to column'); return true; }
     const cb = e.target.closest('[data-cbox]');
-    if(cb){ e.stopPropagation(); const t=S.tasks.find(x=>x.id===cb.closest('.card').dataset.id); if(t){ const id=cb.dataset.cbox; docPatch('tasks', t.id, {checklist:(t.checklist||[]).map(c=>c.id===id?{...c,done:!c.done}:c)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-cbox="${CSS.escape(id)}"]`); } return; }
-    const add = e.target.closest('[data-add]'); if(add){ adding={board:it.id, col:add.dataset.add}; draft=''; render(true); return; }
-    if(e.target.closest('[data-act="more"]')){ showAllDone[it.id]=!showAllDone[it.id]; render(true); return; }
-    const card = e.target.closest('.card'); if(card) openSheet(card.dataset.id, card);
+    if(cb){ e.stopPropagation(); const t=cardOf(cb); if(t){ const id=cb.dataset.cbox; docPatch('tasks', t.id, {checklist:(t.checklist||[]).map(c=>c.id===id?{...c,done:!c.done}:c)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-cbox="${CSS.escape(id)}"]`); } return true; }
+    const add = e.target.closest('[data-add]');
+    if(add){ const bid = add.closest('[data-board]')?.dataset.board || add.closest('.col')?.querySelector('.cards')?.dataset.board; if(bid){ adding={board:bid, col:add.dataset.add}; draft=''; render(true); } return true; }
+    const more = e.target.closest('[data-act="more"]'); if(more){ const k=more.dataset.board; showAllDone[k]=!showAllDone[k]; render(true); return true; }
+    const card = e.target.closest('.card'); if(card){ openSheet(card.dataset.id, card); return true; }
+    return false;
   }
   function input(e){ if(e.target.id==='kbAdd') draft = e.target.value; }
-  function keydown(e, it){
+  function keydown(e){
     if(e.target.id==='kbAdd'){
       if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); const v=e.target.value; draft=''; e.target.value='';
-        if(v.trim()){ addSubmitting=true; addTask(it, adding.col, v); render(true); addSubmitting=false; }
+        if(v.trim()){ addSubmitting=true; addTask(adding.board, adding.col, v); render(true); addSubmitting=false; }
         else { const col=adding.col; adding=null; render(true); restoreFocus(`[data-add="${col}"]`); } }
-      if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); const v=e.target.value; const col=adding.col; draft=''; e.target.value=''; if(v.trim()) addTask(it, col, v); adding=null; render(true); restoreFocus(`[data-add="${col}"]`); }
+      if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); const v=e.target.value; const col=adding.col; draft=''; e.target.value=''; if(v.trim()) addTask(adding.board, col, v); adding=null; render(true); restoreFocus(`[data-add="${col}"]`); }
       return;
     }
     const card = e.target.classList.contains('card') ? e.target : null;
@@ -122,7 +170,7 @@ TYPE_VIEWS.kanban = (() => {
   $('#content').addEventListener('focusout', e => {
     if(e.target.id!=='kbAdd') return; const el=e.target;
     setTimeout(()=>{ if(addSubmitting || !el.isConnected || !adding || document.activeElement===el) return;
-      const it=itemById(adding.board); const v=el.value; draft=''; el.value=''; if(it && v.trim()) addTask(it, adding.col, v); adding=null; render(true); }, 120);
+      const v=el.value; draft=''; el.value=''; if(itemById(adding.board) && v.trim()) addTask(adding.board, adding.col, v); adding=null; render(true); }, 120);
   });
   function newShortcut(it){ adding={board:it.id, col:'todo'}; draft=''; render(true); }
 
@@ -262,5 +310,5 @@ TYPE_VIEWS.kanban = (() => {
     draw();
   }
 
-  return {wide:true, render:view, click, input, keydown, newShortcut, openSheet, closeSheet, refreshSheet, openFlagsModal, focusStart(){}};
+  return {wide:true, render:view, lanes, click, input, keydown, newShortcut, openSheet, closeSheet, refreshSheet, openFlagsModal, focusStart(){}};
 })();

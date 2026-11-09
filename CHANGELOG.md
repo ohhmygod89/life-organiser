@@ -2,6 +2,16 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.9] - 2026-11-09
+### Added
+- All tasks opens as a **stacked board**: one band per Kanban, clearly labelled, sharing one sideways scroll so the columns line up. Drag a card to another column or another Kanban. List view is still one tap away.
+- Move button on every card: pick a column without dragging.
+- Phone: swipe sideways anywhere on the screen to move between columns; swipe right from the left edge (or past the first column) to open the menu, swipe left to close it.
+### Fixed
+- Ticking a checklist item no longer jumps the board back to the first column.
+### Changed
+- Phone columns are narrower so the next column peeks in, and the board runs to the screen edge.
+
 ## [1.0.0-beta.8] - 2026-11-09
 ### Added
 - GitHub repository, build script and GitHub Pages deployment on every push to `main`.

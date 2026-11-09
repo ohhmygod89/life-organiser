@@ -196,7 +196,7 @@ h1.big{margin:0;font-weight:600;font-size:clamp(2rem,3.6vw,3rem);line-height:1.0
 
 /* ---------- Kanban ---------- */
 .board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(212px,1fr);gap:14px;overflow-x:auto;align-items:start;padding-bottom:12px;scroll-snap-type:x proximity}
-@media (max-width:760px){.board{grid-auto-columns:84vw;scroll-snap-type:x mandatory}}
+@media (max-width:760px){.board{grid-auto-columns:78vw;scroll-snap-type:x mandatory;gap:10px;margin-inline:-22px;padding-inline:22px;scroll-padding-inline:22px}}
 .col{scroll-snap-align:start;background:var(--fill-2);border-radius:18px;display:flex;flex-direction:column;min-width:0}
 :root:not([data-theme="light"]) .col{background:color-mix(in srgb,var(--panel) 70%,var(--bg))}
 .col-h{display:flex;align-items:baseline;gap:8px;padding:14px 16px 8px}
@@ -221,6 +221,11 @@ h1.big{margin:0;font-weight:600;font-size:clamp(2rem,3.6vw,3rem);line-height:1.0
 .tick{position:absolute;top:10px;right:10px;width:24px;height:24px;padding:0;border-radius:50%;border:1.5px solid var(--ctl);background:transparent;display:grid;place-items:center;color:transparent;opacity:0;transition:opacity .12s,background .12s,border-color .12s}
 .tick svg{width:12px;height:12px}
 .card:hover .tick,.card:focus-within .tick,.card:focus .tick{opacity:1}
+.mv{position:absolute;bottom:8px;right:10px;width:24px;height:24px;padding:0;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;color:var(--muted);opacity:0;transition:opacity .12s,background .12s}
+.mv svg{width:14px;height:14px}
+.mv:hover,.mv[aria-expanded="true"]{background:var(--fill-2);color:var(--fg)}
+.card:hover .mv,.card:focus-within .mv,.card:focus .mv,.mv[aria-expanded="true"]{opacity:1}
+.card.is-done .mv{display:none}
 .tick:hover{border-color:var(--sw-on);color:var(--sw-on)}
 .card.is-done .title{color:var(--muted)}
 .card.is-done .tick{opacity:1;background:var(--sw-on);border-color:var(--sw-on);color:#fff}
@@ -481,7 +486,11 @@ table.tbl{border-collapse:separate;border-spacing:0;width:100%;min-width:max-con
 @media (min-width:861px){.side-scrim{display:none}}
 @media (pointer:coarse){
   .tick{opacity:1;width:30px;height:30px;top:8px;right:8px}
-  .card{padding-right:46px}
+  .card{padding-right:46px;min-height:78px}
+  .card.compact{min-height:66px}
+  .card.compact .tick{width:28px;height:28px;top:6px;right:6px}
+  .card.compact .mv{width:28px;height:28px;bottom:4px;right:6px}
+  .mv{opacity:1;width:30px;height:30px;bottom:6px;right:8px}
   .cbox{width:22px;height:22px}
   .nav-item{min-height:40px}
   .nav-h .mini,.tbl .row-x,.ck .grip,.ck .x{opacity:1}
@@ -570,3 +579,55 @@ button.tl-lab:hover{background:color-mix(in srgb,var(--fg) 4%,var(--panel))}
 .demo-chip{font-size:12px;font-weight:600;color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent);padding:3px 10px;border-radius:980px;white-space:nowrap}
 @media (max-width:860px){.demo-chip{display:none}}
 .tl-legend .tl-dot.pre{border:2px solid var(--ctl)}
+
+/* ----- All tasks: stacked board (one band per Kanban) ----- */
+.tb-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.tb-filters{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.tasks-board{gap:16px}
+.chip-btn.q b{font-weight:700;color:var(--muted);margin-left:2px}
+.chip-btn.q[aria-pressed="true"] b{color:inherit}
+.chip-btn:disabled{opacity:.45}
+.lanes{overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:10px;overscroll-behavior-x:contain}
+.lanes-in{--cw:minmax(200px,1fr);display:flex;flex-direction:column;gap:22px;min-width:calc(var(--n)*200px + (var(--n) - 1)*10px)}
+.lane{display:flex;flex-direction:column;gap:8px}
+.lane-h{position:sticky;left:0;width:min(100%,calc(100vw - 32px));max-width:100%}
+.lane-hi{display:flex;align-items:center;gap:10px;padding:8px 4px 6px 12px;border-left:4px solid var(--board);min-width:0}
+.lane-hi h2{margin:0;font-size:19px;font-weight:700;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lane-hi .count{font-size:13px;color:var(--muted);white-space:nowrap}
+.lane-dot{display:none}
+.lane-open{margin-left:auto;font-size:13px}
+.lane-cols{display:grid;grid-template-columns:repeat(var(--n),var(--cw));gap:10px;align-items:start}
+.lcol{border-radius:14px}
+.lcol-h{display:flex;align-items:baseline;gap:6px;padding:9px 12px 4px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.lcol-h{min-height:38px;align-items:center;padding:4px 6px 0 12px}
+.lcol-h .count{margin-left:auto;font-weight:600}
+.lcol-add{border:0;background:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--accent);padding:0;flex:none}
+.lcol-add svg{width:16px;height:16px}
+.lcol-add:hover{background:var(--fill-2)}
+.lcol .cards{min-height:14px}
+.lcol .drop-hint{display:none}
+body.is-dragging .lcol .drop-hint,.lcol .cards:not(:has(.card)) .drop-hint{display:block}
+.lcol .cards:not(:has(.card)) .drop-hint{border-color:transparent;color:color-mix(in srgb,var(--muted) 70%,transparent);padding:4px 8px 6px;text-align:left}
+body.is-dragging .lcol .drop-hint{border-color:var(--fill);padding:8px;text-align:center}
+.lcol.done .lcol-h{color:var(--up)}
+.lcol .cards{padding:2px 7px 7px;gap:6px}
+.lcol .drop-hint{padding:8px;font-size:12px}
+.lcol .add-row{padding:0 7px 7px}
+.lcol .add-btn{font-size:13px;padding:5px 8px;min-height:30px}
+.card.compact{padding:9px 36px 9px 12px;border-radius:12px;font-size:14px}
+.card.compact .meta{margin-top:5px;font-size:12px}
+.card.compact .chip{font-size:11px;margin-bottom:5px}
+.card.compact .tick{top:8px;right:8px;width:22px;height:22px}
+@media (max-width:760px){
+  .lanes{scroll-snap-type:x mandatory;margin-inline:-22px;padding-inline:22px;scroll-padding-inline:22px}
+  .lanes-in{--cw:72vw;min-width:0;width:max-content}
+  .lane-h{width:calc(100vw - 44px);max-width:none}
+  .tb-filters{flex-wrap:nowrap;overflow-x:auto;margin-inline:-22px;padding-inline:22px;padding-bottom:4px;scrollbar-width:none}
+  .tb-filters::-webkit-scrollbar{display:none}
+  .tb-filters .toolbar.chips{flex-wrap:nowrap}
+  .tb-filters .chip-btn,.tb-filters .switch{white-space:nowrap;flex:none}
+  .tasks-board .big{font-size:28px}
+}
+.lcol{scroll-snap-align:start}
+body.is-dragging .lanes,body.is-dragging .board{scroll-snap-type:none}
+@media (pointer:coarse){.card.compact{min-height:66px;padding-right:42px}.card.compact .tick{width:28px;height:28px;top:6px;right:6px}.card.compact .mv{width:28px;height:28px;bottom:4px;right:6px}}

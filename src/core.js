@@ -37,6 +37,7 @@ const ICON = {
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="m5 12 4.5 4.5L19 7"/></svg>',
   cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 7 2 2 3-3M4 15l2 2 3-3M13 8h7M13 16h7"/></svg>',
+  move:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14m-4-4 4 4-4 4M20 16H6m4-4-4 4 4 4"/></svg>',
   notes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h14v16H5zM9 9h6M9 13h6"/></svg>',
   play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
   bang:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v9M12 19h.01"/></svg>',
@@ -87,7 +88,7 @@ const S = {
   loaded:{folders:false, items:false, tasks:false, rows:false},
   route:{v:'home', id:null}, q:'', dragging:false,
   collapsed:new Set(JSON.parse(ls.get('lo.collapsed','[]'))),
-  tasksView:{sort:ls.get('lo.sort','priority'), quick:'open', boards:new Set(), bb:false},
+  tasksView:{sort:ls.get('lo.sort','priority'), mode:ls.get('lo.tasksMode','board'), quick:'open', boards:new Set(), bb:false},
   archiveYear:null,
 };
 const itemById = id => S.items.find(i=>i.id===id);
@@ -150,7 +151,7 @@ function toast(msg, undo, bad){
 }
 
 /* ---------- focus helpers: survive re-renders ---------- */
-const KEY_ATTRS = ['data-pay','data-active','data-upd','data-period','data-b','data-k','data-yr','data-edit','data-act','data-tick','data-cbox','data-add','data-open','data-go','data-quick','data-sort','data-fb','data-year','data-p','data-due','data-id','data-fid','data-row','data-field','data-ck','data-seg'];
+const KEY_ATTRS = ['data-pay','data-active','data-upd','data-period','data-b','data-k','data-yr','data-edit','data-act','data-tick','data-mv','data-cbox','data-add','data-open','data-go','data-quick','data-sort','data-mode','data-fb','data-year','data-p','data-due','data-id','data-fid','data-row','data-field','data-ck','data-seg'];
 function focusKey(el){
   if(!el || el===document.body || el===document.documentElement) return null;
   const own = e => { if(e.id) return '#'+CSS.escape(e.id); const parts=KEY_ATTRS.filter(a=>e.hasAttribute(a)).map(a=>`[${a}="${CSS.escape(e.getAttribute(a))}"]`); return parts.length ? e.tagName.toLowerCase()+parts.join('') : null; };
@@ -268,7 +269,10 @@ function render(force){
   if(S.rendering){ contentPending=true; return; }
   contentPending=false;
   const fk = (!modalOpen() && !window.__sheetOpen && !menuEl) ? focusKey(document.activeElement) : null;
+  const c = $('#content'); const hs = $$('[data-hs]', c).map(el=>[el.dataset.hs, el.scrollLeft]); const wy = window.scrollY, cy = c.scrollTop;
   S.rendering = true; try{ renderContent(); } finally { S.rendering = false; }
+  for(const [k,x] of hs){ const el = c.querySelector(`[data-hs="${CSS.escape(k)}"]`); if(el && x) el.scrollLeft = x; }
+  if(c.scrollTop!==cy) c.scrollTop = cy; if(window.scrollY!==wy) window.scrollTo(0, wy);
   if(fk && $('#content').contains(document.activeElement)===false) restoreFocus(fk, $('#content'));
 }
 $('#content').addEventListener('focusout', () => setTimeout(()=>{ if(contentPending && !isEditing() && !S.dragging) render(true); }, 160));
@@ -428,8 +432,22 @@ function taskRow(t){
 function renderTasks(c){
   const V = S.tasksView;
   const boards = kanbans().filter(b=>!b.hidden);
+  const shown = boards.filter(b=>V.boards.size===0 || V.boards.has(b.id));
   const pool = S.tasks.filter(t=>{ const b=itemById(t.boardId); return b && !b.hidden && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)); });
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
+  const modeSeg = `<div class="seg" role="group" aria-label="View">${[['board','Board'],['list','List']].map(([k,l])=>`<button data-mode="${k}" aria-pressed="${(V.mode||'board')===k}">${l}</button>`).join('')}</div>`;
+  const boardChips = `<div class="toolbar chips" role="group" aria-label="Boards"><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${boards.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}" style="--c:${itemColor(b)}"><span class="dot"></span>${esc(b.name)}</button>`).join('')}</div>`;
+  const bbSwitch = `<button class="switch" role="switch" aria-checked="${V.bb}" data-act="bb"><span class="sw-track" aria-hidden="true"></span>Back Burner</button>`;
+  if((V.mode||'board')==='board'){
+    const quickChips = `<div class="toolbar chips" role="group" aria-label="Quick filters">${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" style="--c:${x.c}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>`;
+    c.innerHTML = `<div class="wrap wide tasks-board">
+      <div class="tb-head"><div><p class="eyebrow">Every Kanban, stacked</p><h1 class="big">All tasks</h1></div>${modeSeg}</div>
+      <div class="tb-filters">${quickChips}${boardChips}${bbSwitch}</div>
+      ${shown.length ? '<div id="lanesRoot"></div>' : `<div class="panel empty-state">No Kanbans to show.</div>`}
+    </div>`;
+    if(shown.length) TYPE_VIEWS.kanban.lanes(shown, $('#lanesRoot'), {bb:V.bb, test: V.quick==='open' ? null : q.test});
+    return;
+  }
   const list = pool.filter(q.test);
   const tie = (a,b) => byDue(a,b) || (a.updated||'').localeCompare(b.updated||'');
   let groups;
@@ -439,11 +457,10 @@ function renderTasks(c){
   else { list.sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')); groups=[{title:'Recently updated', items:list}]; }
   groups = groups.filter(g=>g.items.length);
   c.innerHTML = `<div class="wrap">
-    <div><p class="eyebrow">Every Kanban in one list</p><h1 class="big">All tasks</h1></div>
+    <div class="tb-head"><div><p class="eyebrow">Every Kanban in one list</p><h1 class="big">All tasks</h1></div>${modeSeg}</div>
     <div class="stats" role="group" aria-label="Quick filters">${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="stat" data-quick="${x.id}" aria-pressed="${on}" style="--sc:${x.c}" ${!n&&!on&&x.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[x.ic]}</i><b>${n}</b></span><span>${x.label}</span></button>`}).join('')}</div>
     <div class="toolbar"><span class="lbl" id="sLbl">Sort</span><div class="seg" role="group" aria-labelledby="sLbl">${[['priority','Priority'],['due','Due date'],['board','Board'],['updated','Recently updated']].map(([k,l])=>`<button data-sort="${k}" aria-pressed="${V.sort===k}">${l}</button>`).join('')}</div>
-      <div class="toolbar" role="group" aria-label="Boards"><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${boards.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}" style="--c:${itemColor(b)}"><span class="dot"></span>${esc(b.name)}</button>`).join('')}</div>
-      <button class="switch" role="switch" aria-checked="${V.bb}" data-act="bb"><span class="sw-track" aria-hidden="true"></span>Include Back Burner</button></div>
+      ${boardChips}${bbSwitch}</div>
     ${groups.length ? groups.map(g=>`<section class="panel"><div class="panel-h"><h2>${g.bang?bangHTML(g.bang):''}${g.c?`<span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${g.c};margin-right:8px"></span>`:''}${esc(g.title)}</h2><span class="caption">${g.items.length}</span></div><div class="list-rows">${g.items.map(taskRow).join('')}</div></section>`).join('')
       : `<div class="panel empty-state">${pool.length?'Nothing matches these filters.':'No open tasks. Nice work.'}</div>`}
   </div>`;
@@ -500,11 +517,12 @@ content.addEventListener('click', e => {
     const so = e.target.closest('[data-sort]'); if(so){ S.tasksView.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return; }
     const fb = e.target.closest('[data-fb]'); if(fb){ const id=fb.dataset.fb, B=S.tasksView.boards; if(!id) B.clear(); else B.has(id)?B.delete(id):B.add(id); render(true); return; }
     if(e.target.closest('[data-act="bb"]')){ S.tasksView.bb=!S.tasksView.bb; render(true); return; }
+    const md = e.target.closest('[data-mode]'); if(md){ S.tasksView.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); render(true); return; }
   }
   const yr = e.target.closest('[data-year]'); if(yr && S.route.v==='archive'){ S.archiveYear=+yr.dataset.year; render(true); return; }
-  V?.click?.(e, it);
+  if(V) V.click?.(e, it); else if(S.route.v==='tasks' && S.tasksView.mode!=='list') TYPE_VIEWS.kanban.click(e, null);
 });
-content.addEventListener('input', e => { const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
+content.addEventListener('input', e => { const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); else if(S.route.v==='tasks') TYPE_VIEWS.kanban.input(e); });
 content.addEventListener('change', e => {
   const it = currentItem(); if(!it) return;
   if(e.target.id==='itemTitle'){ const v=e.target.value.trim()||'Untitled'; if(v!==it.name){ docPatch('items', it.id, {name:v}); renderSide(); renderBar(); } return; }
@@ -513,7 +531,7 @@ content.addEventListener('change', e => {
 content.addEventListener('keydown', e => {
   const it = currentItem();
   if(e.target.id==='itemTitle' && e.key==='Enter'){ e.preventDefault(); e.target.blur(); return; }
-  if(it) TYPE_VIEWS[it.type]?.keydown?.(e, it);
+  if(it) TYPE_VIEWS[it.type]?.keydown?.(e, it); else if(S.route.v==='tasks' && S.tasksView.mode!=='list') TYPE_VIEWS.kanban.keydown(e);
 });
 
 /* ---------- sidebar events ---------- */
@@ -674,6 +692,61 @@ function openNewItem({folderId, type='note', opener}={}){
   };
   draw();
 }
+
+/* ----- touch gestures (phone) -----
+   Swipe sideways anywhere to move the board; swipe right from the left edge, or past the first column, to open the menu. */
+(() => {
+  const narrow = () => matchMedia('(max-width:860px)').matches;
+  const side = $('#side');
+  let g = null;
+  const hScroller = el => { for(let n=el; n && n!==document.body; n=n.parentElement){ if(n.scrollWidth>n.clientWidth+2 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return n; } return null; };
+  const boardScroller = () => $('#content [data-hs]');
+  function snapPoints(sc){ const r=sc.getBoundingClientRect(); const first=sc.querySelector('.col'); if(!first) return [0]; const row=first.parentElement; return $$(':scope > .col', row).map(el=>Math.max(0, Math.min(el.getBoundingClientRect().left - r.left + sc.scrollLeft - (parseFloat(getComputedStyle(sc).paddingLeft)||0), sc.scrollWidth-sc.clientWidth))); }
+  function drawerAt(x){ const w=side.offsetWidth; side.style.transition='none'; side.style.transform=`translateX(${Math.min(0, x-w)}px)`; }
+  function drawerEnd(open){ side.style.transition=''; side.style.transform=''; document.body.classList.toggle('side-open', open); }
+  document.addEventListener('touchstart', e => {
+    g = null;
+    if(e.touches.length!==1 || S.dragging || window.__sheetOpen || modalOpen() || menuEl) return;
+    const t = e.touches[0], el = e.target;
+    if(el.closest('input,textarea,select,[contenteditable="true"],.menu')) return;
+    const isOpen = document.body.classList.contains('side-open');
+    g = {x0:t.clientX, y0:t.clientY, t0:Date.now(), axis:null, el, isOpen,
+         edge: t.clientX < 28, own: hScroller(el), board: boardScroller(), mode:null};
+    if(g.own === side) g.own = null;
+  }, {passive:true});
+  document.addEventListener('touchmove', e => {
+    if(!g || S.dragging) { if(g && S.dragging) g=null; return; }
+    const t = e.touches[0], dx = t.clientX-g.x0, dy = t.clientY-g.y0;
+    if(!g.axis){ if(Math.abs(dx)<10 && Math.abs(dy)<10) return; g.axis = Math.abs(dx) > Math.abs(dy)*1.2 ? 'x' : 'y'; if(g.axis==='y'){ g=null; return; }
+      const nw = narrow();
+      if(g.isOpen && nw) g.mode='close';
+      else if(nw && dx>0 && (g.edge || (!g.own && (!g.board || g.board.scrollLeft<=8)) || (g.own && g.own.scrollLeft<=8))) g.mode='open';
+      else if(g.own) g.mode=null;                         // the browser scrolls it natively
+      else if(g.board){ g.mode='board'; g.sl=g.board.scrollLeft; g.board.style.scrollSnapType='none'; }
+      if(!g.mode){ g=null; return; }
+    }
+    if(g.mode==='open') drawerAt(dx);
+    else if(g.mode==='close') drawerAt(side.offsetWidth + Math.min(0, dx));
+    else if(g.mode==='board') g.board.scrollLeft = g.sl - dx;
+    g.dx = dx; g.lastX = t.clientX; g.lastT = Date.now();
+  }, {passive:true});
+  function end(){
+    if(!g || !g.mode){ g=null; return; }
+    const dx = g.dx||0, dt = Math.max(1, Date.now()-g.t0), fast = Math.abs(dx)/dt > .45;
+    if(g.mode==='open') drawerEnd(dx > side.offsetWidth*.35 || (fast && dx>30));
+    else if(g.mode==='close') drawerEnd(!(dx < -side.offsetWidth*.3 || (fast && dx<-30)));
+    else if(g.mode==='board'){
+      const sc = g.board, pts = snapPoints(sc), cur = sc.scrollLeft;
+      let i = pts.reduce((bi,p,j)=>Math.abs(p-cur)<Math.abs(pts[bi]-cur)?j:bi, 0);
+      if(fast || Math.abs(dx)>40){ const startI = pts.reduce((bi,p,j)=>Math.abs(p-g.sl)<Math.abs(pts[bi]-g.sl)?j:bi, 0); i = Math.max(0, Math.min(pts.length-1, startI + (dx<0?1:-1))); }
+      sc.scrollTo({left:pts[i]??cur, behavior:RM?'auto':'smooth'});
+      setTimeout(()=>{ sc.style.scrollSnapType=''; }, 420);
+    }
+    g = null;
+  }
+  document.addEventListener('touchend', end, {passive:true});
+  document.addEventListener('touchcancel', end, {passive:true});
+})();
 
 /* ----- shortcuts ----- */
 function openKeys(opener){
