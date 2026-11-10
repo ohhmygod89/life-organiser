@@ -2,6 +2,23 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.17] - 2026-11-09
+### Added
+- Pin tasks from the task window: pinned tasks sit at the top of their column with a pin icon and a faint grey tint.
+- Subtasks in the task window: tap the flag (or the faint flag button) to choose a flag; × deletes the subtask, with Undo.
+- Needs decision asks for a reason, like Blocked and On hold.
+### Changed
+- Cards: flag under the title, subtasks indented with open ones first, no subtask counter, due date bottom right in full (dd mmm yy) with "In 6d"/"overdue" added when due within a week.
+- Due dates elsewhere show the full date plus how far away.
+- Kanbans (categories) are neutral grey everywhere, including the lane tab and ticked subtasks.
+- Lane headers break the count down: open · to do · in progress (on a second line on phones).
+- Flag short name "Decision" is now "Needs decision"; completed subtasks can't carry a flag.
+- Dragging: the card lifts with a shadow and its old spot becomes a quiet empty slot.
+- The ⇄ move button is touch-only, sits beside the due date (or under the tick when there's no footer).
+- "Every Kanban, stacked" heading removed.
+### Fixed
+- Reordering pinned cards; pin message wording; due date shown once in the task window; category names cut off on phones.
+
 ## [1.0.0-beta.16] - 2026-11-09
 ### Fixed
 - Task window: pausing while typing redrew the window, jumped the cursor to the start and (on iPhone) dropped and reopened the keyboard so later taps landed in the wrong place. The window no longer redraws while you're typing in it.

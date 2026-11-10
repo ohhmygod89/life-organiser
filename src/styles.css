@@ -781,8 +781,8 @@ html{overscroll-behavior:none}
 .card .meta .ml:empty{display:none}
 /* pinned: a calm tint and a pin, sorted to the top of its column */
 .card.pinned{background:color-mix(in srgb,var(--fg) 5%,var(--panel))}
-.pin-i{display:inline-flex;vertical-align:-2px;margin-right:5px;color:var(--muted)}
-.pin-i svg{width:13px;height:13px}
+.pin-i{display:inline-flex;vertical-align:-2px;margin-right:6px;color:var(--fg);opacity:.75}
+.pin-i svg{width:15px;height:15px}
 .pin-btn{width:28px;height:28px;flex:none;color:var(--muted);align-self:center}
 .pin-btn svg{width:15px;height:15px}
 .pin-btn[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
