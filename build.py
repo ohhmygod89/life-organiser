@@ -12,7 +12,18 @@ src = R/'src'
 css = (src/'styles.css').read_text()
 shell = (src/'shell.html').read_text().replace('__VERSION__', VERSION)
 parts = ['core.js', 'demo.js', 'backup.js', 'types/kanban.js', 'types/note.js', 'types/collection.js', 'types/tracker.js', 'types/checklist.js', 'types/bills.js']
-js = '\n'.join((src/f).read_text() for f in parts).replace('__VERSION__', VERSION)
+import json, re
+def changelog(n=8):
+    out, cur = [], None
+    for line in (R/'CHANGELOG.md').read_text().splitlines():
+        m = re.match(r'## \[(.+?)\] - (\S+)', line)
+        if m:
+            cur = {'v': m.group(1), 'd': m.group(2), 'items': []}; out.append(cur)
+            if len(out) > n: out.pop(); break
+        elif cur is not None and line.startswith('- '):
+            cur['items'].append(re.sub(r'\*\*|`', '', line[2:]))
+    return out
+js = '\n'.join((src/f).read_text() for f in parts).replace('__VERSION__', VERSION).replace("'__CHANGELOG__'", json.dumps(changelog()))
 sortable = '<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>'
 head = f'''<title>Life Organiser</title>
 <meta name="claude:viewport-fit-sides" content="cover">

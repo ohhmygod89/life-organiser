@@ -7,7 +7,7 @@ TYPE_VIEWS.kanban = (() => {
     {id:'todo', name:'To Do', hint:''},
     {id:'doing', name:'In Progress', hint:''},
     {id:'done', name:'Done', hint:'Newest first'},
-    {id:'backburner', name:'Back Burner', hint:'Parked'},
+    {id:'backburner', name:'Backburner', hint:'Parked'},
   ];
   const colName = id => id==='upcoming' ? 'To Do' : (COLS.find(c=>c.id===id)?.name || '');
   const DONE_LIMIT = 5;
@@ -33,27 +33,26 @@ TYPE_VIEWS.kanban = (() => {
   /* subtask chip on cards: just who it's waiting on (or the short flag name), full text on hover */
   const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = d || flagShort(f);   // the colour dot says which flag; the space goes to who or why
     return `<span class="chip one sub" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${d?' · '+esc(d):''}">${esc(txt)}</span>`; };
-  /* Card, top to bottom: title (with priority bars, and a pin if pinned) · flag chip · subtasks (indented) · footer
-     with notes/done info on the left and the due date on the right. Tick top right; ⇄ move button on touch screens only. */
+  /* Card, top to bottom: title (priority bars) · flag chip · open subtasks (indented) · footer with the due date and
+     notes on the left. Top right: the pin button (always shown when pinned, on hover otherwise). No done tick: tasks
+     move to Done by drag or, on touch screens, the ⇄ button. Completed subtasks are left off the card. */
   function cardHTML(t, compact){
     const isDone = t.col==='done', cl = t.checklist||[];
     const left = [], right = [];
     if(isDone && t.doneAt) left.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
-    if(!isDone && ((t.notes||'').trim() || (t.log||[]).length)) left.push(`<span title="Has notes" aria-label="Has notes">${ICON.notes}</span>`);
     if(t.due && !isDone){ const d=dueLabel(t.due); const near = dayDiff(t.due) <= 7;   // overdue or due within a week: add how far away
-      right.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}"><b>${esc(d.full)}</b>${near?`<i>${esc(d.rel)}</i>`:''}</span>`); }
-    const back = colName(t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo');
-    const showCl = cl.length && !isDone; const lim = compact ? 4 : 8;
+      left.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}">${esc(d.full)}${near?` · ${esc(d.rel)}`:''}</span>`); }
+    if(!isDone && ((t.notes||'').trim() || (t.log||[]).length)) left.push(`<span class="has-notes" title="Has notes" aria-label="Has notes">${ICON.notes}</span>`);
+    const mvBtn = TOUCH && !isDone ? (`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) : '';
+    const open = cl.filter(c=>!c.done); const lim = compact ? 4 : 8;
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
     const pinned = !!t.pinned && !isDone;
-    const mvTop = TOUCH && !isDone && !left.length && !right.length;   // nothing else in the footer: ⇄ sits under the tick instead of adding a row
-    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
-      <button class="tick" data-tick="" title="${isDone?'Not done, back to '+back:'Mark done'}" aria-label="${isDone?'Mark not done':'Mark done'}: ${esc(t.title)}">${ICON.check}</button>
-      ${mvTop ? `<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>` : ''}
-      <div class="title">${pinned?`<span class="pin-i" aria-hidden="true">${ICON.pin}</span>`:''}${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
+    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
+      ${isDone ? '' : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${ICON.pin}</button>`}
+      ${mvBtn}
+      <div class="title">${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
       ${!isDone ? chipHTML(t,'one') : ''}
-      ${showCl ? `<ul class="cl">${[...cl.filter(c=>!c.done), ...cl.filter(c=>c.done)].slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
-      ${TOUCH && !isDone && (left.length||right.length) ? right.push(`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) && '' : ''}
+      ${!isDone && open.length ? `<ul class="cl">${open.slice(0,lim).map(c=>`<li><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="false" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${open.length>lim?`<li class="more-c">+${open.length-lim} more</li>`:''}</ul>` : ''}
       ${left.length||right.length?`<div class="meta"><span class="ml">${left.join('')}</span><span class="mr">${right.join('')}</span></div>`:''}
     </article>`;
   }
@@ -65,23 +64,38 @@ TYPE_VIEWS.kanban = (() => {
   function bindSortables(root){
     sortables.forEach(s=>s.destroy()); sortables = [];
     $$('.cards', root).forEach(list => sortables.push(Sortable.create(list, {
-      group:'cards', animation:RM?0:180, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.tick,.cbox,.mv', preventOnFilter:false,
+      group:'cards', animation:RM?0:180, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.pin,.cbox,.mv', preventOnFilter:false,
       delay:200, delayOnTouchOnly:true, touchStartThreshold:6, forceFallback:true, fallbackOnBody:true, fallbackClass:'dragging', fallbackTolerance:3,
-      emptyInsertThreshold:60, swapThreshold:.6, invertSwap:false, direction:'vertical', ghostClass:'ghost-card',
+      emptyInsertThreshold:60, swapThreshold:1, invertSwap:false,   /* cards make room as soon as you reach them */ direction:'vertical', ghostClass:'ghost-card',
       scroll:true, bubbleScroll:true, scrollSensitivity:44, scrollSpeed:9,
       /* touch: only scroll up/down near the top or bottom edge; never slide the board sideways under a picked-up card */
       scrollFn: TOUCH ? (dx, dy) => { if(dy) window.scrollBy(0, dy); } : undefined,
-      onStart(){ S.dragging=true; document.body.classList.add('is-dragging'); }, onEnd(evt){ S.dragging=false; document.body.classList.remove('is-dragging'); onDrop(evt); render(true); }
+      /* pinned cards stay among pinned cards, unpinned among unpinned: the drop slot never offers a place that wouldn't stick */
+      onMove(evt){
+        const me = S.tasks.find(x=>x.id===evt.dragged.dataset.id), rel = evt.related?.classList?.contains('card') ? S.tasks.find(x=>x.id===evt.related.dataset.id) : null;
+        if(!me || !rel || rel.col==='done' || evt.to.dataset.col==='done') return true;
+        const mp = !!me.pinned, rp = !!rel.pinned; if(mp===rp) return true;
+        const sibs = $$('.card', evt.to).filter(c=>c!==evt.dragged).map(c=>S.tasks.find(x=>x.id===c.dataset.id)).filter(Boolean);
+        if(mp){ const firstUnpinned = sibs.find(x=>!x.pinned); return rel===firstUnpinned ? -1 : false; }   // pinned: only just above the first unpinned card
+        const lastPinned = [...sibs].reverse().find(x=>x.pinned); return rel===lastPinned ? 1 : false;     // unpinned: only just below the last pinned card
+      },
+      onStart(){ S.dragging=true; document.body.classList.add('is-dragging'); },
+      onEnd(evt){ S.dragging=false; document.body.classList.remove('is-dragging'); onDrop(evt); render(true);
+        /* Sortable may swallow the next click after a drag; release it so the first click on a card opens it */
+        setTimeout(() => document.dispatchEvent(new MouseEvent('click', {bubbles:true})), 0); }
     })));
     if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); a.scrollIntoView({block:'nearest', inline:'nearest'}); } }
   }
 
-  function view(it, root){ lanes([it], root, {bb:true, single:true}); }
+  function view(it, root){
+    lanes([it], root, {bb:true, single:true, done:S.showDone});
+    if(matchMedia('(max-width:760px)').matches) root.insertAdjacentHTML('afterbegin', `<div class="kb-tools"><button class="switch" role="switch" aria-checked="${S.showDone}" data-act="done"><span class="sw-track" aria-hidden="true"></span>Show Done</button></div>`);
+  }
 
   /* Stacked view: one band per Kanban, all sharing one sideways scroller so the columns line up. */
   const LANE_DONE = 3;
-  function lanes(boards, root, {bb=false, test=null, single=false}={}){
-    const cols = COLS.filter(c => (bb || c.id!=='backburner') && (!test || c.id!=='done'));
+  function lanes(boards, root, {bb=false, test=null, single=false, done=true}={}){
+    const cols = COLS.filter(c => (bb || c.id!=='backburner') && (done && !test || c.id!=='done'));
     if(adding && !boards.some(b=>b.id===adding.board)) adding = null;
     const keep = t => !test || test(t);
     root.innerHTML = `<div class="lanes" data-hs="lanes" style="--n:${cols.length}"><div class="lanes-in">` + boards.map(b => {
@@ -147,6 +161,9 @@ TYPE_VIEWS.kanban = (() => {
 
   function click(e){
     const cardOf = el => S.tasks.find(x=>x.id===el.closest('.card').dataset.id);
+    if(e.target.closest('[data-act="done"]')){ toggleShowDone(); return true; }
+    const pinB = e.target.closest('[data-pin]');
+    if(pinB){ e.stopPropagation(); const t=cardOf(pinB); if(t){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-pin]`); toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now})); } return true; }
     const tick = e.target.closest('[data-tick]');
     if(tick){ e.stopPropagation(); const t=cardOf(tick); if(t){ toggleDone(t); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-tick]`); } return true; }
     const mv = e.target.closest('[data-mv]');

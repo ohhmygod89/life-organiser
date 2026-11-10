@@ -614,7 +614,7 @@ button.tl-lab:hover{background:color-mix(in srgb,var(--fg) 4%,var(--panel))}
 .brand .bn{display:flex;flex-direction:column;line-height:1.15;min-width:0}
 .brand .ver{font-size:11.5px;font-weight:500;color:var(--muted);letter-spacing:0}
 .demo-chip{font-size:12px;font-weight:600;color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent);padding:3px 10px;border-radius:980px;white-space:nowrap}
-@media (max-width:860px){.demo-chip{display:none}}
+
 .tl-legend .tl-dot.pre{border:2px solid var(--ctl)}
 
 /* ----- All tasks: stacked board (one band per Kanban) ----- */
@@ -801,9 +801,6 @@ html{overscroll-behavior:none}
 .ghost-card > *{visibility:hidden}
 .card.dragging,.card.sortable-drag{box-shadow:0 16px 36px rgba(0,0,0,.2),0 2px 6px rgba(0,0,0,.08)!important;opacity:1!important;cursor:grabbing}
 .sortable-chosen:not(.ghost-card){transition:none}
-.card .meta .due{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25;gap:0;text-align:right}
-.card .meta .due b{font-weight:500}
-.card .meta .due i{font-style:normal;font-size:.92em;opacity:.85}
 .card .meta .mr .mv{position:static;opacity:1;flex:none;width:28px;height:28px;margin:-4px -6px -4px 0}
 .card.compact{min-height:0}
 /* ⇄ under the tick when a card has no footer */
@@ -815,3 +812,52 @@ html{overscroll-behavior:none}
   .lane-hi{flex-wrap:wrap;row-gap:0}
   .lane-hi .count{order:3;flex-basis:100%;font-size:12.5px}
 }
+
+/* ----- beta.18 ----- */
+/* pin button sits where the tick was: always visible when pinned, on hover (desktop) or faint (touch) otherwise */
+.card .pin{position:absolute;top:8px;right:8px;width:26px;height:26px;padding:0;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;color:var(--muted);opacity:0;transition:opacity .12s,background .12s}
+.card .pin svg{width:15px;height:15px}
+.card:hover .pin,.card:focus-within .pin,.card .pin:focus-visible{opacity:.7}
+.card .pin:hover{opacity:1;background:var(--fill-2)}
+.card .pin[aria-pressed="true"]{opacity:1;color:var(--fg)}
+@media (pointer:coarse){.card .pin{opacity:.35;width:32px;height:32px;top:4px;right:4px}.card .pin[aria-pressed="true"]{opacity:.9}}
+.card{padding-right:36px}
+.card.compact{padding-right:34px}
+/* footer: due date and notes on the left, ⇄ on the right (touch only) */
+.card .meta .due{white-space:nowrap}
+.card .meta .ml{flex-wrap:wrap;gap:4px 8px}
+.card .meta .has-notes svg{width:13px;height:13px}
+/* subtasks: deeper indent on desktop only */
+@media (pointer:fine){.card .cl{padding-left:22px}}
+/* sidebar groups */
+.nav-list.sub{padding-left:16px}
+.nav-item.sub{padding-left:24px}
+.nav-list.sub .nav-item{font-size:13.5px}
+.nav-body{display:flex;flex-direction:column;gap:1px}
+.nav-body[hidden]{display:none}
+/* version button and What's new */
+.brand .ver{border:0;background:none;padding:0;text-align:left;cursor:pointer;font:inherit;font-size:11.5px;font-weight:500;color:var(--muted)}
+.brand .ver:hover,.brand .ver[aria-expanded="true"]{color:var(--accent)}
+.brand .demo-chip{align-self:flex-start;margin-top:4px;font-size:11px;padding:2px 8px}
+.chlog{position:fixed;z-index:70;width:min(380px,calc(100vw - 16px));max-height:min(70vh,520px);overflow:auto;background:var(--panel);border-radius:14px;box-shadow:var(--pop-shadow);padding:14px 16px 6px;font-size:13px;animation:menuIn .14s ease-out}
+.chlog h3{margin:0 0 8px;font-size:15px}
+.chlog h4{margin:10px 0 4px;font-size:13px;font-weight:600}
+.chlog h4 span{font-weight:400;color:var(--muted);margin-left:4px}
+.chlog ul{margin:0 0 6px;padding-left:18px;display:flex;flex-direction:column;gap:3px;color:var(--fg)}
+/* single board on phone: Show Done switch */
+.kb-tools{display:flex;justify-content:flex-end;margin:-4px 0 10px}
+/* phone task window: smaller gaps */
+@media (max-width:760px){
+  .sheet{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-height:calc(100% - 64px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+}
+/* crisper small icons */
+.card svg,.prop-v svg,.mv svg{shape-rendering:geometricPrecision}
+.crumbs a{color:var(--muted);text-decoration:none}
+.crumbs a:hover{color:var(--fg)}
+/* touch: ⇄ stacked under the pin in the top-right corner, so the footer is just the date */
+@media (pointer:coarse){
+  .card > .mv{position:absolute;top:38px;right:4px;bottom:auto;width:32px;height:32px;opacity:.75;margin:0}
+  .card:not(.is-done){min-height:80px}
+  .card .cl{margin-right:0}
+}
+@media (pointer:coarse){.card:not(.is-done),.card.compact:not(.is-done){padding-right:42px}}
