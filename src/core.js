@@ -216,9 +216,11 @@ function lockPage(on){
   const fit = () => {
     const sh = $('#sheet'); if(!sh || !matchMedia('(max-width:760px)').matches) return;
     if(!sh.classList.contains('show')){ sh.style.bottom = sh.style.maxHeight = ''; return; }
-    const kb = Math.max(0, innerHeight - vv.height - vv.offsetTop);   // keyboard height, if any
+    if(vv.scale > 1.01) return;                                         // pinch zoom, not a keyboard
+    let kb = Math.max(0, innerHeight - vv.height - vv.offsetTop); if(kb < 80) kb = 0;   // keyboard height; ignore toolbar wobble
     sh.style.bottom = kb ? `${kb + 8}px` : ''; sh.style.maxHeight = kb ? `${vv.height - 24}px` : '';
-    if(!kb && vv.offsetTop > 0){ [100, 350].forEach(ms => setTimeout(() => { if(vv.offsetTop > 0) window.scrollTo(0, 0); }, ms)); }
+    clearTimeout(fit.t1); clearTimeout(fit.t2);
+    if(!kb && vv.offsetTop > 0){ const back = () => { if(vv.offsetTop > 0) window.scrollTo(0, 0); }; fit.t1 = setTimeout(back, 100); fit.t2 = setTimeout(back, 350); }
   };
   vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
   window.__recentFocusOut = () => Date.now() - lastFocusOut < 700;

@@ -2,6 +2,19 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.16] - 2026-11-09
+### Fixed
+- Task window: pausing while typing redrew the window, jumped the cursor to the start and (on iPhone) dropped and reopened the keyboard so later taps landed in the wrong place. The window no longer redraws while you're typing in it.
+- Taps lining up on iPhone: the page behind the task window and dialogs is locked in place, the window sits above the keyboard, and the view is put back when the keyboard closes.
+- Changing a flag clears the old Who?/Why? text.
+### Changed
+- All Kanbans (categories) use one standard colour; no Colour option for Kanbans.
+- Medium priority is orange, clearly different from High.
+- Blocked and On hold ask "Why?" (Waiting still asks "Who?"), on tasks and subtasks. Subtask chips on cards show just the who or why, with more room.
+- Category is now the first row of the task details; the title sits beside the close button.
+- Task window is more compact, with bigger gaps around it on phones.
+- Done subtasks hide their flag; interrupted swipe-down snaps the window back.
+
 ## [1.0.0-beta.15] - 2026-11-09
 ### Fixed
 - Safari stuck zoomed in (page cut off on the right, menu cut off at the top): the app snaps back to 100% on load and whenever it finds itself zoomed, and pinching out is allowed when zoomed.
