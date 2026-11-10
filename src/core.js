@@ -202,11 +202,21 @@ function openMenu(anchor, items, onPick, label){
 const modal = () => $('#modal');
 const modalOpen = () => modal().classList.contains('show');
 let modalOpener = null;
+/* While a task window or dialog is open the page behind is pinned in place. Otherwise iPhone Safari scrolls the page
+   to make room for the keyboard, and taps afterwards land on the wrong spot. */
+function lockPage(on){
+  const b = document.body, locked = b.classList.contains('page-locked');
+  if(on && !locked){ lockPage.y = window.scrollY; b.style.top = `-${lockPage.y}px`; b.classList.add('page-locked'); }
+  else if(!on && locked){ b.classList.remove('page-locked'); b.style.top = ''; window.scrollTo(0, lockPage.y||0); }
+}
+/* when the keyboard closes, put the visual viewport back where Safari's hit-testing expects it */
+document.addEventListener('focusout', e => { if(!e.target.matches?.('input,textarea')) return; setTimeout(() => { if(!document.activeElement?.matches?.('input,textarea')) window.scrollTo(window.scrollX, window.scrollY); }, 60); });
 function setBackgroundInert(){
   const sheetOpen = $('#sheet').classList.contains('show') || !!window.__sheetOpen;
   $('.shell').inert = sheetOpen || modalOpen();
   $('#sheet').inert = !sheetOpen || modalOpen();
   modal().inert = !modalOpen();
+  lockPage(sheetOpen || modalOpen());
   const scrim = $('#scrim');
   if(sheetOpen || modalOpen()){ scrim.hidden=false; requestAnimationFrame(()=>scrim.classList.add('show')); }
   else { scrim.classList.remove('show'); setTimeout(()=>{ if(!modalOpen() && !window.__sheetOpen) scrim.hidden=true; }, 220); }
@@ -280,7 +290,8 @@ function render(force){
 $('#content').addEventListener('focusout', () => setTimeout(()=>{ if(contentPending && !isEditing() && !S.dragging) render(true); }, 160));
 
 function currentItem(){ return S.route.v==='item' ? itemById(S.route.id) : null; }
-function itemColor(it){ return colorOf(it?.color || TYPES[it?.type]?.color); }
+/* Kanbans (categories) all share one standard colour; other item types keep their type colour. */
+function itemColor(it){ return it?.type==='kanban' ? COLORS.blue : colorOf(it?.color || TYPES[it?.type]?.color); }
 
 /* ----- sidebar ----- */
 let navSortables = [];
@@ -439,7 +450,11 @@ function effFlag(t){
   if(t.col!=='done') for(const c of (t.checklist||[])) if(!c.done && flagOf(c.flag) && (!best || flagRank(c.flag) < flagRank(best.flag))) best = {flag:c.flag, who:c.flagWho||'', from:c};
   return best;
 }
-const chipHTML = (t, cls='') => { const e=effFlag(t); const f=e&&flagOf(e.flag); if(!f) return ''; const who = f.who && e.who ? e.who : '';
+/* Flags that take a detail: Waiting asks who, Blocked and On hold ask why. */
+const FLAG_ASK = {waiting:'Who?', blocked:'Why?', hold:'Why?'};
+const flagAsk = f => !f ? '' : (FLAG_ASK[f.id] || (f.who ? 'Who?' : ''));
+const flagAskLabel = f => flagAsk(f)==='Who?' ? 'Waiting on' : 'Reason';
+const chipHTML = (t, cls='') => { const e=effFlag(t); const f=e&&flagOf(e.flag); if(!f) return ''; const who = flagAsk(f) && e.who ? e.who : '';
   return `<span class="chip ${cls}" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${who?' · '+esc(who):''}${e.from?' (subtask: '+esc(e.from.text)+')':''}">${esc(flagShort(f))}${who?` · ${esc(who)}`:''}</span>`; };
 const byDue = (a,b) => (a.due||'9999').localeCompare(b.due||'9999');
 function taskRow(t){
@@ -648,7 +663,7 @@ function itemMenu(anchor, it){
   openMenu(anchor, [
     {label:'Rename', value:'rename'},
     {label:'Move to folder…', value:'move'},
-    {label:'Colour…', value:'colour'},
+    ...(it.type==='kanban'?[]:[{label:'Colour…', value:'colour'}]),
     ...(it.type==='kanban'?[{label:it.hidden?'Show in All tasks and Home':'Hide from All tasks and Home', value:'hide'}, {label:'Status flags…', value:'flags'}]:[]),
     ...(it.type==='collection'?[{label:'Edit fields…', value:'fields'}]:[]),
     ...(it.type==='tracker'?[{label:'Tracker settings…', value:'tsettings'}]:[]),

@@ -9,7 +9,7 @@
   --danger-fill:#d70015; --toast-link:#2997ff;
   --seg-on:#ffffff; --sw-off:#e9e9eb; --sw-on:#34c759;
   --ok-bg:#eaf6ec;
-  --p-high:#d70015; --p-med:#b25000; --p-low:#6e6e73;
+  --p-high:#d70015; --p-med:#f08c00; --p-low:#8e8e93;
   --shadow:0 1px 2px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05);
   --shadow-lift:0 10px 30px rgba(0,0,0,.12);
   --pop-shadow:0 14px 44px rgba(0,0,0,.16),0 0 0 1px rgba(0,0,0,.05);
@@ -740,8 +740,29 @@ html,body{overflow-x:clip;max-width:100%}
 .lcol,.board > .col{scroll-snap-stop:always}
 .lane-open{text-decoration:none}
 .lcol > .add-row{padding:2px 7px 6px}
-@media (max-width:760px){.sh-grab{width:44px;height:5px;margin:8px auto 2px;padding:0}.sh-top{touch-action:none}}
+@media (max-width:760px){.sh-grab{width:44px;height:5px;padding:8px 0;box-sizing:content-box;background-clip:content-box;margin:0 auto -4px;touch-action:none}}
 /* the board's sideways swipes are handled in script (one column per swipe); vertical scrolling stays native */
 @media (pointer:coarse){.lanes,.board{touch-action:pan-y pinch-zoom}}
 /* dialog buttons stay visible at the bottom of tall dialogs */
 .modal > .row-end:last-child{position:sticky;bottom:-24px;margin:0 -26px -24px;padding:12px 26px 16px;background:var(--panel);border-top:1px solid var(--sep)}
+
+/* ----- beta.16: compact task window ----- */
+.sh-top{align-items:flex-start;padding:12px 10px 8px 16px;border-bottom:0;gap:6px}
+.sh-top .t-input{flex:1;min-width:0;margin:0;width:auto;font-size:19px;padding:3px 6px;margin-left:-6px}
+.sh-top .saved{margin-left:0;align-self:center}
+.sh-top #closeSheet{flex:none;width:28px;height:28px;margin-top:1px}
+.sh-body{padding:0 16px 16px;gap:12px}
+.props{padding:0}
+.prop{min-height:38px}
+.prop-v{min-height:32px;padding:4px 8px;font-size:14.5px}
+.sheet textarea.notes{min-height:40px;padding:8px 11px}
+.ci{padding:3px 0}
+.ci > .cbox{margin-top:6px}
+.sh-body > .arch-note{align-self:flex-start;font-size:12px;font-weight:600;color:var(--up);background:var(--ok-bg);padding:3px 9px;border-radius:980px}
+@media (max-width:760px){
+  .sheet{left:22px;right:22px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-height:calc(100% - 110px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+  .sh-top{padding:6px 8px 6px 14px}
+  .sh-body{padding:0 14px 14px}
+  .prop{min-height:40px}
+}
+body.page-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}

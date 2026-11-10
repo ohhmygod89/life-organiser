@@ -31,7 +31,8 @@ TYPE_VIEWS.kanban = (() => {
   const toggleDone = t => moveTo(t, t.col==='done' ? (t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo') : 'done');
 
   /* subtask chip on cards: just who it's waiting on (or the short flag name), full text on hover */
-  const subChip = c => { const f=flagOf(c.flag); return `<span class="chip one sub" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${c.flagWho?' · '+esc(c.flagWho):''}">${esc(f.who&&c.flagWho ? c.flagWho : flagShort(f))}</span>`; };
+  const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = d ? (flagAsk(f)==='Who?' ? d : flagShort(f)+' · '+d) : flagShort(f);
+    return `<span class="chip one sub" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${d?' · '+esc(d):''}">${esc(txt)}</span>`; };
   function cardHTML(t, compact){
     const isDone = t.col==='done'; const parts = [];
     if(isDone && t.doneAt) parts.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
@@ -209,20 +210,20 @@ TYPE_VIEWS.kanban = (() => {
     sheet.innerHTML = `
       <div class="sh-grab" aria-hidden="true"></div>
       <div class="sh-top">
-        <button class="pop" id="hBoard" aria-haspopup="menu" aria-expanded="false" title="Move to another Kanban" style="--oc:${itemColor(b)}"><span class="dot"></span><span class="lbl-t">${esc(b?.name||'')}</span>${ICON.chev}<span class="sr-only">, move to another Kanban</span></button>
-        ${archived(t)?`<span class="arch-note">Archived ${doneYear(t)}</span>`:''}
+        <textarea class="t-input" id="fTitle" rows="1" aria-label="Task title" placeholder="Task name">${esc(t.title)}</textarea>
         <span class="saved" id="savedNote" role="status" aria-live="polite"></span>
         <button class="icon-btn" id="closeSheet" aria-label="Close" title="Close (Esc)">${ICON.x}</button>
       </div>
       <div class="sh-body">
-        <textarea class="t-input" id="fTitle" rows="1" aria-label="Task title" placeholder="Task name">${esc(t.title)}</textarea>
+        ${archived(t)?`<span class="arch-note">Archived ${doneYear(t)}</span>`:''}
         <div class="props" role="group" aria-label="Task details">
+          ${propRow('hBoard','Category', `<span class="lbl-t">${esc(b?.name||'')}</span>`)}
           ${propRow('pCol','Status', `<span class="sdot st-${t.col}" aria-hidden="true"></span><span class="lbl-t">${colName(t.col)}</span>`)}
           ${propRow('pPri','Priority', t.priority ? `${prioIcon(t.priority)}<span class="lbl-t">${PRIO[t.priority].label}</span>` : `<span class="lbl-t muted">None</span>`)}
           ${propRow('pDue','Due', d ? `${ICON.cal}<span class="lbl-t ${d.cls}">${esc(dateLabel(t.due))} · ${esc(d.t)}</span>` : `<span class="lbl-t muted">No date</span>`)}
           ${propRow('pFlag','Flag', f ? `<span class="fdot" style="--fc:${colorOf(f.color)}"></span><span class="lbl-t">${esc(f.label)}</span>` : `<span class="lbl-t muted">None</span>`)}
-          ${f&&f.who?`<div class="prop"><label class="prop-l" for="fWho">Waiting on</label><input class="prop-in" id="fWho" type="text" placeholder="Who?" value="${esc(t.flagWho||'')}"></div>`:''}
-          ${(() => { const e=effFlag(t); const ef=e&&e.from&&flagOf(e.flag); return ef ? `<p class="prop-note"><span class="fdot" style="--fc:${colorOf(ef.color)}"></span>Card shows ${esc(ef.label)}${e.who&&ef.who?' · '+esc(e.who):''}, from subtask “${esc(e.from.text)}”</p>` : ''; })()}
+          ${flagAsk(f)?`<div class="prop"><label class="prop-l" for="fWho">${flagAskLabel(f)}</label><input class="prop-in" id="fWho" type="text" placeholder="${flagAsk(f)}" value="${esc(t.flagWho||'')}"></div>`:''}
+          ${(() => { const e=effFlag(t); const ef=e&&e.from&&flagOf(e.flag); return ef ? `<p class="prop-note"><span class="fdot" style="--fc:${colorOf(ef.color)}"></span>Card shows ${esc(ef.label)}${e.who&&flagAsk(ef)?' · '+esc(e.who):''}, from subtask “${esc(e.from.text)}”</p>` : ''; })()}
           <input type="date" id="fDue" class="sr-only" tabindex="-1" aria-hidden="true" value="${esc(t.due||'')}">
         </div>
         <section class="sh-sec">
@@ -233,7 +234,7 @@ TYPE_VIEWS.kanban = (() => {
           <div class="subs">${cl.map(c=>{ const cf=flagOf(c.flag); return `<div class="ci ${c.done?'done':''}" data-key="ci-${esc(c.id)}">
               <button class="cbox" data-ci="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="Done: ${esc(c.text)}">${ICON.check}</button>
               <div class="ci-m"><input type="text" data-ct="${esc(c.id)}" value="${esc(c.text)}" aria-label="Subtask">
-                ${cf?`<div class="ci-f"><button class="chip sm" data-cf="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" style="--fc:${colorOf(cf.color)}" title="Change flag">${esc(flagShort(cf))}</button>${cf.who?`<input type="text" class="ci-who" data-cw="${esc(c.id)}" value="${esc(c.flagWho||'')}" placeholder="Who?" aria-label="Who is this subtask waiting on?">`:''}</div>`:''}</div>
+                ${cf?`<div class="ci-f"><button class="chip sm" data-cf="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" style="--fc:${colorOf(cf.color)}" title="Change flag">${esc(flagShort(cf))}</button>${flagAsk(cf)?`<input type="text" class="ci-who" data-cw="${esc(c.id)}" value="${esc(c.flagWho||'')}" placeholder="${flagAsk(cf)}" aria-label="${flagAsk(cf)==='Who?'?'Who is this subtask waiting on?':'Why is this subtask '+esc(cf.label.toLowerCase())+'?'}">`:''}</div>`:''}</div>
               <button class="icon-btn mini" data-cm="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Options for ${esc(c.text)}">${ICON.more}</button>
             </div>`; }).join('')}
             <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fCheckNew" placeholder="Add subtask" aria-label="New subtask" enterkeyhint="done"></div>
@@ -252,7 +253,7 @@ TYPE_VIEWS.kanban = (() => {
   }
   /* phone: drag the grabber or top bar down to close */
   { let y0=null, dy=0;
-    sheet.addEventListener('touchstart', e => { const h=e.target.closest('.sh-grab,.sh-top'); y0 = h && !e.target.closest('button') ? e.touches[0].clientY : null; dy=0; }, {passive:true});
+    sheet.addEventListener('touchstart', e => { const h=e.target.closest('.sh-grab,.sh-top'); y0 = h && !e.target.closest('button,textarea,input') ? e.touches[0].clientY : null; dy=0; }, {passive:true});
     sheet.addEventListener('touchmove', e => { if(y0===null) return; dy=Math.max(0, e.touches[0].clientY-y0); sheet.style.transition='none'; sheet.style.transform=`translateY(${dy}px)`; }, {passive:true});
     sheet.addEventListener('touchend', () => { if(y0===null) return; sheet.style.transition=''; sheet.style.transform=''; if(dy>80) closeSheet(); y0=null; }, {passive:true}); }
   const patchCl = (t, id, fn) => docPatch('tasks', t.id, {checklist:(t.checklist||[]).map(c=>c.id===id?fn(c):c)});
@@ -294,14 +295,14 @@ TYPE_VIEWS.kanban = (() => {
       if(v==='pick') return pickDate();
       docPatch('tasks', t.id, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
     const pf = e.target.closest('#pFlag');
-    if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v}); renderSheet(); markSaved(); render(); if(flagOf(v)?.who) $('#fWho')?.focus(); }, 'Flag');
+    if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v}); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $('#fWho')?.focus(); }, 'Flag');
     const cfb = e.target.closest('[data-cf]');
-    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v})); renderSheet(); markSaved(); render(); if(flagOf(v)?.who) $(`[data-cw="${CSS.escape(id)}"]`)?.focus(); }, 'Subtask flag'); }
+    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus(); }, 'Subtask flag'); }
     const cm = e.target.closest('[data-cm]');
     if(cm){ const id=cm.dataset.cm; const c=(t.checklist||[]).find(x=>x.id===id); if(!c) return;
       return openMenu(cm, [{head:'Flag'}, ...flagItems(c.flag), {sep:true}, {label:'Delete subtask', value:'del', danger:true}], v => {
         if(v==='del'){ const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
-        patchCl(t, id, x=>({...x, flag:v})); renderSheet(); markSaved(); render(); if(flagOf(v)?.who) $(`[data-cw="${CSS.escape(id)}"]`)?.focus();
+        patchCl(t, id, x=>({...x, flag:v})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus();
       }, 'Subtask options'); }
     const ci = e.target.closest('[data-ci]'); if(ci){ patchCl(t, ci.dataset.ci, c=>({...c,done:!c.done})); renderSheet(); markSaved(); render(); return; }
     if(e.target.closest('.ci.add')){ e.target.closest('.ci.add').querySelector('input')?.focus(); return; }
