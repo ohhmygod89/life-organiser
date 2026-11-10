@@ -29,7 +29,7 @@ TYPE_VIEWS.page = (() => {
         ${KINDS.map(k=>`<button class="btn" data-badd="${k.type}">${ICON[k.type]}${k.label}</button>`).join('')}</div>`;
     bl.forEach(b => TYPE_VIEWS[b.type].render(b, root.querySelector(`[data-block="${CSS.escape(b.id)}"] .blk-body`)));
     if(bl.length>1) sortable = Sortable.create(root.querySelector('#blocks'), {handle:'.blk-grip', draggable:'.block', animation:RM?0:150, forceFallback:true, fallbackOnBody:true,
-      onStart(){ S.dragging=true; }, onEnd(){ S.dragging=false; saveOrder($$('#blocks > .block').map(x=>x.dataset.block)); render(true); }});
+      onChoose(){ document.activeElement?.blur?.(); }, onStart(){ S.dragging=true; }, onEnd(){ S.dragging=false; saveOrder($$('#blocks > .block').map(x=>x.dataset.block)); render(true); }});
   }
   function saveOrder(ids){ ids.forEach((id,i)=>{ const b=itemById(id); if(b && b.order!==i) docPatch('items', id, {order:i}); }); }
 

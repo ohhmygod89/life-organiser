@@ -354,12 +354,12 @@ function renderSide(){
   html += `<div class="nav-folders">${sortedFolders().map(f=>{ const open=!S.collapsed.has(f.id); const its=pagesIn(f.id);
     return `<div class="nav-group nav-folder" data-fid="${esc(f.id)}" data-key="f-${esc(f.id)}"><div class="nav-h" data-folder="${esc(f.id)}"><button class="fold" data-act="fold" data-fid="${esc(f.id)}" aria-expanded="${open}">${ICON.chevD}<span>${esc(f.name)}</span></button>${TOUCH?`<button class="icon-btn mini" data-act="folder-menu" data-fid="${esc(f.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(f.name)} options">${ICON.more}</button>`:''}</div>
       <div class="nav-list" data-list="pages" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}${its.length?'':`<div class="nav-empty">Drag pages here</div>`}</div></div>`; }).join('')}</div>`;
-  if(loose.length || !S.folders.length) html += `<div class="nav-group"><div class="nav-list" data-list="pages" data-fid="">${loose.map(navItemHTML).join('')}</div></div>`;
+  html += `<div class="nav-group nav-loose"><div class="nav-list" data-list="pages" data-fid="">${loose.map(navItemHTML).join('')}${loose.length?'':'<div class="nav-empty nav-drop-root">Drop here for no folder</div>'}</div></div>`;
   html += `<div class="side-foot"><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
   const fk = el.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   navSortables.forEach(s=>s.destroy()); navSortables=[];
   el.innerHTML = html;
-  const opts = {animation:RM?0:150, delay:250, delayOnTouchOnly:true, ghostClass:'ghost', onStart(){ S.dragging=true }, onEnd(){ S.dragging=false; saveNavOrder(); render(true); }};
+  const opts = {animation:RM?0:150, delay:250, delayOnTouchOnly:true, ghostClass:'ghost', onStart(){ S.dragging=true; document.body.classList.add('nav-dragging'); }, onEnd(){ S.dragging=false; document.body.classList.remove('nav-dragging'); saveNavOrder(); render(true); }};
   $$('.nav-list', el).forEach(list => navSortables.push(Sortable.create(list, {...opts, group:'nav-'+list.dataset.list, draggable:'.nav-item'})));
   const fl = $('.nav-folders', el); if(fl) navSortables.push(Sortable.create(fl, {...opts, draggable:'.nav-folder', handle:'.nav-h'}));
   if(fk) restoreFocus(fk, el);
@@ -513,7 +513,7 @@ const doneYear = t => t.doneAt ? new Date(t.doneAt).getFullYear() : CUR_YEAR;
 /* ----- Kanban item: Board / List / Archive of its stacks ----- */
 function renderKanban(k, root){
   const V = S.tasksView; const mode = V.mode || 'board';
-  const stacks = stacksOf(k.id).filter(b=>!b.hidden);
+  const stacks = stacksOf(k.id);
   const ids = new Set(stacks.map(b=>b.id));
   [...V.boards].forEach(id=>{ if(!ids.has(id)) V.boards.delete(id); });
   const shown = stacks.filter(b=>V.boards.size===0 || V.boards.has(b.id));
@@ -525,7 +525,7 @@ function renderKanban(k, root){
   const groups = mode==='archive' ? '' : `<div class="fgroups">
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
     <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}</div>
-    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone}">Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
+    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
   </div>`;
   if(mode==='archive'){ root.innerHTML = `<div class="kb">${tabs}<div id="kbArch"></div></div>`; return renderArchive($('#kbArch'), stacksOf(k.id)); }
   if(!stacks.length){ root.innerHTML = `<div class="kb">${tabs}<div class="panel empty-state"><b>No stacks yet</b>A stack is a set of To Do, In Progress and Done columns, for example Home or Work. <button class="pill" data-act="add-stack" style="margin-top:12px">${ICON.plus} Add a stack</button></div></div>`; return; }
@@ -586,7 +586,7 @@ function renderSearch(c){
   const res = [];
   for(const it of S.items){
     const top = topOf(it);
-    if((it.name||'').toLowerCase().includes(q) && (isTop(it) || it.type==='stack' || it.type==='collection')) res.push({k:'item', it:top, t:it.name, m:isTop(it) ? TYPES[it.type].label : top.name+' · '+TYPES[it.type].label});
+    if((it.name||'').toLowerCase().includes(q)) res.push({k:'item', it:top, t:it.name, m:isTop(it) ? TYPES[it.type].label : top.name+' · '+TYPES[it.type].label});
     if(it.type==='note' && (it.body||'').toLowerCase().includes(q)) res.push({k:'item', it:top, t:top.name, m:snippet(it.body,q)});
     if(it.type==='checklist') (it.entries||[]).filter(e=>e.text.toLowerCase().includes(q)).forEach(e=>res.push({k:'item', it:top, t:e.text, m:top.name+' · checklist item'}));
     if(it.type==='bills') (it.bills||[]).filter(b=>[b.asset,b.category,b.institution,b.ref,b.notes].join(' ').toLowerCase().includes(q)).forEach(b=>res.push({k:'item', it, t:[b.category,b.asset].filter(Boolean).join(' · '), m:it.name+' · '+(b.institution||'')}));
@@ -605,6 +605,7 @@ function renderSearch(c){
 /* ---------- content events (core views + delegate to type views) ---------- */
 const content = $('#content');
 content.addEventListener('click', e => {
+  if(S.q && e.target.closest('a.lrow')){ S.q=''; $('#q').value=''; requestAnimationFrame(()=>render(true)); return; }   // a search result: leave search (even for the page already open)
   const it = currentItem(); const V = it && TYPE_VIEWS[it.type];
   const op = e.target.closest('[data-open]');
   if(op){ const [k,id]=op.dataset.open.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, op); else go('i-'+id); return; }
@@ -744,7 +745,7 @@ function itemMenu(anchor, it){
     ...(it.type==='page'?[{label:'Move to folder…', value:'move'}]:[]),
     ...(it.type==='kanban'?[{label:'Add stack…', value:'stack'}, {label:'Status flags…', value:'flags'}]:[]),
     ...(it.type==='tracker'?[{label:'Tracker settings…', value:'tsettings'}]:[]),
-    {sep:true}, {label:'Delete '+TYPES[it.type].label.toLowerCase()+'…', value:'del', danger:true}
+    {sep:true}, {label:'Delete…', value:'del', danger:true}
   ], async v => {
     if(v==='rename'){ const n = await promptModal({title:'Rename', label:'Name', value:it.name||'', opener:anchor}); if(n){ docPatch('items', it.id, {name:n}); render(true); } }
     if(v==='move') openMenu(anchor, [{label:'No folder', value:'', checked:!it.folderId}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:it.folderId===f.id}))], fid => { docPatch('items', it.id, {folderId:fid, order:itemsOf(i=>i.type==='page' && (i.folderId||'')===fid).length}); render(true); toast('Moved to '+(folderById(fid)?.name||'No folder')); }, 'Move to folder');
@@ -813,7 +814,7 @@ function migrate19(){
   if(boards.length){
     let k = S.items.find(i=>i.type==='kanban' && i.container);
     if(!k){ k = {id:uid(), type:'kanban', container:true, name:'Kanban', folderId:'', order:-1, created:nowIso(), updated:nowIso()}; docSet('items', k); }
-    boards.sort((a,b)=>(a.order??0)-(b.order??0)).forEach((b,i)=>docPatch('items', b.id, {type:'stack', parent:k.id, order:i, folderId:'', ...keep(b)}));
+    boards.sort((a,b)=>(a.order??0)-(b.order??0)).forEach((b,i)=>docPatch('items', b.id, {type:'stack', parent:k.id, order:i, folderId:'', hidden:false, ...keep(b)}));
   }
   S.items.filter(i=>['note','checklist','collection'].includes(i.type) && !i.parent).forEach(it => {
     const p = {id:uid(), type:'page', name:it.name||'Untitled', folderId:it.folderId||'', order:it.order??0, created:it.created||nowIso(), updated:it.updated||nowIso()};

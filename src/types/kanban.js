@@ -46,7 +46,7 @@ TYPE_VIEWS.kanban = (() => {
     if(isDone && t.doneAt) left.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
     if(t.due && !isDone){ const d=dueLabel(t.due); const near = dayDiff(t.due) <= 7;   // overdue or due within a week: add how far away
       right.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}">${esc(d.full)}${near?` · ${esc(d.rel)}`:''}</span>`); }
-    const mvBtn = TOUCH && !isDone ? (`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) : '';
+    const mvBtn = TOUCH ? (`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) : '';
     const open = cl.filter(c=>!c.done); const lim = compact ? 4 : 8;
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
     const pinned = !!t.pinned && !isDone;
@@ -319,7 +319,7 @@ TYPE_VIEWS.kanban = (() => {
     const t = cur(); if(!t) return;
     if(e.target.closest('#closeSheet')) return closeSheet();
     const hb = e.target.closest('#hBoard');
-    if(hb) return openMenu(hb, kanbans().map(x=>({label:x.name, value:x.id, checked:x.id===t.boardId})), v => {
+    if(hb) return openMenu(hb, kanbans().map(x=>({label:(itemsOf(i=>i.type==='kanban').length>1 ? topOf(x).name+' › ' : '')+x.name, value:x.id, checked:x.id===t.boardId})), v => {
       if(v===t.boardId) return; const from=t.boardId, fromPos=t.pos;
       docPatch('tasks', t.id, {boardId:v, pos:endPos(v,t.col,t.id,t)}); renderSheet(); render(); markSaved();
       toast('Moved to '+itemById(v)?.name, () => docPatch('tasks', t.id, {boardId:from, pos:fromPos}));

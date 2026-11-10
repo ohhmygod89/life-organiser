@@ -7,7 +7,8 @@ TYPE_VIEWS.note = (() => {
   const Q = (it, sel) => R(it)?.querySelector(sel);
   const mode = {};             // item id -> 'write' | 'read'
   let timer = null;
-  const findByName = n => S.items.find(i => isTop(i) && (i.name||'').trim().toLowerCase() === n.trim().toLowerCase());
+  const findByName = n => { const k = n.trim().toLowerCase(), m = i => (i.name||'').trim().toLowerCase()===k;
+    return S.items.find(i => isTop(i) && m(i)) || topOf(S.items.find(i => i.type==='stack' && m(i))); };   // a stack opens its Kanban
 
   function inline(raw){
     // raw is unescaped text for one line
@@ -49,9 +50,10 @@ TYPE_VIEWS.note = (() => {
     return out.join('');
   }
   function backlinks(it){
-    const key = '[['+(it.name||'').trim().toLowerCase()+']]';
+    const key = '[['+(topOf(it).name||'').trim().toLowerCase()+']]';   // links name the page, not the block
     const notes = S.items.filter(x => x.id!==it.id && x.type==='note' && (x.body||'').toLowerCase().includes(key)).map(topOf).filter((x,i,a)=>x && x.id!==topOf(it)?.id && a.indexOf(x)===i);
     const tasks = S.tasks.filter(t => (t.notes||'').toLowerCase().includes(key));
+    if(blocksOf(topOf(it).id).filter(b=>b.type==='note')[0]?.id !== it.id) return {notes:[], tasks:[]};   // shown once per page, under its first text block
     return {notes, tasks};
   }
 

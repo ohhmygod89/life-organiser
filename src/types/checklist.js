@@ -31,11 +31,11 @@ TYPE_VIEWS.checklist = (() => {
     const a = e.target.closest('[data-act]');
     if(a){ const act=a.dataset.act;
       if(act==='add') return add(it);
-      if(act==='hide'){ docPatch('items', it.id, {hideDone:!it.hideDone}); view(it, R(it)); restoreFocus('[data-act="hide"]'); return; }
+      if(act==='hide'){ docPatch('items', it.id, {hideDone:!it.hideDone}); view(it, R(it)); restoreFocus('[data-act="hide"]', R(it)); return; }
       if(act==='untick'){ const before=clone(it.entries); setEntries(it, before.map(x=>({...x, done:false}))); view(it, R(it)); toast('Unticked every item', ()=>docPatch('items', it.id, {entries:before})); return; }
       if(act==='clear'){ const before=clone(it.entries); setEntries(it, before.filter(x=>!x.done)); view(it, R(it)); toast('Cleared done items', ()=>docPatch('items', it.id, {entries:before})); return; } }
     const cb = e.target.closest('[data-ck]');
-    if(cb){ const id=cb.dataset.ck; setEntries(it, (it.entries||[]).map(x=>x.id===id?{...x, done:!x.done}:x)); view(it, R(it)); restoreFocus(`[data-ck="${CSS.escape(id)}"]`) || Q(it,'#ckNew').focus(); return; }
+    if(cb){ const id=cb.dataset.ck; setEntries(it, (it.entries||[]).map(x=>x.id===id?{...x, done:!x.done}:x)); view(it, R(it)); restoreFocus(`[data-ck="${CSS.escape(id)}"]`, R(it)) || Q(it,'#ckNew').focus(); return; }
     const dl = e.target.closest('[data-del]');
     if(dl){ const before=clone(it.entries); const x=before.find(y=>y.id===dl.dataset.del); setEntries(it, before.filter(y=>y.id!==dl.dataset.del)); view(it, R(it)); toast('Removed “'+(x?.text||'item')+'”', ()=>docPatch('items', it.id, {entries:before})); }
   }

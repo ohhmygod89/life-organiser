@@ -221,7 +221,7 @@ h1.big{margin:0;font-weight:600;font-size:clamp(2rem,3.6vw,3rem);line-height:1.0
 .mv svg{width:14px;height:14px}
 .mv:hover,.mv[aria-expanded="true"]{background:var(--fill-2);color:var(--fg)}
 .card:hover .mv,.card:focus-within .mv,.card:focus .mv,.mv[aria-expanded="true"]{opacity:1}
-.card.is-done .mv{display:none}
+.card.is-done .mv{opacity:1}
 .tick:hover{border-color:var(--sw-on);color:var(--sw-on)}
 .card.is-done .title{color:var(--muted)}
 .card.is-done .tick{opacity:1;background:var(--sw-on);border-color:var(--sw-on);color:#fff}
@@ -954,3 +954,16 @@ html{overscroll-behavior:none}
 /* touch: a card with no footer keeps ⇄ in the top-right corner (under the pin when pinned), clear of the subtasks */
 .card.mv-top .mv{top:6px;bottom:auto}
 .card.mv-top.pinned .mv{top:36px}
+/* beta.19 QA fixes */
+.nav-item .ti.plain,.side-foot .ti{color:var(--icon)}
+.nav-loose .nav-list{min-height:4px}
+.nav-drop-root{display:none}
+body.nav-dragging .nav-drop-root{display:block}
+.kb-top .seg button{font-weight:600}
+.card .meta .mr .due{text-align:right}
+@media (hover:none){
+  .blk-grip{width:36px;height:36px;margin-left:-6px}
+  .blk-grip svg{width:16px;height:16px}
+  .blk-bar .icon-btn.mini{width:36px;height:36px}
+}
+.chip-btn.tog[disabled]{opacity:.45}
