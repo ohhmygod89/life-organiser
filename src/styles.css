@@ -927,7 +927,7 @@ html{overscroll-behavior:none}
 .blocks{display:flex;flex-direction:column;gap:16px}
 .block{display:flex;flex-direction:column;gap:6px;min-width:0}
 .blk-bar{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 2px}
-.blk-grip{cursor:grab;color:var(--muted);display:grid;place-items:center;width:22px;height:26px;touch-action:none}
+.blk-grip{flex:none;cursor:grab;color:var(--muted);display:grid;place-items:center;width:22px;height:26px;touch-action:none}
 .blk-grip svg{width:14px;height:14px}
 .blk-ic{color:var(--icon);display:grid;place-items:center}
 .blk-ic svg{width:15px;height:15px}
