@@ -31,7 +31,7 @@ TYPE_VIEWS.kanban = (() => {
   const toggleDone = t => moveTo(t, t.col==='done' ? (t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo') : 'done');
 
   /* subtask chip on cards: just who it's waiting on (or the short flag name), full text on hover */
-  const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = d ? (flagAsk(f)==='Who?' ? d : flagShort(f)+' · '+d) : flagShort(f);
+  const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = d || flagShort(f);   // the colour dot says which flag; the space goes to who or why
     return `<span class="chip one sub" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${d?' · '+esc(d):''}">${esc(txt)}</span>`; };
   function cardHTML(t, compact){
     const isDone = t.col==='done'; const parts = [];
@@ -175,7 +175,7 @@ TYPE_VIEWS.kanban = (() => {
   /* ---------- task window ----------
      Layout: top bar (board · saved · close), title, a property list (Status, Priority, Due, Flag),
      notes, subtasks (each can carry its own flag), updates, footer. One column at every width. */
-  const sheet = $('#sheet');
+  const sheet = $('#sheet'); sheet.tabIndex = -1;
   let openId = null, opener = null, timers = {}, delArmed = null;
   const cur = () => S.tasks.find(x=>x.id===openId);
   function debounced(key, fn){ clearTimeout(timers[key]?.t); window.__typingTask = openId; timers[key] = {t:setTimeout(()=>{ fn(); delete timers[key]; if(!Object.keys(timers).length) window.__typingTask=null; }, 450), flush(){ clearTimeout(this.t); fn(); delete timers[key]; }}; }
@@ -187,7 +187,7 @@ TYPE_VIEWS.kanban = (() => {
     if(!S.tasks.find(x=>x.id===id)) return;
     openId = id; opener = op || null; window.__sheetOpen = true; renderSheet();
     sheet.classList.add('show'); setBackgroundInert(); document.body.classList.add('sheet-open');
-    requestAnimationFrame(()=>{ grow($('#fTitle')); grow($('#fNotes')); (matchMedia('(pointer:coarse)').matches ? $('#closeSheet') : $('#fTitle'))?.focus({preventScroll:true}); });
+    requestAnimationFrame(()=>{ grow($('#fTitle')); grow($('#fNotes')); (TOUCH ? sheet : $('#fTitle'))?.focus({preventScroll:true}); });
   }
   function closeSheet(silent){
     if(!openId) return; flushAll(); closeMenu(false);
@@ -196,7 +196,12 @@ TYPE_VIEWS.kanban = (() => {
     if(silent) return;
     if(!restoreFocus(`.card[data-id="${CSS.escape(id)}"]`) && !restoreFocus(`[data-open="task:${CSS.escape(id)}"]`) && opener?.isConnected) opener.focus({preventScroll:true});
   }
-  function refreshSheet(){ if(openId && !Object.keys(timers).length) renderSheet(); }
+  /* Never rebuild the window while you're typing in it: that recreates the box you're in, drops the iPhone keyboard and
+     shifts the screen (taps then land in the wrong place). Changes are shown once you've left the box. */
+  const typingInSheet = () => sheet.contains(document.activeElement) && document.activeElement.matches('input,textarea');
+  let refreshPending = false;
+  function refreshSheet(){ if(!openId) return; if(typingInSheet() || Object.keys(timers).length){ refreshPending = true; return; } renderSheet(); }
+  sheet.addEventListener('focusout', () => setTimeout(() => { if(refreshPending && openId && !typingInSheet() && !Object.keys(timers).length){ refreshPending = false; renderSheet(); } }, 450));
   function propRow(id, label, value, extra=''){
     return `<div class="prop"><span class="prop-l" id="${id}L">${label}</span><button class="prop-v ${extra}" id="${id}" aria-haspopup="menu" aria-expanded="false" aria-labelledby="${id}L ${id}">${value}${ICON.chev}</button></div>`;
   }
@@ -234,7 +239,7 @@ TYPE_VIEWS.kanban = (() => {
           <div class="subs">${cl.map(c=>{ const cf=flagOf(c.flag); return `<div class="ci ${c.done?'done':''}" data-key="ci-${esc(c.id)}">
               <button class="cbox" data-ci="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="Done: ${esc(c.text)}">${ICON.check}</button>
               <div class="ci-m"><input type="text" data-ct="${esc(c.id)}" value="${esc(c.text)}" aria-label="Subtask">
-                ${cf?`<div class="ci-f"><button class="chip sm" data-cf="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" style="--fc:${colorOf(cf.color)}" title="Change flag">${esc(flagShort(cf))}</button>${flagAsk(cf)?`<input type="text" class="ci-who" data-cw="${esc(c.id)}" value="${esc(c.flagWho||'')}" placeholder="${flagAsk(cf)}" aria-label="${flagAsk(cf)==='Who?'?'Who is this subtask waiting on?':'Why is this subtask '+esc(cf.label.toLowerCase())+'?'}">`:''}</div>`:''}</div>
+                ${cf && !c.done?`<div class="ci-f"><button class="chip sm" data-cf="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" style="--fc:${colorOf(cf.color)}" title="Change flag">${esc(flagShort(cf))}</button>${flagAsk(cf)?`<input type="text" class="ci-who" data-cw="${esc(c.id)}" value="${esc(c.flagWho||'')}" placeholder="${flagAsk(cf)}" aria-label="${flagAsk(cf)==='Who?'?'Who is this subtask waiting on?':'Why is this subtask '+esc(cf.label.toLowerCase())+'?'}">`:''}</div>`:''}</div>
               <button class="icon-btn mini" data-cm="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Options for ${esc(c.text)}">${ICON.more}</button>
             </div>`; }).join('')}
             <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fCheckNew" placeholder="Add subtask" aria-label="New subtask" enterkeyhint="done"></div>
@@ -255,7 +260,9 @@ TYPE_VIEWS.kanban = (() => {
   { let y0=null, dy=0;
     sheet.addEventListener('touchstart', e => { const h=e.target.closest('.sh-grab,.sh-top'); y0 = h && !e.target.closest('button,textarea,input') ? e.touches[0].clientY : null; dy=0; }, {passive:true});
     sheet.addEventListener('touchmove', e => { if(y0===null) return; dy=Math.max(0, e.touches[0].clientY-y0); sheet.style.transition='none'; sheet.style.transform=`translateY(${dy}px)`; }, {passive:true});
-    sheet.addEventListener('touchend', () => { if(y0===null) return; sheet.style.transition=''; sheet.style.transform=''; if(dy>80) closeSheet(); y0=null; }, {passive:true}); }
+    const endSwipe = close => { if(y0===null) return; sheet.style.transition=''; sheet.style.transform=''; if(close && dy>80) closeSheet(); y0=null; };
+    sheet.addEventListener('touchend', () => endSwipe(true), {passive:true});
+    sheet.addEventListener('touchcancel', () => endSwipe(false), {passive:true}); }
   const patchCl = (t, id, fn) => docPatch('tasks', t.id, {checklist:(t.checklist||[]).map(c=>c.id===id?fn(c):c)});
   sheet.addEventListener('input', e => {
     const t = cur(); if(!t) return; const id = e.target.id;
@@ -295,14 +302,14 @@ TYPE_VIEWS.kanban = (() => {
       if(v==='pick') return pickDate();
       docPatch('tasks', t.id, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
     const pf = e.target.closest('#pFlag');
-    if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v}); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $('#fWho')?.focus(); }, 'Flag');
+    if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $('#fWho')?.focus(); }, 'Flag');
     const cfb = e.target.closest('[data-cf]');
-    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus(); }, 'Subtask flag'); }
+    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v, ...(v!==x.flag?{flagWho:''}:{})})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus(); }, 'Subtask flag'); }
     const cm = e.target.closest('[data-cm]');
     if(cm){ const id=cm.dataset.cm; const c=(t.checklist||[]).find(x=>x.id===id); if(!c) return;
       return openMenu(cm, [{head:'Flag'}, ...flagItems(c.flag), {sep:true}, {label:'Delete subtask', value:'del', danger:true}], v => {
         if(v==='del'){ const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
-        patchCl(t, id, x=>({...x, flag:v})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus();
+        patchCl(t, id, x=>({...x, flag:v, ...(v!==x.flag?{flagWho:''}:{})})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus();
       }, 'Subtask options'); }
     const ci = e.target.closest('[data-ci]'); if(ci){ patchCl(t, ci.dataset.ci, c=>({...c,done:!c.done})); renderSheet(); markSaved(); render(); return; }
     if(e.target.closest('.ci.add')){ e.target.closest('.ci.add').querySelector('input')?.focus(); return; }

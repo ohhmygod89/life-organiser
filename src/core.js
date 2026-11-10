@@ -206,11 +206,23 @@ let modalOpener = null;
    to make room for the keyboard, and taps afterwards land on the wrong spot. */
 function lockPage(on){
   const b = document.body, locked = b.classList.contains('page-locked');
-  if(on && !locked){ lockPage.y = window.scrollY; b.style.top = `-${lockPage.y}px`; b.classList.add('page-locked'); }
+  if(on && !locked){ lockPage.y = Math.max(0, window.scrollY); b.style.top = `-${lockPage.y}px`; b.classList.add('page-locked'); }
   else if(!on && locked){ b.classList.remove('page-locked'); b.style.top = ''; window.scrollTo(0, lockPage.y||0); }
 }
 /* when the keyboard closes, put the visual viewport back where Safari's hit-testing expects it */
-document.addEventListener('focusout', e => { if(!e.target.matches?.('input,textarea')) return; setTimeout(() => { if(!document.activeElement?.matches?.('input,textarea')) window.scrollTo(window.scrollX, window.scrollY); }, 60); });
+/* iPhone keyboard: keep the task window above it, and once it closes put the view back where taps expect it. */
+(() => { const vv = window.visualViewport; if(!vv) return; let lastFocusOut = 0;
+  document.addEventListener('focusout', () => { lastFocusOut = Date.now(); });
+  const fit = () => {
+    const sh = $('#sheet'); if(!sh || !matchMedia('(max-width:760px)').matches) return;
+    if(!sh.classList.contains('show')){ sh.style.bottom = sh.style.maxHeight = ''; return; }
+    const kb = Math.max(0, innerHeight - vv.height - vv.offsetTop);   // keyboard height, if any
+    sh.style.bottom = kb ? `${kb + 8}px` : ''; sh.style.maxHeight = kb ? `${vv.height - 24}px` : '';
+    if(!kb && vv.offsetTop > 0){ [100, 350].forEach(ms => setTimeout(() => { if(vv.offsetTop > 0) window.scrollTo(0, 0); }, ms)); }
+  };
+  vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+  window.__recentFocusOut = () => Date.now() - lastFocusOut < 700;
+})();
 function setBackgroundInert(){
   const sheetOpen = $('#sheet').classList.contains('show') || !!window.__sheetOpen;
   $('.shell').inert = sheetOpen || modalOpen();
@@ -594,14 +606,14 @@ const isZoomed = () => (window.visualViewport?.scale || 1) > 1.01;
 function resetZoom(){
   const wait = 2000 - (Date.now() - (resetZoom.last||0));   // at most one attempt every 2 s, so it can't loop if Safari ignores it
   if(wait > 0){ clearTimeout(resetZoom.t); resetZoom.t = setTimeout(resetZoom, wait); return; }
-  if(!isZoomed() || document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
+  if(!isZoomed() || window.__recentFocusOut?.() || document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
   const m = document.querySelector('meta[name=viewport]'); if(!m) return;
   const base = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';
   resetZoom.last = Date.now();
   m.content = base.replace('initial-scale=1','initial-scale=1.0,minimum-scale=1'); setTimeout(() => { m.content = base; }, 60);
 }
 window.visualViewport?.addEventListener('resize', () => { clearTimeout(resetZoom.t); resetZoom.t = setTimeout(resetZoom, 250); });
-document.addEventListener('focusout', () => setTimeout(resetZoom, 150));
+document.addEventListener('focusout', () => setTimeout(resetZoom, 800));   // after the keyboard has finished closing
 window.addEventListener('pageshow', () => setTimeout(resetZoom, 100));
 setTimeout(resetZoom, 300);
 document.addEventListener('touchmove', e => { if((e.touches.length>1 && !isZoomed()) || S.dragging) e.preventDefault(); }, {passive:false});

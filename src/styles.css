@@ -766,3 +766,5 @@ html,body{overflow-x:clip;max-width:100%}
   .prop{min-height:40px}
 }
 body.page-locked{position:fixed;left:0;right:0;width:100%;overflow:hidden}
+html{overscroll-behavior:none}
+#sheet:focus{outline:none}
