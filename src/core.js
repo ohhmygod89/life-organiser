@@ -587,25 +587,21 @@ function appMenu(anchor){
     {label:'New item…', value:'new', kbd:'N'}, {label:'New folder…', value:'folder'},
     {sep:true}, {head:'Appearance'},
     {label:'Match system', value:'t-system', checked:theme==='system'}, {label:'Light', value:'t-light', checked:theme==='light'}, {label:'Dark', value:'t-dark', checked:theme==='dark'},
-    {sep:true}, {label:'Status flags…', value:'flags'}, {label:'Copy backup (JSON)', value:'backup'}, ...(Store.demo?[{label:'Reset demo data', value:'reset'}]:[]), {label:'Keyboard shortcuts', value:'keys', kbd:'?'},
-    {sep:true}, {head:'Version '+APP_VERSION},
+    {sep:true}, {label:'Status flags…', value:'flags'}, {label:'Export…', value:'export'}, {label:'Import…', value:'import'}, ...(ls.get('lo.preImport','')?[{label:'Undo last import…', value:'undoimport'}]:[]), ...(Store.demo?[{label:'Reset demo data', value:'reset'}]:[]), {label:'Keyboard shortcuts', value:'keys', kbd:'?'},
+    {sep:true}, {head:bkLastLabel()}, {head:'Version '+APP_VERSION},
   ], v => {
     if(v==='new') openNewItem({opener:anchor});
     if(v==='folder') newFolder(anchor);
     if(v.startsWith('t-')){ setTheme(v.slice(2)); }
     if(v==='flags') TYPE_VIEWS.kanban.openFlagsModal(anchor);
-    if(v==='backup') copyBackup();
+    if(v==='export') openExport(anchor);
+    if(v==='import') openImport(anchor);
+    if(v==='undoimport') bkUndoLast();
     if(v==='reset') Store.db.reset();
     if(v==='keys') openKeys(anchor);
   }, 'Life Organiser options');
 }
 function setTheme(t){ ls.set('lo.theme', t); if(t==='system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); }
-async function copyBackup(){
-  const data = JSON.stringify({exported:nowIso(), folders:S.folders, items:S.items, tasks:S.tasks, rows:S.rows, flags:flags()}, null, 2);
-  try{ await navigator.clipboard.writeText(data); toast('Backup copied. Paste it into a .json file to keep it.'); }
-  catch(e){ openModal(`<h2 id="mTitle">Backup</h2><p class="note">Copying was blocked here, so select all the text below and copy it.</p><textarea class="txt-in" style="min-height:240px;font:12px/1.4 var(--mono)" readonly>${esc(data)}</textarea><div class="row-end"><button class="pill" data-x>Done</button></div>`); modal().onclick = e=>{ if(e.target.closest('[data-x]')) closeModal(); }; requestAnimationFrame(()=>$('#modal textarea').select()); }
-}
-
 /* ----- item menu (top bar •••) ----- */
 function itemMenu(anchor, it){
   openMenu(anchor, [
@@ -805,6 +801,7 @@ async function start(){
       if(col==='items' && window.__typingItem){ const i=docs.findIndex(d=>d.id===window.__typingItem); const local=itemById(window.__typingItem); if(i>-1 && local) docs[i]=local; }
       if(col==='tasks' && window.__typingTask){ const i=docs.findIndex(d=>d.id===window.__typingTask); const local=S.tasks.find(t=>t.id===window.__typingTask); if(i>-1 && local) docs[i]=local; }
       S[col] = docs; S.loaded[col] = true; render(); refreshOverlays();
+      if(col==='tasks' && !S.nudgeSet){ S.nudgeSet=true; setTimeout(bkNudge, 4000); }
     }, onErr);
   }
   Store.watchDoc('meta/settings', d => { S.flags = Array.isArray(d?.flags) ? d.flags : null; render(); refreshOverlays(); }, onErr);

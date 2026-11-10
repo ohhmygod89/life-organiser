@@ -2,6 +2,14 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.11] - 2026-11-09
+### Added
+- **Export** from the ••• menu: everything in one file, encrypted with your passphrase (default) or plain.
+- **Import**: shows what's in the file, then Merge (keeps the newer version of each record, deletes nothing) or Replace everything. Undo straight after, plus "Undo last import" in the menu.
+- "Last backup" shown in the menu, and a reminder when there's been no backup for 7 days.
+### Removed
+- "Copy backup (JSON)", replaced by Export. Old copied backups can still be imported.
+
 ## [1.0.0-beta.10] - 2026-11-09
 ### Changed
 - Every Kanban now uses the same layout as the stacked board: same column size, compact cards, + in each column header.

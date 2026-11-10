@@ -11,7 +11,7 @@ VERSION = (R/'VERSION').read_text().strip()
 src = R/'src'
 css = (src/'styles.css').read_text()
 shell = (src/'shell.html').read_text().replace('__VERSION__', VERSION)
-parts = ['core.js', 'demo.js', 'types/kanban.js', 'types/note.js', 'types/collection.js', 'types/tracker.js', 'types/checklist.js', 'types/bills.js']
+parts = ['core.js', 'demo.js', 'backup.js', 'types/kanban.js', 'types/note.js', 'types/collection.js', 'types/tracker.js', 'types/checklist.js', 'types/bills.js']
 js = '\n'.join((src/f).read_text() for f in parts).replace('__VERSION__', VERSION)
 sortable = '<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>'
 head = f'''<title>Life Organiser</title>
