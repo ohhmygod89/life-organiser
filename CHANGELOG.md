@@ -2,6 +2,16 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.14] - 2026-11-09
+### Fixed
+- Phone: the page was wider than the screen in Safari, cutting off the right edge (menu button, Open links, column + buttons) and shifting the menu. The closed menu no longer sits off the right edge, and the page can't scroll sideways.
+- A subtask's flag no longer appears twice on a card when it's the flag shown at the top.
+### Changed
+- Subtask flag chips line up under the subtask text.
+- Keyboard-shortcut hints are hidden on touch screens.
+### Added
+- `test/review.js`: release check of every page on phone and desktop (overflow and script errors), run before each release.
+
 ## [1.0.0-beta.13] - 2026-11-09
 ### Changed
 - Columns are now To Do, In Progress, Done (Back Burner unchanged). Tasks that were in Upcoming move to To Do.

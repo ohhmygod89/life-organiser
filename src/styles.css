@@ -703,7 +703,8 @@ body.is-dragging .lanes,body.is-dragging .board{scroll-snap-type:none}
   .fab svg{width:22px;height:22px}
   body.side-open .fab,body.sheet-open .fab,body.is-dragging .fab{opacity:0;pointer-events:none}
   #sideToggle{display:none}
-  .side{left:auto;right:0;transform:translateX(102%)}
+  .side{left:auto;right:0;transform:none;clip-path:inset(0 0 0 100%);visibility:hidden;transition:clip-path .28s cubic-bezier(.32,.72,0,1),visibility 0s .28s}
+  body.side-open .side{clip-path:inset(0 0 0 0);visibility:visible;transition:clip-path .28s cubic-bezier(.32,.72,0,1),visibility 0s}
   .content{padding-bottom:96px}
 }
 /* drop anywhere in a column: the card list fills the column */
@@ -732,3 +733,6 @@ body.side-open .fab .fab-x{display:block}
   .sheet.show{transform:none}
 }
 @media (max-width:860px){.side{padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}}
+html,body{overflow-x:clip;max-width:100%}
+.card .cl .chip.sub{display:table;width:auto;margin:3px 0 1px}
+@media (pointer:coarse){.side .kbd,.side kbd{display:none}}

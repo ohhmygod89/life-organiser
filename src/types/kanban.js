@@ -41,12 +41,13 @@ TYPE_VIEWS.kanban = (() => {
     if(!isDone && ((t.notes||'').trim() || (t.log||[]).length)) parts.push(`<span title="Has notes" aria-label="Has notes">${ICON.notes}</span>`);
     const back = colName(t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo');
     const showCl = cl.length && !isDone; const lim = compact ? 4 : 8;
+    const src = effFlag(t)?.from;   // that subtask's flag is already shown at the top of the card
     return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       <button class="tick" data-tick="" title="${isDone?'Not done, back to '+back:'Mark done'}" aria-label="${isDone?'Mark not done':'Mark done'}: ${esc(t.title)}">${ICON.check}</button>
       <button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>
       ${!isDone ? chipHTML(t,'one') : ''}
       <div class="title">${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
-      ${showCl ? `<ul class="cl">${cl.slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
+      ${showCl ? `<ul class="cl">${cl.slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
       ${parts.length?`<div class="meta">${parts.join('')}</div>`:''}
     </article>`;
   }
