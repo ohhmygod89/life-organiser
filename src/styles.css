@@ -780,8 +780,8 @@ html{overscroll-behavior:none}
 .card .meta .due{display:inline-flex;align-items:center;gap:4px}
 .card .meta .ml:empty{display:none}
 /* pinned: a calm tint and a pin, sorted to the top of its column */
-.card.pinned{background:color-mix(in srgb,var(--accent) 7%,var(--panel));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 45%,transparent),var(--shadow)}
-.pin-i{display:inline-flex;vertical-align:-2px;margin-right:5px;color:var(--accent)}
+.card.pinned{background:color-mix(in srgb,var(--fg) 5%,var(--panel))}
+.pin-i{display:inline-flex;vertical-align:-2px;margin-right:5px;color:var(--muted)}
 .pin-i svg{width:13px;height:13px}
 .pin-btn{width:28px;height:28px;flex:none;color:var(--muted);align-self:center}
 .pin-btn svg{width:15px;height:15px}

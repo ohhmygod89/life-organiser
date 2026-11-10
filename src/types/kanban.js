@@ -40,7 +40,8 @@ TYPE_VIEWS.kanban = (() => {
     const left = [], right = [];
     if(isDone && t.doneAt) left.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
     if(!isDone && ((t.notes||'').trim() || (t.log||[]).length)) left.push(`<span title="Has notes" aria-label="Has notes">${ICON.notes}</span>`);
-    if(t.due && !isDone){ const d=dueLabel(t.due); right.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}"><b>${esc(d.full)}</b><i>${esc(d.rel)}</i></span>`); }
+    if(t.due && !isDone){ const d=dueLabel(t.due); const near = dayDiff(t.due) <= 7;   // overdue or due within a week: add how far away
+      right.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}"><b>${esc(d.full)}</b>${near?`<i>${esc(d.rel)}</i>`:''}</span>`); }
     const back = colName(t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo');
     const showCl = cl.length && !isDone; const lim = compact ? 4 : 8;
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
@@ -51,7 +52,7 @@ TYPE_VIEWS.kanban = (() => {
       ${mvTop ? `<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>` : ''}
       <div class="title">${pinned?`<span class="pin-i" aria-hidden="true">${ICON.pin}</span>`:''}${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
       ${!isDone ? chipHTML(t,'one') : ''}
-      ${showCl ? `<ul class="cl">${cl.slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
+      ${showCl ? `<ul class="cl">${[...cl.filter(c=>!c.done), ...cl.filter(c=>c.done)].slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
       ${TOUCH && !isDone && (left.length||right.length) ? right.push(`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) && '' : ''}
       ${left.length||right.length?`<div class="meta"><span class="ml">${left.join('')}</span><span class="mr">${right.join('')}</span></div>`:''}
     </article>`;
