@@ -2,6 +2,20 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.15] - 2026-11-09
+### Fixed
+- Safari stuck zoomed in (page cut off on the right, menu cut off at the top): the app snaps back to 100% on load and whenever it finds itself zoomed, and pinching out is allowed when zoomed.
+- Column "+" opened the add box off-screen below the cards; it now opens at the top of the column, new tasks go to the top, and several in a row keep their typed order.
+- Side menu stayed open behind dialogs, with the menu button covering Save; it now closes when a dialog opens.
+- Long "Who?" on a subtask flag spilled out of the card; it now cuts off with "…".
+- A fast flick could jump two columns; every swipe now moves at most one column.
+- Dragging a card near the screen edge slid the board sideways; while holding a card the board only scrolls up and down.
+### Changed
+- Phone task window: pull the top bar down to close it.
+- Dialog buttons stay visible at the bottom of tall dialogs.
+- No keyboard-shortcut items in the ••• menu on touch screens; "Open" links in lane headers not underlined; the drop placeholder only shows in empty columns.
+- Release process: every release is tested by an independent Sonnet 5.5 (high) agent before it goes out.
+
 ## [1.0.0-beta.14] - 2026-11-09
 ### Fixed
 - Phone: the page was wider than the screen in Safari, cutting off the right edge (menu button, Open links, column + buttons) and shifting the menu. The closed menu no longer sits off the right edge, and the page can't scroll sideways.

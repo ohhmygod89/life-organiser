@@ -577,7 +577,8 @@ new MutationObserver(() => { const open = document.body.classList.contains('side
 const isZoomed = () => (window.visualViewport?.scale || 1) > 1.01;
 ['gesturestart','gesturechange'].forEach(ev => document.addEventListener(ev, e => { if(!isZoomed() && !(ev==='gesturechange' && e.scale<1)) e.preventDefault(); }, {passive:false}));
 function resetZoom(){
-  if(Date.now() - (resetZoom.last||0) < 2000) return;   // at most one attempt every 2 s, so it can't loop if Safari ignores it
+  const wait = 2000 - (Date.now() - (resetZoom.last||0));   // at most one attempt every 2 s, so it can't loop if Safari ignores it
+  if(wait > 0){ clearTimeout(resetZoom.t); resetZoom.t = setTimeout(resetZoom, wait); return; }
   if(!isZoomed() || document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
   const m = document.querySelector('meta[name=viewport]'); if(!m) return;
   const base = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';

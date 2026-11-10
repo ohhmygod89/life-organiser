@@ -742,6 +742,6 @@ html,body{overflow-x:clip;max-width:100%}
 .lcol > .add-row{padding:2px 7px 6px}
 @media (max-width:760px){.sh-grab{width:44px;height:5px;margin:8px auto 2px;padding:0}.sh-top{touch-action:none}}
 /* the board's sideways swipes are handled in script (one column per swipe); vertical scrolling stays native */
-@media (pointer:coarse){.lanes,.board{touch-action:pan-y}}
+@media (pointer:coarse){.lanes,.board{touch-action:pan-y pinch-zoom}}
 /* dialog buttons stay visible at the bottom of tall dialogs */
 .modal > .row-end:last-child{position:sticky;bottom:-24px;margin:0 -26px -24px;padding:12px 26px 16px;background:var(--panel);border-top:1px solid var(--sep)}
