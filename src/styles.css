@@ -817,8 +817,8 @@ html{overscroll-behavior:none}
 /* pin button sits where the tick was: always visible when pinned, on hover (desktop) or faint (touch) otherwise */
 .card .pin{position:absolute;top:8px;right:8px;width:26px;height:26px;padding:0;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;color:var(--muted);opacity:0;transition:opacity .12s,background .12s}
 .card .pin svg{width:15px;height:15px}
-.card:hover .pin,.card:focus-within .pin,.card .pin:focus-visible{opacity:.7}
-.card .pin:hover{opacity:1;background:var(--fill-2)}
+@media (hover:hover){.card:hover .pin,.card:focus-within .pin{opacity:.7}.card .pin:hover{opacity:1;background:var(--fill-2)}}
+.card .pin:focus-visible{opacity:.7}
 .card .pin[aria-pressed="true"]{opacity:1;color:var(--fg)}
 @media (pointer:coarse){.card .pin{opacity:1;color:color-mix(in srgb,var(--muted) 55%,transparent);width:32px;height:32px;top:4px;right:4px;transition:none}.card .pin[aria-pressed="true"]{color:var(--fg)}}
 .card{padding-right:36px}
@@ -876,4 +876,11 @@ html{overscroll-behavior:none}
   .card .meta{flex-wrap:nowrap;align-items:flex-end}
   .card .meta .ml{flex:1;min-width:0}
   .card .meta .mr .mv{position:static;opacity:1;color:var(--muted);width:30px;height:30px;margin:-6px -6px -6px 0}
+}
+/* footer text 13px on every card size */
+.card .meta,.card.compact .meta{font-size:13px}
+/* touch, no footer: ⇄ beside the pin */
+@media (pointer:coarse){
+  .card.mv-top > .mv{position:absolute;top:4px;right:36px;bottom:auto;width:32px;height:32px;opacity:1;color:var(--muted);margin:0}
+  .card.mv-top .card-head{padding-right:62px}
 }

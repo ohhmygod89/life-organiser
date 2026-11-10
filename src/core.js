@@ -891,7 +891,7 @@ async function start(){
       S[col] = docs; S.loaded[col] = true;
       if((col==='items'||col==='folders') && S.loaded.items && S.loaded.folders && !S.navMigrated && S.items.some(i=>i.folderId)){ S.navMigrated = true;
         const fo = id => S.folders.find(f=>f.id===id)?.order ?? 999;   // folders retired in 1.0.0-beta.18: keep the order people had
-        S.items.slice().sort((a,b)=>fo(a.folderId)-fo(b.folderId) || (a.order??0)-(b.order??0)).forEach((it,i)=>docPatch('items', it.id, {order:i, folderId:''}));
+        S.items.slice().sort((a,b)=>fo(a.folderId)-fo(b.folderId) || (a.order??0)-(b.order??0)).forEach((it,i)=>docPatch('items', it.id, {order:i, folderId:'', updated:it.updated||nowIso()}));
       }
       if(col==='tasks') docs.filter(t=>t.col==='upcoming').forEach(t=>docPatch('tasks', t.id, {col:'todo'}));   // Upcoming column retired in 1.0.0-beta.13
       render(); refreshOverlays();
