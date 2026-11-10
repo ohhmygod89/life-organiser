@@ -770,3 +770,39 @@ html{overscroll-behavior:none}
 #sheet:focus{outline:none}
 /* subtasks may use the space under the tick and move buttons, so reasons have room */
 .card .cl{margin-right:-24px}
+
+/* ----- beta.17: calmer cards ----- */
+.card .chip.one{margin:6px 0 0}                       /* flag sits under the title */
+.card .cl{padding-left:12px;margin-top:6px}           /* subtasks indented under the title */
+.card .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+.card .meta .ml,.card .meta .mr{display:flex;align-items:center;gap:8px;min-width:0}
+.card .meta .mr{margin-left:auto;white-space:nowrap}
+.card .meta .due{display:inline-flex;align-items:center;gap:4px}
+.card .meta .ml:empty{display:none}
+/* pinned: a calm tint and a pin, sorted to the top of its column */
+.card.pinned{background:color-mix(in srgb,var(--accent) 7%,var(--panel));box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 45%,transparent),var(--shadow)}
+.pin-i{display:inline-flex;vertical-align:-2px;margin-right:5px;color:var(--accent)}
+.pin-i svg{width:13px;height:13px}
+.pin-btn{width:28px;height:28px;flex:none;color:var(--muted);align-self:center}
+.pin-btn svg{width:15px;height:15px}
+.pin-btn[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft)}
+/* task window subtasks: text · flag · delete on one row; the who/why box under it */
+.ci-row{display:flex;align-items:center;gap:4px;min-width:0}
+.ci-row input[type=text]{flex:1}
+.ci-row .chip.sm{flex:none;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ci-row .icon-btn.mini{width:30px;height:30px;flex:none;color:var(--muted)}
+.ci-row .icon-btn.mini svg{width:13px;height:13px}
+.ci-row .flag-add{opacity:.55}
+.ci-row .flag-add:hover{opacity:1}
+.ci-f{padding-left:0}
+.ci-f .ci-who{flex:1}
+/* drag: the card lifts and follows your finger; a quiet slot shows where it will land */
+.ghost-card{background:var(--fill-2)!important;box-shadow:inset 0 0 0 1.5px var(--sep)!important;opacity:1!important}
+.ghost-card > *{visibility:hidden}
+.card.dragging,.card.sortable-drag{box-shadow:0 14px 34px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.08)!important;scale:1.03;rotate:1.5deg;opacity:.97!important;cursor:grabbing}
+.sortable-chosen:not(.ghost-card){transition:none}
+.card .meta .due{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25;gap:0;text-align:right}
+.card .meta .due b{font-weight:500}
+.card .meta .due i{font-style:normal;font-size:.92em;opacity:.85}
+.card .meta .mr .mv{position:static;opacity:1;flex:none;width:28px;height:28px;margin:-4px -6px -4px 0}
+.card.compact{min-height:0}

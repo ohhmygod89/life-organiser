@@ -34,6 +34,7 @@ const ICON = {
   chev:'<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m7 9 5 5 5-5"/></svg>',
   chevD:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 9 5 5 5-5"/></svg>',
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 14 5-5 5 5"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 2.5 21.5 8.5l-2 .9-3.6 3.6.6 4.6-1.6 1.6-4-4-5 5-1.2-1.2 5-5-4-4 1.6-1.6 4.6.6 3.6-3.6z"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="m5 12 4.5 4.5L19 7"/></svg>',
   cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
@@ -70,13 +71,13 @@ const ymd = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+
 const today = () => ymd(new Date());
 function dayDiff(s){ if(!s) return null; const [y,m,d]=s.split('-').map(Number); const a=new Date(y,m-1,d); const t=new Date(); t.setHours(0,0,0,0); return Math.round((a-t)/864e5); }
 function dateLabel(s){ const [y,m,d]=s.split('-').map(Number); return d+' '+MON[m-1]+(y!==CUR_YEAR?' '+y:''); }
+/* full date, dd mmm yy (e.g. 15 Nov 26) */
+const fullDate = s => { const d=new Date(s+'T00:00:00'); return String(d.getDate()).padStart(2,'0')+' '+MON[d.getMonth()]+' '+String(d.getFullYear()).slice(2); };
+/* due label: full date plus how far away, e.g. "15 Nov 26 · In 6d" */
 function dueLabel(s){
-  const n = dayDiff(s);
-  if(n<0) return {t:(-n)+'d overdue', cls:'overdue'};
-  if(n===0) return {t:'Today', cls:'soon'};
-  if(n===1) return {t:'Tomorrow', cls:'soon'};
-  if(n<7) return {t:'In '+n+'d', cls:''};
-  return {t:dateLabel(s), cls:''};
+  const n = dayDiff(s), full = fullDate(s);
+  const r = n<0 ? {rel:(-n)+'d overdue', cls:'overdue'} : n===0 ? {rel:'Today', cls:'soon'} : n===1 ? {rel:'Tomorrow', cls:'soon'} : {rel:'In '+n+'d', cls:''};
+  return {...r, full, t: full+' · '+r.rel};
 }
 const shortDate = iso => { const d=new Date(iso); return d.getDate()+' '+MON[d.getMonth()]+(d.getFullYear()!==CUR_YEAR?' '+d.getFullYear():''); };
 const stamp = iso => { const d=new Date(iso); return shortDate(iso)+', '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}); };
@@ -305,7 +306,7 @@ $('#content').addEventListener('focusout', () => setTimeout(()=>{ if(contentPend
 
 function currentItem(){ return S.route.v==='item' ? itemById(S.route.id) : null; }
 /* Kanbans (categories) all share one standard colour; other item types keep their type colour. */
-function itemColor(it){ return it?.type==='kanban' ? COLORS.blue : colorOf(it?.color || TYPES[it?.type]?.color); }
+function itemColor(it){ return it?.type==='kanban' ? COLORS.slate : colorOf(it?.color || TYPES[it?.type]?.color); }
 
 /* ----- sidebar ----- */
 let navSortables = [];
@@ -453,7 +454,7 @@ const flagOf = id => flags().find(f=>f.id===id);
 const PLEVEL = {low:1, med:2, high:3};
 const prioIcon = p => { const n=PLEVEL[p]||0; return `<svg class="pbars p-${p||'none'}" viewBox="0 0 14 12" aria-hidden="true">${[0,1,2].map(i=>`<rect x="${i*5}" y="${8-i*4}" width="3.4" height="${4+i*4}" rx="1" ${i<n?'':'class="off"'}/>`).join('')}</svg>`; };
 const bangHTML = p => PRIO[p] ? `<span class="prio p-${p}" role="img" aria-label="${PRIO[p].label} priority" title="${PRIO[p].label} priority">${prioIcon(p)}</span>` : '';
-const FLAG_SHORT = {waiting:'Waiting', blocked:'Blocked', hold:'On hold', decision:'Decision'};
+const FLAG_SHORT = {waiting:'Waiting', blocked:'Blocked', hold:'On hold', decision:'Needs decision'};
 const flagShort = f => FLAG_SHORT[f.id] || f.label;
 /* one-line chip: short flag name plus who, cut off with … if long */
 /* A task shows the most serious flag among its own flag and its open subtasks' flags. */
@@ -465,7 +466,7 @@ function effFlag(t){
   return best;
 }
 /* Flags that take a detail: Waiting asks who, Blocked and On hold ask why. */
-const FLAG_ASK = {waiting:'Who?', blocked:'Why?', hold:'Why?'};
+const FLAG_ASK = {waiting:'Who?', blocked:'Why?', hold:'Why?', decision:'Why?'};
 const flagAsk = f => !f ? '' : (FLAG_ASK[f.id] || (f.who ? 'Who?' : ''));
 const flagAskLabel = f => flagAsk(f)==='Who?' ? 'Waiting on' : 'Reason';
 const chipHTML = (t, cls='') => { const e=effFlag(t); const f=e&&flagOf(e.flag); if(!f) return ''; const who = flagAsk(f) && e.who ? e.who : '';
@@ -487,7 +488,7 @@ function renderTasks(c){
   if((V.mode||'board')==='board'){
     const quickChips = `<div class="toolbar chips" role="group" aria-label="Quick filters">${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" style="--c:${x.c}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>`;
     c.innerHTML = `<div class="wrap wide tasks-board">
-      <div class="tb-head"><div><p class="eyebrow">Every Kanban, stacked</p><h1 class="big">All tasks</h1></div>${modeSeg}</div>
+      <div class="tb-head"><div><h1 class="big">All tasks</h1></div>${modeSeg}</div>
       <div class="tb-filters">${quickChips}${boardChips}${bbSwitch}</div>
       ${shown.length ? '<div id="lanesRoot"></div>' : `<div class="panel empty-state">No Kanbans to show.</div>`}
     </div>`;
@@ -503,7 +504,7 @@ function renderTasks(c){
   else { list.sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')); groups=[{title:'Recently updated', items:list}]; }
   groups = groups.filter(g=>g.items.length);
   c.innerHTML = `<div class="wrap">
-    <div class="tb-head"><div><p class="eyebrow">Every Kanban in one list</p><h1 class="big">All tasks</h1></div>${modeSeg}</div>
+    <div class="tb-head"><div><h1 class="big">All tasks</h1></div>${modeSeg}</div>
     <div class="stats" role="group" aria-label="Quick filters">${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="stat" data-quick="${x.id}" aria-pressed="${on}" style="--sc:${x.c}" ${!n&&!on&&x.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[x.ic]}</i><b>${n}</b></span><span>${x.label}</span></button>`}).join('')}</div>
     <div class="toolbar"><span class="lbl" id="sLbl">Sort</span><div class="seg" role="group" aria-labelledby="sLbl">${[['priority','Priority'],['due','Due date'],['board','Board'],['updated','Recently updated']].map(([k,l])=>`<button data-sort="${k}" aria-pressed="${V.sort===k}">${l}</button>`).join('')}</div>
       ${boardChips}${bbSwitch}</div>

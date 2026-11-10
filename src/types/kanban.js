@@ -17,7 +17,7 @@ TYPE_VIEWS.kanban = (() => {
   const archived = t => t.col==='done' && doneYear(t) < CUR_YEAR;
   function tasksIn(bid, col){
     const l = S.tasks.filter(t=>t.boardId===bid && (t.col===col || (col==='todo' && t.col==='upcoming')) && !archived(t));
-    return col==='done' ? l.sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||'')) : l.sort((a,b)=>(a.pos??0)-(b.pos??0));
+    return col==='done' ? l.sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||'')) : l.sort((a,b)=>(!!b.pinned - !!a.pinned) || (a.pos??0)-(b.pos??0));   // pinned first
   }
   function endPos(bid, col, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except); return (l.length?Math.max(...l.map(x=>x.pos||0)):0)+1024; }
   function moveTo(t, col, {silent}={}){
@@ -33,23 +33,25 @@ TYPE_VIEWS.kanban = (() => {
   /* subtask chip on cards: just who it's waiting on (or the short flag name), full text on hover */
   const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = d || flagShort(f);   // the colour dot says which flag; the space goes to who or why
     return `<span class="chip one sub" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${d?' · '+esc(d):''}">${esc(txt)}</span>`; };
+  /* Card, top to bottom: title (with priority bars, and a pin if pinned) · flag chip · subtasks (indented) · footer
+     with notes/done info on the left and the due date on the right. Tick top right; ⇄ move button on touch screens only. */
   function cardHTML(t, compact){
-    const isDone = t.col==='done'; const parts = [];
-    if(isDone && t.doneAt) parts.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
-    if(t.due && !isDone){ const d=dueLabel(t.due); parts.push(`<span class="${d.cls}">${ICON.cal}${esc(d.t)}</span>`); }
-    const cl = t.checklist||[];
-    if(cl.length && !isDone) parts.push(`<span aria-label="${cl.filter(c=>c.done).length} of ${cl.length} checklist items done">${ICON.list}${cl.filter(c=>c.done).length}/${cl.length}</span>`);
-    if(!isDone && ((t.notes||'').trim() || (t.log||[]).length)) parts.push(`<span title="Has notes" aria-label="Has notes">${ICON.notes}</span>`);
+    const isDone = t.col==='done', cl = t.checklist||[];
+    const left = [], right = [];
+    if(isDone && t.doneAt) left.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
+    if(!isDone && ((t.notes||'').trim() || (t.log||[]).length)) left.push(`<span title="Has notes" aria-label="Has notes">${ICON.notes}</span>`);
+    if(t.due && !isDone){ const d=dueLabel(t.due); right.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}"><b>${esc(d.full)}</b><i>${esc(d.rel)}</i></span>`); }
     const back = colName(t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo');
     const showCl = cl.length && !isDone; const lim = compact ? 4 : 8;
-    const src = effFlag(t)?.from;   // that subtask's flag is already shown at the top of the card
-    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
+    const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
+    const pinned = !!t.pinned && !isDone;
+    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       <button class="tick" data-tick="" title="${isDone?'Not done, back to '+back:'Mark done'}" aria-label="${isDone?'Mark not done':'Mark done'}: ${esc(t.title)}">${ICON.check}</button>
-      <button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>
+      <div class="title">${pinned?`<span class="pin-i" aria-hidden="true">${ICON.pin}</span>`:''}${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
       ${!isDone ? chipHTML(t,'one') : ''}
-      <div class="title">${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
       ${showCl ? `<ul class="cl">${cl.slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
-      ${parts.length?`<div class="meta">${parts.join('')}</div>`:''}
+      ${TOUCH && !isDone ? right.push(`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) && '' : ''}
+      ${left.length||right.length?`<div class="meta"><span class="ml">${left.join('')}</span><span class="mr">${right.join('')}</span></div>`:''}
     </article>`;
   }
   function addRowHTML(bid, c){
@@ -60,7 +62,7 @@ TYPE_VIEWS.kanban = (() => {
   function bindSortables(root){
     sortables.forEach(s=>s.destroy()); sortables = [];
     $$('.cards', root).forEach(list => sortables.push(Sortable.create(list, {
-      group:'cards', animation:RM?0:140, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.tick,.cbox,.mv', preventOnFilter:false,
+      group:'cards', animation:RM?0:180, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.tick,.cbox,.mv', preventOnFilter:false,
       delay:200, delayOnTouchOnly:true, touchStartThreshold:6, forceFallback:true, fallbackOnBody:true, fallbackClass:'dragging', fallbackTolerance:3,
       emptyInsertThreshold:60, swapThreshold:.6, invertSwap:false, direction:'vertical', ghostClass:'ghost-card',
       scroll:true, bubbleScroll:true, scrollSensitivity:44, scrollSpeed:9,
@@ -82,7 +84,7 @@ TYPE_VIEWS.kanban = (() => {
     root.innerHTML = `<div class="lanes" data-hs="lanes" style="--n:${cols.length}"><div class="lanes-in">` + boards.map(b => {
       const open = S.tasks.filter(t=>t.boardId===b.id && !['done','backburner'].includes(t.col) && keep(t)).length;
       return `<section class="lane" style="--board:${itemColor(b)}" aria-label="${esc(b.name)}" data-key="lane-${esc(b.id)}">
-        ${single ? '' : `<div class="lane-h"><div class="lane-hi"><span class="lane-dot" aria-hidden="true"></span><h2>${esc(b.name)}</h2><span class="count">${plural(open,'open task')}</span>
+        ${single ? '' : `<div class="lane-h"><div class="lane-hi"><span class="lane-dot" aria-hidden="true"></span><h2>${esc(b.name)}</h2><span class="count">${plural(open,'open task')} · ${S.tasks.filter(t=>t.boardId===b.id && (t.col==='todo'||t.col==='upcoming') && keep(t)).length} to do · ${S.tasks.filter(t=>t.boardId===b.id && t.col==='doing' && keep(t)).length} in progress</span>
           <a class="link lane-open" href="#i-${esc(b.id)}">Open</a></div></div>`}
         <div class="lane-cols">${cols.map(c => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
@@ -217,6 +219,7 @@ TYPE_VIEWS.kanban = (() => {
       <div class="sh-top">
         <textarea class="t-input" id="fTitle" rows="1" aria-label="Task title" placeholder="Task name">${esc(t.title)}</textarea>
         <span class="saved" id="savedNote" role="status" aria-live="polite"></span>
+        ${t.col!=='done'?`<button class="icon-btn pin-btn" id="fPin" aria-pressed="${!!t.pinned}" aria-label="${t.pinned?'Unpin':'Pin to top of column'}" title="${t.pinned?'Unpin':'Pin to top of column'}">${ICON.pin}</button>`:''}
         <button class="icon-btn" id="closeSheet" aria-label="Close" title="Close (Esc)">${ICON.x}</button>
       </div>
       <div class="sh-body">
@@ -238,9 +241,10 @@ TYPE_VIEWS.kanban = (() => {
           <div class="sh-h"><h3 id="clLbl">Subtasks</h3>${cl.length?`<span class="sh-n">${doneN}/${cl.length}</span><div class="progress" aria-hidden="true"><i style="width:${doneN/cl.length*100}%;background:var(--board)"></i></div>`:''}</div>
           <div class="subs">${cl.map(c=>{ const cf=flagOf(c.flag); return `<div class="ci ${c.done?'done':''}" data-key="ci-${esc(c.id)}">
               <button class="cbox" data-ci="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="Done: ${esc(c.text)}">${ICON.check}</button>
-              <div class="ci-m"><input type="text" data-ct="${esc(c.id)}" value="${esc(c.text)}" aria-label="Subtask">
-                ${cf && !c.done?`<div class="ci-f"><button class="chip sm" data-cf="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" style="--fc:${colorOf(cf.color)}" title="Change flag">${esc(flagShort(cf))}</button>${flagAsk(cf)?`<input type="text" class="ci-who" data-cw="${esc(c.id)}" value="${esc(c.flagWho||'')}" placeholder="${flagAsk(cf)}" aria-label="${flagAsk(cf)==='Who?'?'Who is this subtask waiting on?':'Why is this subtask '+esc(cf.label.toLowerCase())+'?'}">`:''}</div>`:''}</div>
-              <button class="icon-btn mini" data-cm="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Options for ${esc(c.text)}">${ICON.more}</button>
+              <div class="ci-m"><div class="ci-row"><input type="text" data-ct="${esc(c.id)}" value="${esc(c.text)}" aria-label="Subtask">
+                ${c.done ? '' : cf ? `<button class="chip sm" data-cf="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" style="--fc:${colorOf(cf.color)}" title="Change flag">${esc(flagShort(cf))}</button>` : `<button class="icon-btn mini flag-add" data-cf="${esc(c.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Flag ${esc(c.text)}" title="Add a flag">${ICON.flag}</button>`}
+                <button class="icon-btn mini" data-cdel="${esc(c.id)}" aria-label="Delete subtask ${esc(c.text)}" title="Delete subtask">${ICON.x}</button></div>
+                ${cf && !c.done && flagAsk(cf)?`<div class="ci-f"><input type="text" class="ci-who" data-cw="${esc(c.id)}" value="${esc(c.flagWho||'')}" placeholder="${flagAsk(cf)}" aria-label="${flagAsk(cf)==='Who?'?'Who is this subtask waiting on?':'Why does this subtask '+esc(cf.label.toLowerCase())+'?'}"></div>`:''}</div>
             </div>`; }).join('')}
             <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fCheckNew" placeholder="Add subtask" aria-label="New subtask" enterkeyhint="done"></div>
           </div>
@@ -303,6 +307,9 @@ TYPE_VIEWS.kanban = (() => {
       docPatch('tasks', t.id, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
     const pf = e.target.closest('#pFlag');
     if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $('#fWho')?.focus(); }, 'Flag');
+    if(e.target.closest('#fPin')){ docPatch('tasks', t.id, {pinned:!t.pinned}); renderSheet(); markSaved(); render(); toast(t.pinned?'Unpinned':'Pinned to the top of '+colName(t.col)); return; }
+    const cd = e.target.closest('[data-cdel]');
+    if(cd){ const id=cd.dataset.cdel; const c=(t.checklist||[]).find(x=>x.id===id); const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c?.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
     const cfb = e.target.closest('[data-cf]');
     if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v, ...(v!==x.flag?{flagWho:''}:{})})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus(); }, 'Subtask flag'); }
     const cm = e.target.closest('[data-cm]');
