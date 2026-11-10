@@ -105,7 +105,7 @@ TYPE_VIEWS.kanban = (() => {
     const done = t.col==='done';
     return [...(done?[]:[{label:t.pinned?'Unpin':'Pin to top', value:'pin'}]),
       {sep:true}, ...COLS.filter(c=>c.id!==t.col).map(c=>({label:'Move to '+c.name, value:'col:'+c.id})),
-      {sep:true}, {label:'Duplicate…', value:'dup'}, {label:'Open', value:'open'}];
+      {sep:true}, {label:'Duplicate…', value:'dup'}, {label:'Open', value:'open'}, {sep:true}, {label:'Delete', value:'del', danger:true}];
   }
   function cardAction(v, t, card, e){
     if(v==='open') return openSheet(t.id, card);
@@ -113,6 +113,7 @@ TYPE_VIEWS.kanban = (() => {
     if(v==='pin'){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); render(true);
       return toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now, pos:t.pos})); }
     if(v.startsWith('col:')){ moveTo(t, v.slice(4)); render(true); }
+    if(v==='del'){ const snap = clone(t); docDel('tasks', t.id); render(true); toast('Deleted “'+snap.title+'”', ()=>docSet('tasks', snap)); }
   }
   function cardMenu(e){
     const card = e.target.closest('.card'); if(!card || e.target.closest('[contenteditable]')) return;
@@ -129,14 +130,15 @@ TYPE_VIEWS.kanban = (() => {
       lp = {card, x:p.clientX, y:p.clientY, fired:false, timer:setTimeout(() => {
         if(!lp || document.querySelector('.sortable-fallback')) return; lp.fired = true;
         const t = S.tasks.find(x=>x.id===card.dataset.id); if(!t) return;
-        document.dispatchEvent(new Event('touchend', {bubbles:true}));   // stand down the pending drag
-        card.classList.add('held'); try{ navigator.vibrate?.(10); }catch(err){}
-        setTimeout(() => { const r = card.getBoundingClientRect();
+        card.classList.add('held'); haptic();
+        setTimeout(() => { if(!lp?.fired) return; const r = card.getBoundingClientRect();
           openMenu({getBoundingClientRect:()=>({left:r.left+12, right:r.left+12, top:r.top+20, bottom:r.top+20, width:0, height:0}), setAttribute(){}, focus(){}}, cardMenuItems(t), v => cardAction(v, t, card, {clientX:r.left+r.width/2, clientY:r.top+r.height/2}), 'Card');
           card.classList.remove('held'); }, 40);
       }, 480)};
     }, {passive:true});
-    content.addEventListener('touchmove', e => { if(!lp || lp.fired) return; const p=e.touches[0]; if(Math.hypot(p.clientX-lp.x, p.clientY-lp.y) > 8){ clearTimeout(lp.timer); lp=null; } }, {passive:true});
+    /* moving the finger: before the menu, it's a drag or scroll; after the menu opened, the menu closes and the card drags */
+    content.addEventListener('touchmove', e => { if(!lp) return; const p=e.touches[0]; if(Math.hypot(p.clientX-lp.x, p.clientY-lp.y) <= 8) return;
+      if(lp.fired){ lp.card.classList.remove('held'); closeMenu(); lp.fired=false; } clearTimeout(lp.timer); lp=null; }, {passive:true});
     const end = () => { if(!lp) return; clearTimeout(lp.timer); if(lp.fired){ const c=lp.card; const swallow = ev => { if(c.contains(ev.target) || ev.target===document.documentElement || ev.target===document.body){ ev.preventDefault(); ev.stopPropagation(); } document.removeEventListener('click', swallow, true); };
         document.addEventListener('click', swallow, true); setTimeout(()=>document.removeEventListener('click', swallow, true), 700); } lp=null; };
     content.addEventListener('touchend', e => { if(e.isTrusted) end(); }, {passive:true});
@@ -466,12 +468,12 @@ TYPE_VIEWS.kanban = (() => {
       if(v==='pick') return pickDate();
       docPatch('tasks', t.id, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
     const pf = e.target.closest('#pFlag');
-    if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); const w=$('#fWho'); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Flag');
+    if(pf) return openMenu(pf, flagItems(t.flag), v => { if(v===(t.flag||'')) return; docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); const w=$('#fWho'); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Flag');
     if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
     const cd = e.target.closest('[data-cdel]');
     if(cd){ const id=cd.dataset.cdel; const c=(t.checklist||[]).find(x=>x.id===id); const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c?.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
     const cfb = e.target.closest('[data-cf]');
-    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v, ...(v!==x.flag?{flagWho:''}:{})})); renderSheet(); markSaved(); render(); const w=$(`[data-cw="${CSS.escape(id)}"]`); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Subtask flag'); }
+    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { if(v===(c?.flag||'')) return; patchCl(t, id, x=>({...x, flag:v, ...(v!==x.flag?{flagWho:''}:{})})); renderSheet(); markSaved(); render(); const w=$(`[data-cw="${CSS.escape(id)}"]`); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Subtask flag'); }
     const cm = e.target.closest('[data-cm]');
     if(cm){ const id=cm.dataset.cm; const c=(t.checklist||[]).find(x=>x.id===id); if(!c) return;
       return openMenu(cm, [{head:'Flag'}, ...flagItems(c.flag), {sep:true}, {label:'Delete subtask', value:'del', danger:true}], v => {

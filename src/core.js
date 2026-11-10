@@ -50,6 +50,7 @@ const ICON = {
   rtLink:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
   rtClear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5h12M12 5 9 19M4 4l16 16"/></svg>',
   send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  filter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg>',
   chevD:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 9 5 5 5-5"/></svg>',
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 14 5-5 5 5"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 2.5 21.5 8.5l-2 .9-3.6 3.6.6 4.6-1.6 1.6-4-4-5 5-1.2-1.2 5-5-4-4 1.6-1.6 4.6.6 3.6-3.6z"/></svg>',
@@ -395,6 +396,12 @@ function saveNavOrder(){
 /* right-click (or the ••• on touch) */
 /* send buttons (beside add boxes) keep the keyboard up: the box doesn't lose focus when the button is pressed */
 document.addEventListener('pointerdown', e => { if(e.target.closest?.('.send-btn')){ window.__sendPress = Date.now(); e.preventDefault(); } }, true);
+/* a short tap of haptic feedback: Android via vibrate; iPhone Safari (18+) has no vibrate, but toggling a native switch gives a tick */
+const haptic = (() => { let lbl = null;
+  return () => { try{ if(navigator.vibrate && navigator.vibrate(12)) return; }catch(e){}
+    try{ if(!lbl){ lbl = document.createElement('label'); lbl.setAttribute('aria-hidden','true'); lbl.style.cssText='position:fixed;left:-99px;top:0;width:1px;height:1px;overflow:hidden;opacity:0';
+        lbl.innerHTML='<input type="checkbox" switch tabindex="-1">'; document.body.appendChild(lbl); }
+      lbl.click(); }catch(e){} }; })();
 /* a menu opened at the pointer (right-click) */
 const pointAnchor = e => ({getBoundingClientRect:()=>({left:e.clientX, right:e.clientX, top:e.clientY, bottom:e.clientY, width:0, height:0}), setAttribute(){}, focus(){}});
 function navContextMenu(e){
@@ -438,7 +445,7 @@ function renderContent(){
 function headHTML(it){
   const f = folderById(it.folderId);
   return `<div class="ihead"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
-    <div class="ihead-t"><p class="eyebrow">${TYPES[it.type].label}${it.updated?' · Edited '+esc(shortDate(it.updated)):''}</p>
+    <div class="ihead-t"><p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} › </span>`:''}${TYPES[it.type].label}${it.updated?' · Edited '+esc(shortDate(it.updated)):''}</p>
     <input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80"></div></div>`;
 }
 
@@ -544,9 +551,12 @@ function renderKanban(k, root){
   const pool = S.tasks.filter(t=>ids.has(t.boardId) && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)));
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
-  const seg = `<div class="seg kb-tabs" role="group" aria-label="View">${[['board','Board'],['list','List'],['archive','Archive']].map(([m,l])=>`<button data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div>`;
+  const VIEWS = {board:'Board', list:'List', archive:'Archive'};
+  const nf = (V.quick!=='open') + V.boards.size + (V.bb?1:0);   // filters away from the defaults (Done follows the device default, so it isn't counted)
+  const seg = `<div class="kb-ctl">${mode==='archive'?'':`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters">${ICON.filter}Filter${nf?` <b class="nf">${nf}</b>`:''}</button>`}
+    <button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false"><span class="muted">View</span> ${VIEWS[mode]}${ICON.chevD}</button></div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
-  const groups = mode==='archive' ? '' : `<div class="fgroups">
+  const groups = mode==='archive' ? '' : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
     <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}<button class="chip-btn add-stack" data-act="add-stack" title="Add a stack">${ICON.plus}Stack</button></div>
     <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
@@ -576,6 +586,9 @@ function renderKanban(k, root){
 }
 function kanbanClick(e, k){
   const V = S.tasksView;
+  const vb = e.target.closest('[data-act="view"]');
+  if(vb){ openMenu(vb, [['board','Board'],['list','List'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
+  if(e.target.closest('[data-act="filters"]')){ S.filtersOpen=!S.filtersOpen; render(true); restoreFocus('[data-act="filters"]'); return true; }
   const md = e.target.closest('[data-mode]'); if(md){ V.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); render(true); restoreFocus(`[data-mode="${md.dataset.mode}"]`); return true; }
   const so = e.target.closest('[data-sort]'); if(so && !e.target.closest('.tbl')){ V.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return true; }
   const fb = e.target.closest('[data-fb]'); if(fb){ const id=fb.dataset.fb, B=V.boards; if(!id) B.clear(); else B.has(id)?B.delete(id):B.add(id); render(true); return true; }

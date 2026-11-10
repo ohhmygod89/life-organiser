@@ -12,9 +12,9 @@ TYPE_VIEWS.checklist = (() => {
     root.dataset.root = it.id; sortables[it.id]?.destroy(); delete sortables[it.id];
     root.innerHTML = `
       <section class="panel">
-        <div class="toolbar" style="margin-bottom:10px"><span style="font-weight:600;font-size:17px;letter-spacing:-.02em">${done} of ${all.length} done</span><span class="spacer"></span>
+        <div class="ck-head"><span class="ck-count">${done}/${all.length} done</span><span class="spacer"></span>
           <button class="switch" role="switch" aria-checked="${!!it.hideDone}" data-act="hide"><span class="sw-track" aria-hidden="true"></span>Hide done</button>
-          <button class="link" data-act="untick" ${done?'':'disabled'}>Untick all</button><button class="link" data-act="clear" ${done?'':'disabled'}>Clear done</button></div>
+          <button class="icon-btn mini" data-act="ck-more" aria-haspopup="menu" aria-expanded="false" aria-label="Checklist options" title="More">${ICON.more}</button></div>
         <div class="progress" aria-hidden="true"><i style="width:${all.length?done/all.length*100:0}%"></i></div>
         <div class="ck-list" id="ckList" style="margin-top:8px">${shown.map(e=>`<div class="ck ${e.done?'on':''}" data-id="${esc(e.id)}" data-key="ck-${esc(e.id)}"><span class="grip" aria-hidden="true" title="Drag to reorder">${ICON.grip}</span><button class="cbox" data-ck="${esc(e.id)}" role="checkbox" aria-checked="${!!e.done}" aria-label="${esc(e.text)}">${ICON.check}</button><input type="text" data-ct="${esc(e.id)}" value="${esc(e.text)}" aria-label="Checklist item"><button class="x" data-del="${esc(e.id)}" aria-label="Remove ${esc(e.text)}">${ICON.x}</button></div>`).join('')}</div>
         ${!all.length?`<div class="empty-state" style="padding:18px">Add the first item below. Lists you reuse, like packing or monthly admin, work best: tick through, then Untick all next time.</div>`:''}
@@ -31,6 +31,7 @@ TYPE_VIEWS.checklist = (() => {
     const a = e.target.closest('[data-act]');
     if(a){ const act=a.dataset.act;
       if(act==='add') return add(it);
+      if(act==='ck-more'){ const has = (it.entries||[]).some(x=>x.done); return openMenu(a, [{label:'Untick all', value:'untick', disabled:!has}, {label:'Clear done items', value:'clear', disabled:!has, danger:true}], v => { if(!has) return; click({target:{closest:s=>s==='[data-act]'?{dataset:{act:v}}:null}}, itemById(it.id)); }, 'Checklist options'); }
       if(act==='hide'){ docPatch('items', it.id, {hideDone:!it.hideDone}); view(it, R(it)); restoreFocus('[data-act="hide"]', R(it)); return; }
       if(act==='untick'){ const before=clone(it.entries); setEntries(it, before.map(x=>({...x, done:false}))); view(it, R(it)); toast('Unticked every item', ()=>docPatch('items', it.id, {entries:before})); return; }
       if(act==='clear'){ const before=clone(it.entries); setEntries(it, before.filter(x=>!x.done)); view(it, R(it)); toast('Cleared done items', ()=>docPatch('items', it.id, {entries:before})); return; } }

@@ -2,6 +2,20 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.22] - 2026-11-10
+### Added
+- Card menu (hold on phone, right-click on desktop) has Delete, with Undo.
+- Haptic tick when the card menu opens on a phone (iPhone Safari 18 or later).
+### Changed
+- Hold a card, and if you then move your finger, the menu closes and the card drags.
+- Board / List / Archive is now a View dropdown. On a phone, the filter groups sit behind a Filter button that shows how many filters are on.
+- Phone: the top bar is gone (it repeated the page header); the folder name shows in the header instead.
+- Checklist header is one compact row: count, Hide done, and a ••• menu for Untick all and Clear done.
+- Picking the flag a task already has changes nothing.
+### Fixed
+- No-priority outline bars now show on phones without tapping.
+- The stack name box is no longer cut off on the left and has no blue outline.
+
 ## [1.0.0-beta.21] - 2026-11-10
 ### Added
 - Phone: press and hold a card for its menu: Pin or Unpin, Move to another column, Duplicate, Open. Desktop right-click shows the same menu.
