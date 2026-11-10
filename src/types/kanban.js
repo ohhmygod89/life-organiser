@@ -45,12 +45,14 @@ TYPE_VIEWS.kanban = (() => {
     const showCl = cl.length && !isDone; const lim = compact ? 4 : 8;
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
     const pinned = !!t.pinned && !isDone;
-    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
+    const mvTop = TOUCH && !isDone && !left.length && !right.length;   // nothing else in the footer: ⇄ sits under the tick instead of adding a row
+    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       <button class="tick" data-tick="" title="${isDone?'Not done, back to '+back:'Mark done'}" aria-label="${isDone?'Mark not done':'Mark done'}: ${esc(t.title)}">${ICON.check}</button>
+      ${mvTop ? `<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>` : ''}
       <div class="title">${pinned?`<span class="pin-i" aria-hidden="true">${ICON.pin}</span>`:''}${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
       ${!isDone ? chipHTML(t,'one') : ''}
       ${showCl ? `<ul class="cl">${cl.slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
-      ${TOUCH && !isDone ? right.push(`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) && '' : ''}
+      ${TOUCH && !isDone && (left.length||right.length) ? right.push(`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) && '' : ''}
       ${left.length||right.length?`<div class="meta"><span class="ml">${left.join('')}</span><span class="mr">${right.join('')}</span></div>`:''}
     </article>`;
   }
@@ -114,7 +116,11 @@ TYPE_VIEWS.kanban = (() => {
     if(col==='done'){ if(t.col!=='done') moveTo(t,'done'); return; }
     const ids = $$('.card', evt.to).map(c=>c.dataset.id); const i = ids.indexOf(t.id);
     const get = k => S.tasks.find(x=>x.id===k);
-    const prev = i>0?get(ids[i-1]):null, next = i<ids.length-1?get(ids[i+1]):null;
+    /* pinned cards always sort first, so only neighbours in the same group (pinned or not) decide the new position */
+    const same = x => x && !!x.pinned === !!t.pinned;
+    let prev = null, next = null;
+    for(let j=i-1; j>=0; j--){ const x=get(ids[j]); if(same(x)){ prev=x; break; } }
+    for(let j=i+1; j<ids.length; j++){ const x=get(ids[j]); if(same(x)){ next=x; break; } }
     let pos = prev&&next ? (prev.pos+next.pos)/2 : prev ? prev.pos+1024 : next ? next.pos-1024 : 1024;
     if(col===t.col && pos===t.pos) return;
     if(prev && next && Math.abs(next.pos-prev.pos)<1e-6){ ids.forEach((k,j)=>{ if(k!==t.id) docPatch('tasks', k, {pos:(j+1)*1024}); }); pos=(i+1)*1024; }
@@ -228,7 +234,7 @@ TYPE_VIEWS.kanban = (() => {
           ${propRow('hBoard','Category', `<span class="lbl-t">${esc(b?.name||'')}</span>`)}
           ${propRow('pCol','Status', `<span class="sdot st-${t.col}" aria-hidden="true"></span><span class="lbl-t">${colName(t.col)}</span>`)}
           ${propRow('pPri','Priority', t.priority ? `${prioIcon(t.priority)}<span class="lbl-t">${PRIO[t.priority].label}</span>` : `<span class="lbl-t muted">None</span>`)}
-          ${propRow('pDue','Due', d ? `${ICON.cal}<span class="lbl-t ${d.cls}">${esc(dateLabel(t.due))} · ${esc(d.t)}</span>` : `<span class="lbl-t muted">No date</span>`)}
+          ${propRow('pDue','Due', d ? `${ICON.cal}<span class="lbl-t ${d.cls}">${esc(d.t)}</span>` : `<span class="lbl-t muted">No date</span>`)}
           ${propRow('pFlag','Flag', f ? `<span class="fdot" style="--fc:${colorOf(f.color)}"></span><span class="lbl-t">${esc(f.label)}</span>` : `<span class="lbl-t muted">None</span>`)}
           ${flagAsk(f)?`<div class="prop"><label class="prop-l" for="fWho">${flagAskLabel(f)}</label><input class="prop-in" id="fWho" type="text" placeholder="${flagAsk(f)}" value="${esc(t.flagWho||'')}"></div>`:''}
           ${(() => { const e=effFlag(t); const ef=e&&e.from&&flagOf(e.flag); return ef ? `<p class="prop-note"><span class="fdot" style="--fc:${colorOf(ef.color)}"></span>Card shows ${esc(ef.label)}${e.who&&flagAsk(ef)?' · '+esc(e.who):''}, from subtask “${esc(e.from.text)}”</p>` : ''; })()}
@@ -307,7 +313,7 @@ TYPE_VIEWS.kanban = (() => {
       docPatch('tasks', t.id, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
     const pf = e.target.closest('#pFlag');
     if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $('#fWho')?.focus(); }, 'Flag');
-    if(e.target.closest('#fPin')){ docPatch('tasks', t.id, {pinned:!t.pinned}); renderSheet(); markSaved(); render(); toast(t.pinned?'Unpinned':'Pinned to the top of '+colName(t.col)); return; }
+    if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
     const cd = e.target.closest('[data-cdel]');
     if(cd){ const id=cd.dataset.cdel; const c=(t.checklist||[]).find(x=>x.id===id); const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c?.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
     const cfb = e.target.closest('[data-cf]');

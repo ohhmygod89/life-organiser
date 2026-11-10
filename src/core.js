@@ -48,7 +48,7 @@ const ICON = {
   sort:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m8 10 4-4 4 4M8 14l4 4 4-4"/></svg>',
 };
 const TYPES = {
-  kanban:    {label:'Kanban',     color:'blue',   desc:'Columns of cards you drag along. Your Life Boards.'},
+  kanban:    {label:'Kanban',     color:'slate',   desc:'Columns of cards you drag along. Your Life Boards.'},
   note:      {label:'Note',       color:'amber',  desc:'A page of writing with headings, checklists and [[links]].'},
   collection:{label:'Collection', color:'green',  desc:'A table with fields you choose: accounts, coupons, renewals.'},
   tracker:   {label:'Tracker',    color:'indigo', desc:'Dated numbers with a chart: loan rate, balances, weight.'},
