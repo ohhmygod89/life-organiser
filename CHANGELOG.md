@@ -2,6 +2,10 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.27] - 2026-11-10
+### Changed
+- Phone: Board / List / Archive moved into the Filter panel (a View group at the top), leaving one floating Filter button beside the menu button. Picking a view closes the panel.
+
 ## [1.0.0-beta.26] - 2026-11-10
 ### Changed
 - Desktop: right-click opens the hidden menus: cards, a column's sort menu (title or empty space) and a stack's options (its header). Phone: double-tap does the same.

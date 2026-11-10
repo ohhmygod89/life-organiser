@@ -1189,3 +1189,11 @@ body.placing,body.placing *{cursor:copy!important}
   .kb-ctl .btn[aria-expanded="true"]{background:var(--fill)}
   .kb-bar .fgroups.open{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 }
+
+/* ===== beta.27: phone View lives in the Filter panel ===== */
+.fg-view{display:none!important}
+@media (max-width:860px){
+  .fg-view{display:flex!important}
+  .kb-ctl .kb-view{display:none}
+  .kb-ctl{right:calc(max(16px,env(safe-area-inset-right,0px)) + 54px + 10px)}
+}

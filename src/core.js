@@ -549,16 +549,17 @@ function renderKanban(k, root){
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
   const VIEWS = {board:'Board', list:'List', archive:'Archive'};
   const nf = (V.quick!=='open') + V.boards.size + (V.bb?1:0);   // filters away from the defaults (Done follows the device default, so it isn't counted)
-  const seg = `<div class="kb-ctl">${mode==='archive'?'':`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters" aria-label="Filter${nf?` (${nf} on)`:''}" title="Filter">${ICON.filter}<span class="kb-lbl">Filter</span>${nf?` <b class="nf">${nf}</b>`:''}</button>`}
+  const seg = `<div class="kb-ctl">${`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters" aria-label="Filter${nf?` (${nf} on)`:''}" title="Filter">${ICON.filter}<span class="kb-lbl">Filter</span>${nf?` <b class="nf">${nf}</b>`:''}</button>`}
     <button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
-  const groups = mode==='archive' ? '' : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">
+  const viewGroup = `<div class="fgroup fg-view" role="group" aria-label="View"><span class="fg-l">View</span>${Object.entries(VIEWS).map(([m,l])=>`<button class="chip-btn" data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div>`;
+  const groups = mode==='archive' ? `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}</div>` : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
     <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}<button class="chip-btn add-stack" data-act="add-stack" title="Add a stack">${ICON.plus}Stack</button></div>
     <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
   </div>`;
   /* one row: the filter groups, then Board · List · Archive at the right end (they never move between views) */
-  const tabs = `<div class="kb-bar">${mode==='archive'?'<div class="fgroups"></div>':groups}${seg}</div>`;
+  const tabs = `<div class="kb-bar">${groups}${seg}</div>`;
   if(mode==='archive'){ root.innerHTML = `<div class="kb">${tabs}<div id="kbArch"></div></div>`; return renderArchive($('#kbArch'), stacksOf(k.id)); }
   if(!stacks.length){ root.innerHTML = `<div class="kb">${tabs}<div class="panel empty-state"><b>No stacks yet</b>A stack is a set of To Do, In Progress and Done columns, for example Home or Work. <button class="pill" data-act="add-stack" style="margin-top:12px">${ICON.plus} Add a stack</button></div></div>`; return; }
   if(mode==='board'){
@@ -585,7 +586,7 @@ function kanbanClick(e, k){
   const vb = e.target.closest('[data-act="view"]');
   if(vb){ openMenu(vb, [['board','Board'],['list','List'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
   if(e.target.closest('[data-act="filters"]')){ S.filtersOpen=!S.filtersOpen; render(true); restoreFocus('[data-act="filters"]'); return true; }
-  const md = e.target.closest('[data-mode]'); if(md){ V.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); render(true); restoreFocus(`[data-mode="${md.dataset.mode}"]`); return true; }
+  const md = e.target.closest('[data-mode]'); if(md){ V.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); S.filtersOpen=false; render(true); restoreFocus(`[data-mode="${md.dataset.mode}"]`); return true; }
   const so = e.target.closest('[data-sort]'); if(so && !e.target.closest('.tbl')){ V.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return true; }
   const fb = e.target.closest('[data-fb]'); if(fb){ const id=fb.dataset.fb, B=V.boards; if(!id) B.clear(); else B.has(id)?B.delete(id):B.add(id); render(true); return true; }
   if(e.target.closest('[data-act="bb"]')){ V.bb=!V.bb; render(true); return true; }
