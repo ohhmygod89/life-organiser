@@ -441,8 +441,8 @@ function renderContent(){
 function headHTML(it){
   const f = folderById(it.folderId);
   return `<div class="ihead"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
-    <div class="ihead-t"><p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(shortDate(it.updated)):''}</p>
-    <input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80"></div></div>`;
+    <div class="ihead-t"><input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80">
+    <p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(shortDate(it.updated)):''}</p></div></div>`;
 }
 
 /* ----- Home ----- */
@@ -506,8 +506,9 @@ function renderHome(c){
 /* ----- All tasks (across every Kanban) ----- */
 const PRIO = {high:{label:'High',short:'High'},med:{label:'Medium',short:'Medium'},low:{label:'Low',short:'Low'}};
 const PRANK = {high:0,med:1,low:2,'':3};
-const DEFAULT_FLAGS = [{id:'waiting',label:'Waiting',color:'amber',who:true},{id:'blocked',label:'Blocked',color:'red'},{id:'hold',label:'On hold',color:'slate'},{id:'decision',label:'Needs decision',color:'violet'}];
-const flags = () => { const l = S.flags || DEFAULT_FLAGS; if(flags.src!==l){ flags.src=l; flags.out = l.map(f => f.id==='waiting' && f.label==='Waiting on someone' ? {...f, label:'Waiting'} : f); } return flags.out; };
+const DEFAULT_FLAGS = [{id:'waiting',label:'Waiting',color:'amber',who:true},{id:'hold',label:'On hold',color:'slate'},{id:'decision',label:'Needs decision',color:'violet'},{id:'blocked',label:'Blocked',color:'red'}];
+const FLAG_LIST_ORDER = ['waiting','hold','decision','blocked'];
+const flags = () => { const l = S.flags || DEFAULT_FLAGS; if(flags.src!==l){ flags.src=l; flags.out = l.map(f => f.id==='waiting' && f.label==='Waiting on someone' ? {...f, label:'Waiting'} : f).map((f,i)=>({f,i})).sort((a,b)=>{ const x=FLAG_LIST_ORDER.indexOf(a.f.id), y=FLAG_LIST_ORDER.indexOf(b.f.id); return (x<0?99:x)-(y<0?99:y) || a.i-b.i; }).map(o=>o.f); } return flags.out; };
 const flagOf = id => flags().find(f=>f.id===id);
 /* Priority = signal bars (1 low, 2 medium, 3 high); count carries the meaning, colour backs it up. */
 const PLEVEL = {low:1, med:2, high:3};

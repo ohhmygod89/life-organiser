@@ -31,7 +31,7 @@ TYPE_VIEWS.note = (() => {
     }
     return parts.join('');
   }
-  const emph = s => s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/~~([^~]+)~~/g,'<s>$1</s>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g,'$1<em>$2</em>');
+  const emph = s => s.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/~~([^~]+)~~/g,'<s>$1</s>').replace(/\+\+([^+]+)\+\+/g,'<u>$1</u>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g,'$1<em>$2</em>');
 
   function toHTML(body, edit=false){
     EDIT = edit;
@@ -71,11 +71,13 @@ TYPE_VIEWS.note = (() => {
       if(tag==='B' || tag==='STRONG') return wrap('**', kids());
       if(tag==='I' || tag==='EM') return wrap('*', kids());
       if(tag==='S' || tag==='STRIKE' || tag==='DEL') return wrap('~~', kids());
+      if(tag==='U' || tag==='INS') return wrap('++', kids());
       if(tag==='CODE') return '`'+n.textContent+'`';
       if(tag==='A'){ const h=n.getAttribute('href')||'', t=kids(); return !h ? t : (t.trim()===h ? h : '['+t.trim()+']('+h+')'); }
       const st = n.getAttribute('style')||'';   // pasted or browser-made spans
       if(/font-weight:\s*(bold|[6-9]00)/.test(st)) return wrap('**', kids());
       if(/font-style:\s*italic/.test(st)) return wrap('*', kids());
+      if(/text-decoration[^;]*underline/.test(st)) return wrap('++', kids());
       if(['DIV','P','UL','OL','LI','H1','H2','H3','H4','BLOCKQUOTE'].includes(tag)) return '\n'+kids()+'\n';
       return kids();
     };
@@ -118,9 +120,9 @@ TYPE_VIEWS.note = (() => {
   const TOOLS = [
     {c:'style', l:'Text style', menu:true},
     {sep:true},
-    {c:'bold', l:'Bold (⌘B)', i:'<b>B</b>'}, {c:'italic', l:'Italic (⌘I)', i:'<i>I</i>'}, {c:'strikeThrough', l:'Strikethrough', i:'<s>S</s>'}, {c:'code', l:'Code', i:'<span class="mono">&lt;/&gt;</span>'},
+    {c:'bold', l:'Bold (⌘B)', i:'<b>B</b>'}, {c:'italic', l:'Italic (⌘I)', i:'<i>I</i>'}, {c:'underline', l:'Underline (⌘U)', i:'<u>U</u>'}, {c:'strikeThrough', l:'Strikethrough', i:'<s>S</s>'}, {c:'code', l:'Code', i:'<span class="mono">&lt;/&gt;</span>'},
     {sep:true},
-    {c:'itemlink', l:'Link to another item in the app', i:`${ICON.page}<span class="rt-txt">Item link</span>`, wide:true}, {c:'link', l:'Web link (⌘K)', i:ICON.rtLink},
+    {c:'itemlink', l:'Link to another item in the app', i:ICON.page}, {c:'link', l:'Web link (⌘K)', i:ICON.rtLink},
     {sep:true},
     {c:'insertUnorderedList', l:'Bulleted list', i:ICON.rtUl}, {c:'insertOrderedList', l:'Numbered list', i:ICON.rtOl}, {c:'tasks', l:'Checklist', i:ICON.rtCk}, {c:'quote', l:'Quote', i:ICON.rtQ},
     {sep:true},
@@ -134,7 +136,7 @@ TYPE_VIEWS.note = (() => {
     const bl = backlinks(it);
     root.innerHTML = `
       <div class="note-tools"><span class="caption" id="noteSaved" role="status" aria-live="polite">${plural(words,'word')}</span>
-        ${m==='raw'?'<span class="caption raw-tip"># Heading · - list · - [ ] checkbox · **bold** · [[Item name]] link</span>':''}<span class="spacer"></span>
+        ${m==='raw'?'<span class="caption raw-tip"># Heading · - list · - [ ] checkbox · **bold** · ++underline++ · [[Item name]] link</span>':''}<span class="spacer"></span>
         <div class="seg" role="group" aria-label="Mode"><button data-seg="rich" aria-pressed="${m==='rich'}">Editor</button><button data-seg="raw" aria-pressed="${m==='raw'}">Raw</button></div></div>
       ${m==='raw'
         ? `<textarea class="note-edit" id="noteBody" aria-label="Note text (markdown)" placeholder="Start writing…\n\n# Heading\n- [ ] A checkbox\nLink another item with [[Home Loan Rate]]">${esc(it.body||'')}</textarea>`
@@ -168,7 +170,7 @@ TYPE_VIEWS.note = (() => {
   function syncBar(ed){
     const root = ed.closest('[data-root]'); if(!root) return;
     const q = c => { try{ return document.queryCommandState(c); }catch(e){ return false; } };
-    for(const c of ['bold','italic','strikeThrough','insertUnorderedList','insertOrderedList']){ const b=root.querySelector(`[data-rt="${c}"]`); if(b) b.setAttribute('aria-pressed', q(c) && !(c==='insertUnorderedList' && inTasks(ed))); }
+    for(const c of ['bold','italic','underline','strikeThrough','insertUnorderedList','insertOrderedList']){ const b=root.querySelector(`[data-rt="${c}"]`); if(b) b.setAttribute('aria-pressed', q(c) && !(c==='insertUnorderedList' && inTasks(ed))); }
     const tk = root.querySelector('[data-rt="tasks"]'); if(tk) tk.setAttribute('aria-pressed', inTasks(ed));
     const b = blockAt(ed); const tag = b?.nodeType===1 ? b.tagName : 'P';
     const qt = root.querySelector('[data-rt="quote"]'); if(qt) qt.setAttribute('aria-pressed', tag==='BLOCKQUOTE');
@@ -186,7 +188,7 @@ TYPE_VIEWS.note = (() => {
   async function tool(btn, ed){
     const c = btn.dataset.rt; restoreSel(ed);
     if(c==='style') return openMenu(btn, STYLES.map(s=>({label:s.l, value:s.v})), v => { restoreSel(ed); exec('formatBlock', '<'+v+'>'); edited(ed); }, 'Text style');
-    if(c==='bold'||c==='italic'||c==='strikeThrough') exec(c);
+    if(c==='bold'||c==='italic'||c==='strikeThrough'||c==='underline') exec(c);
     else if(c==='insertUnorderedList'||c==='insertOrderedList'){
       if(inTasks(ed)){ const ul = getSelection().getRangeAt(0).startContainer; const l=(ul.nodeType===1?ul:ul.parentElement).closest('ul'); l.classList.remove('tasks'); l.querySelectorAll('.rt-cb').forEach(x=>x.remove()); if(c==='insertOrderedList') exec(c); }
       else exec(c); }
@@ -231,7 +233,7 @@ TYPE_VIEWS.note = (() => {
     if(e.target.id==='noteBody' && (e.metaKey||e.ctrlKey) && e.key==='Enter'){ e.preventDefault(); setMode(it, 'rich'); return; }
     const ed = e.target.closest?.('#noteRich'); if(!ed) return;
     if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); e.stopPropagation(); const b=ed.closest('[data-root]').querySelector('[data-rt="link"]'); if(b) tool(b, ed); return; }
-    if((e.metaKey||e.ctrlKey) && ['b','i'].includes(e.key.toLowerCase())) setTimeout(()=>edited(ed), 0);
+    if((e.metaKey||e.ctrlKey) && ['b','i','u'].includes(e.key.toLowerCase())) setTimeout(()=>edited(ed), 0);
   }
   /* leaving the editor: save now and redraw, so typed [[links]] turn into links */
   $('#content').addEventListener('focusout', e => {

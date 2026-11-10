@@ -2,6 +2,19 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.24] - 2026-11-10
+### Added
+- Double-tap (or double-click) a column title or its empty space to sort it once: by priority, due date, title or newest. Undo puts it back.
+- Underline in the text editor (⌘U), saved as ++text++ in Raw.
+### Changed
+- Columns are no longer forced into priority order: drag cards anywhere, in any column or stack, and they stay where you drop them. Pinned cards still stay above the rest. Changing priority no longer moves a card.
+- Flag list order: Waiting, On hold, Needs decision, Blocked.
+- "Edited …" sits under the item title.
+- Phone: Filter and View float in the middle at the bottom.
+- Text editor: the item-link button is icon-only.
+- Task window: no divider lines between subtasks; the reason box is taller and no longer clipped; the Add subtask line lines up with the subtasks.
+- No-priority bars have a thinner outline.
+
 ## [1.0.0-beta.23] - 2026-11-10
 ### Changed
 - Phone: double-tap a card for its menu (a single tap opens it, holding drags). The hold menu and its haptic tick are gone, and no menu item is pre-highlighted.

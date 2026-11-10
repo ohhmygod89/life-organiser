@@ -1146,3 +1146,16 @@ body.placing,body.placing *{cursor:copy!important}
   .lanes,.board{padding-bottom:84px}
 }
 @media (hover:none){ .menu button:focus:not(:focus-visible){background:none;color:var(--fg)} .menu button.danger:focus:not(:focus-visible){color:var(--red,#d70015)} }
+
+/* ===== beta.24 ===== */
+.pbars rect.ol{stroke-width:.6}
+.pbars.p-none{opacity:.45}
+@media (max-width:860px){ .kb-ctl{left:50%;transform:translateX(-50%)} }
+.ihead-t .eyebrow{margin:2px 0 0}
+/* task window subtasks: no dividers, even spacing; the reason box isn't clipped; the add row lines up */
+.ci,.ci.add{border-bottom:0}
+.ci-m{gap:6px}
+.ci-f .ci-who{padding:7px 10px!important;line-height:1.3;border-radius:8px;min-height:34px}
+.ci.add{gap:10px}
+.lcol-h[data-sortcol]{cursor:default;-webkit-user-select:none;user-select:none}
+.rt-edit.md{max-width:none}

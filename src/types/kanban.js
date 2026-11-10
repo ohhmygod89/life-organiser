@@ -21,7 +21,7 @@ TYPE_VIEWS.kanban = (() => {
   }
   /* Columns always sort: pinned first, then High → Medium → Low → none. You can drag to reorder within a group;
      anything new, newly pinned, re-prioritised or brought back from Done goes to the bottom of its group. */
-  const grp = t => (t.pinned && t.col!=='done' ? 0 : 10) + PRANK[t.priority||''];
+  const grp = t => t.pinned && t.col!=='done' ? 0 : 1;   // pinned cards stay above the rest; within each, your order
   function groupEnd(bid, col, g, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except && grp(x)===g); return (l.length?Math.max(...l.map(x=>x.pos||0)):0)+1024; }
   function endPos(bid, col, except, t){ const x = t || S.tasks.find(y=>y.id===except) || {}; return groupEnd(bid, col, grp({...x, col}), except); }
   function moveTo(t, col, {silent}={}){
@@ -66,7 +66,7 @@ TYPE_VIEWS.kanban = (() => {
   function prioMenu(btn, t){
     openMenu(btn, ['high','med','low',''].map(p=>({html:prioIcon(p), label:PRIO[p]?.label||'No priority', value:p, checked:(t.priority||'')===p})), v => {
       if(v===(t.priority||'')) return; const before = {priority:t.priority||'', pos:t.pos};
-      docPatch('tasks', t.id, {priority:v, pos:groupEnd(t.boardId, t.col, grp({...t, priority:v}), t.id)}); render(true);
+      docPatch('tasks', t.id, {priority:v}); render(true);
       toast('Priority: '+(PRIO[v]?.label||'None'), ()=>docPatch('tasks', t.id, before));
     }, 'Priority', 'menu-icons');
   }
@@ -100,7 +100,19 @@ TYPE_VIEWS.kanban = (() => {
     el.addEventListener('keydown', key); el.addEventListener('blur', blur);
   }
   /* right-click a card: Duplicate, then click the column (any stack) to drop the copy there */
-  let placing = null, tap = null;
+  let placing = null, tap = null, colTap = null;
+  const SORTS = [{v:'priority', l:'Priority (High first)'}, {v:'due', l:'Due date (soonest first)'}, {v:'title', l:'Title (A–Z)'}, {v:'new', l:'Newest first'}];
+  function sortColumn(bid, col, how){
+    const l = tasksIn(bid, col); const before = l.map(t=>({id:t.id, pos:t.pos}));
+    const key = {priority:(a,b)=>PRANK[a.priority||'']-PRANK[b.priority||''], due:(a,b)=>(a.due||'9999').localeCompare(b.due||'9999'), title:(a,b)=>(a.title||'').localeCompare(b.title||'', undefined, {sensitivity:'base'}), new:(a,b)=>(b.created||'').localeCompare(a.created||'')}[how];
+    const sorted = l.slice().sort((a,b)=>grp(a)-grp(b) || key(a,b) || (a.pos??0)-(b.pos??0));   // pinned stay on top
+    sorted.forEach((t,i)=>{ const pos=(i+1)*1024; if(t.pos!==pos) docPatch('tasks', t.id, {pos}); });
+    render(true); toast(`${colName(col)} sorted by ${SORTS.find(s=>s.v===how).l.split(' (')[0].toLowerCase()}`, ()=>before.forEach(x=>docPatch('tasks', x.id, {pos:x.pos})));
+  }
+  function sortMenu(el, at){ const bid = el.dataset.sortboard, col = el.dataset.sortcol; if(!bid || col==='done') return;
+    openMenu(at || el, SORTS.map(s=>({label:s.l, value:s.v})), v => sortColumn(bid, col, v), 'Sort '+colName(col)); }
+  const sortTarget = e => { if(e.target.closest('.card, button, input, textarea, .add-row')) return null; const c = e.target.closest('.lcol, .col'); return c?.querySelector('[data-sortcol]') || null; };
+  $('#content').addEventListener('dblclick', e => { if(TOUCH) return; const h = sortTarget(e); if(h){ e.preventDefault(); getSelection()?.removeAllRanges(); sortMenu(h, pointAnchor(e)); } });
   function cardMenuItems(t){
     const done = t.col==='done';
     return [...(done?[]:[{label:t.pinned?'Unpin':'Pin to top', value:'pin'}]),
@@ -171,11 +183,11 @@ TYPE_VIEWS.kanban = (() => {
       scrollFn: TOUCH ? (dx, dy) => { if(dy) window.scrollBy(0, dy); } : undefined,
       /* pinned cards stay among pinned cards, unpinned among unpinned: the drop slot never offers a place that wouldn't stick */
       onMove(evt){
-        if(evt.from!==evt.to || evt.to.dataset.col==='done') return true;     // another column: it sorts itself on release
-        const me = S.tasks.find(x=>x.id===evt.dragged.dataset.id); if(!me) return true;
+        if(evt.to.dataset.col==='done') return true;     // Done is ordered by date
+        const t0 = S.tasks.find(x=>x.id===evt.dragged.dataset.id); if(!t0) return true; const me = {...t0, col:evt.to.dataset.col};
         const rel = evt.related?.classList?.contains('card') ? S.tasks.find(x=>x.id===evt.related.dataset.id) : null;
         if(!rel){ const cards = $$('.card', evt.to).filter(c=>c!==evt.dragged); const last = cards.length && S.tasks.find(x=>x.id===cards[cards.length-1].dataset.id); return !last || grp(last)===grp(me); }
-        return grp(rel)===grp(me);   // same column: only among cards of the same pinned/priority group
+        return grp(rel)===grp(me);   // pinned cards only among pinned, the rest only among the rest
       },
       onStart(){ S.dragging=true; document.body.classList.add('is-dragging'); },
       onEnd(evt){ S.dragging=false; document.body.classList.remove('is-dragging'); onDrop(evt); render(true);
@@ -202,7 +214,7 @@ TYPE_VIEWS.kanban = (() => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
           const lim = LANE_DONE; if(c.id==='done' && ts.length>lim){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-lim)+' more'}</button>`; if(!all) ts=ts.slice(0,lim); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
-            <div class="lcol-h"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':'Double-tap or double-click to sort'}"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
             ${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
             ${more}
@@ -213,34 +225,30 @@ TYPE_VIEWS.kanban = (() => {
     bindSortables(root);
   }
 
-  function onDrop(evt){
-    const t = S.tasks.find(x=>x.id===evt.item.dataset.id); if(!t) return;
-    const col = evt.to.dataset.col, bid = evt.to.dataset.board || t.boardId;
-    if(bid!==t.boardId){
-      const from={boardId:t.boardId, col:t.col, pos:t.pos??1024, doneAt:t.doneAt||'', prevCol:t.prevCol||''};
-      const p = {boardId:bid, col, pos:endPos(bid, col, t.id, t)}; if(col==='done' && t.col!=='done'){ p.doneAt=nowIso(); p.prevCol=t.col; }
-      docPatch('tasks', t.id, p); touchItem(bid);
-      toast('Moved to '+(itemById(bid)?.name||'board')+' · '+colName(col), () => docPatch('tasks', t.id, clone(from)));
-      return;
-    }
-    if(col==='done'){ if(t.col!=='done') moveTo(t,'done'); return; }
-    if(col!==t.col){   // another column: it settles at the bottom of its group there
-      const p = {col, pos:endPos(bid, col, t.id, t)}; if(t.col==='done') p.prevCol = '';
-      toast('Moved to '+colName(col), ()=>docPatch('tasks', t.id, {col:t.col, pos:t.pos??1024})); docPatch('tasks', t.id, p); return;
-    }
+  /* where a dropped card goes: between its neighbours (same group: pinned or not) — any column, any stack */
+  function dropPos(evt, t, col){
     const ids = $$('.card', evt.to).map(c=>c.dataset.id); const i = ids.indexOf(t.id);
-    const get = k => S.tasks.find(x=>x.id===k);
-    /* only neighbours in the same group (pinned + priority) decide the new position */
-    const same = x => x && grp(x) === grp(t);
+    const get = k => S.tasks.find(x=>x.id===k); const me = {...t, col};
+    const same = x => x && x.id!==t.id && grp(x) === grp(me);
     let prev = null, next = null;
     for(let j=i-1; j>=0; j--){ const x=get(ids[j]); if(same(x)){ prev=x; break; } }
     for(let j=i+1; j<ids.length; j++){ const x=get(ids[j]); if(same(x)){ next=x; break; } }
-    let pos = prev&&next ? (prev.pos+next.pos)/2 : prev ? prev.pos+1024 : next ? next.pos-1024 : 1024;
-    if(col===t.col && pos===t.pos) return;
-    if(prev && next && Math.abs(next.pos-prev.pos)<1e-6){ ids.forEach((k,j)=>{ if(k!==t.id) docPatch('tasks', k, {pos:(j+1)*1024}); }); pos=(i+1)*1024; }
-    const p = {col, pos}; if(t.col==='done') p.prevCol = '';
-    if(col!==t.col) toast('Moved to '+colName(col), ()=>docPatch('tasks', t.id, {col:t.col, pos:t.pos??1024}));
-    docPatch('tasks', t.id, p);
+    if(!prev && !next) return groupEnd(evt.to.dataset.board || t.boardId, col, grp(me), t.id);
+    if(prev && next && Math.abs(next.pos-prev.pos)<1e-6){ ids.forEach((k,j)=>{ if(k!==t.id) docPatch('tasks', k, {pos:(j+1)*1024}); }); return (i+1)*1024; }
+    return prev&&next ? (prev.pos+next.pos)/2 : prev ? prev.pos+1024 : next.pos-1024;
+  }
+  function onDrop(evt){
+    const t = S.tasks.find(x=>x.id===evt.item.dataset.id); if(!t) return;
+    const col = evt.to.dataset.col, bid = evt.to.dataset.board || t.boardId;
+    if(bid===t.boardId && col==='done'){ if(t.col!=='done') moveTo(t,'done'); return; }
+    const pos = col==='done' ? endPos(bid, col, t.id, t) : dropPos(evt, t, col);
+    if(bid===t.boardId && col===t.col && pos===t.pos) return;
+    const from = {boardId:t.boardId, col:t.col, pos:t.pos??1024, doneAt:t.doneAt||'', prevCol:t.prevCol||''};
+    const p = {boardId:bid, col, pos};
+    if(col==='done' && t.col!=='done'){ p.doneAt=nowIso(); p.prevCol=t.col; }
+    if(col!=='done' && t.col==='done') p.prevCol = '';
+    docPatch('tasks', t.id, p); if(bid!==t.boardId) touchItem(bid);
+    if(bid!==t.boardId || col!==t.col) toast('Moved to '+(bid!==t.boardId ? (itemById(bid)?.name||'stack')+' · ' : '')+colName(col), () => docPatch('tasks', t.id, clone(from)));
   }
   function addTask(bid, col, title){
     if(!title.trim()) return;
@@ -277,6 +285,10 @@ TYPE_VIEWS.kanban = (() => {
     const ed = !TOUCH && e.isTrusted && e.target.closest('.card:not(.is-done) .tt, .card .ctt');
     if(ed){ if(!ed.isContentEditable) startEdit(ed, e); return true; }
     if(e.target.closest('[contenteditable]')) return true;
+    const sh = TOUCH && sortTarget(e);
+    if(sh){ const key = sh.dataset.sortboard+'/'+sh.dataset.sortcol;
+      if(colTap && colTap.key===key && Date.now()-colTap.t < 350){ colTap=null; sortMenu(sh, pointAnchor(e)); return true; }
+      colTap = {key, t:Date.now()}; }
     const card = e.target.closest('.card');
     if(card && TOUCH){ const id = card.dataset.id;
       if(tap && tap.id===id){ clearTimeout(tap.timer); tap=null; const t=S.tasks.find(x=>x.id===id); const r=card.getBoundingClientRect();
@@ -448,7 +460,7 @@ TYPE_VIEWS.kanban = (() => {
     const pc = e.target.closest('#pCol');
     if(pc) return openMenu(pc, COLS.map(c=>({label:c.name, value:c.id, checked:c.id===t.col})), v => { if(v!==t.col){ moveTo(t, v); renderSheet(); render(); markSaved(); } }, 'Status');
     const pp = e.target.closest('#pPri');
-    if(pp) return openMenu(pp, ['high','med','low',''].map(p=>({label:p?PRIO[p].label:'None', value:p, checked:(t.priority||'')===p})), v => { if(v===(t.priority||'')) return; docPatch('tasks', t.id, {priority:v, pos:groupEnd(t.boardId, t.col, grp({...t, priority:v}), t.id)}); renderSheet(); markSaved(); render(); }, 'Priority');
+    if(pp) return openMenu(pp, ['high','med','low',''].map(p=>({label:p?PRIO[p].label:'None', value:p, checked:(t.priority||'')===p})), v => { if(v===(t.priority||'')) return; docPatch('tasks', t.id, {priority:v}); renderSheet(); markSaved(); render(); }, 'Priority');
     const pd = e.target.closest('#pDue');
     if(pd) return openMenu(pd, [...quickDates().map(([l,v])=>({label:`${l} · ${dateLabel(v)}`, value:v, checked:t.due===v})), {sep:true}, {label:'Pick a date…', value:'pick'}, ...(t.due?[{label:'No due date', value:'clear'}]:[])], v => {
       if(v==='pick') return pickDate();
