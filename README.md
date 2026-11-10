@@ -8,7 +8,7 @@ A personal, Notion-style organiser in one HTML page. The sidebar holds **items**
 |---|---|
 | Kanban | One-off tasks: columns, drag and drop, task window with notes, checklist, dated updates, status flags, undo |
 | Note | Markdown-style pages with `- [ ]` checkboxes, `[[Item name]]` links and backlinks |
-| Collection | A table with fields you choose (text, number, money, percent, date, choice, tick box, link) |
+| Table | A table with fields you choose (text, number, money, percent, date, choice, tick box, link) |
 | Tracker | Dated numbers with a chart (step line for interest rates) |
 | Checklist | Reusable tick lists |
 | Bills | Recurring bills and renewals on a yearly timeline, with paid ticks and provider history |

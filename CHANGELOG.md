@@ -2,6 +2,22 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.18] - 2026-11-09
+### Added
+- What's new: hover the version number (tap on a phone) to see the latest changes.
+- Done column on phones is hidden by default, with a Done / Show Done switch (remembered per device).
+### Changed
+- Sidebar in two groups: Custom (All tasks with every Kanban and the Archive under it, Bills, Trackers) and General (Notes, Tables, Checklists). Folders removed; your order is kept.
+- Cards: the pin button replaces the done tick (move to Done by drag or ⇄); completed subtasks hidden; due date on one line at the bottom left; title and flag keep clear of the corner buttons.
+- Pinned cards can only be moved among pinned cards.
+- Dragging: cards make room as soon as you reach them.
+- "Back Burner" is now "Backburner"; "Collection" is now "Table".
+- Top bar: "+ New" and "Shortcuts" removed (New item is in the sidebar, shortcuts in the ••• menu); demo badge moved under the version.
+- Phone task window has smaller gaps; desktop subtasks indented more.
+### Fixed
+- After dragging a task, the first click on a card now opens it.
+- Sharper ⇄ icon and due dates on iPhone.
+
 ## [1.0.0-beta.17] - 2026-11-09
 ### Added
 - Pin tasks from the task window: pinned tasks sit at the top of their column with a pin icon and a faint grey tint.

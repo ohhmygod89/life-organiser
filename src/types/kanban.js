@@ -49,10 +49,10 @@ TYPE_VIEWS.kanban = (() => {
     const pinned = !!t.pinned && !isDone;
     return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       ${isDone ? '' : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${ICON.pin}</button>`}
-      ${mvBtn}
-      <div class="title">${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
-      ${!isDone ? chipHTML(t,'one') : ''}
+      <div class="card-head"><div class="title">${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
+      ${!isDone ? chipHTML(t,'one') : ''}</div>
       ${!isDone && open.length ? `<ul class="cl">${open.slice(0,lim).map(c=>`<li><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="false" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${flagOf(c.flag) && c!==src ? subChip(c) : ''}</span></li>`).join('')}${open.length>lim?`<li class="more-c">+${open.length-lim} more</li>`:''}</ul>` : ''}
+      ${mvBtn ? right.push(mvBtn) && '' : ''}
       ${left.length||right.length?`<div class="meta"><span class="ml">${left.join('')}</span><span class="mr">${right.join('')}</span></div>`:''}
     </article>`;
   }
@@ -73,7 +73,12 @@ TYPE_VIEWS.kanban = (() => {
       /* pinned cards stay among pinned cards, unpinned among unpinned: the drop slot never offers a place that wouldn't stick */
       onMove(evt){
         const me = S.tasks.find(x=>x.id===evt.dragged.dataset.id), rel = evt.related?.classList?.contains('card') ? S.tasks.find(x=>x.id===evt.related.dataset.id) : null;
-        if(!me || !rel || rel.col==='done' || evt.to.dataset.col==='done') return true;
+        if(!me || evt.to.dataset.col==='done') return true;
+        if(!rel){   // hovering the list itself (the space below the last card): a pinned card can't go after unpinned ones
+          if(me.pinned && $$('.card', evt.to).some(c=>c!==evt.dragged && !S.tasks.find(x=>x.id===c.dataset.id)?.pinned)) return false;
+          return true;
+        }
+        if(rel.col==='done') return true;
         const mp = !!me.pinned, rp = !!rel.pinned; if(mp===rp) return true;
         const sibs = $$('.card', evt.to).filter(c=>c!==evt.dragged).map(c=>S.tasks.find(x=>x.id===c.dataset.id)).filter(Boolean);
         if(mp){ const firstUnpinned = sibs.find(x=>!x.pinned); return rel===firstUnpinned ? -1 : false; }   // pinned: only just above the first unpinned card
@@ -89,7 +94,7 @@ TYPE_VIEWS.kanban = (() => {
 
   function view(it, root){
     lanes([it], root, {bb:true, single:true, done:S.showDone});
-    if(matchMedia('(max-width:760px)').matches) root.insertAdjacentHTML('afterbegin', `<div class="kb-tools"><button class="switch" role="switch" aria-checked="${S.showDone}" data-act="done"><span class="sw-track" aria-hidden="true"></span>Show Done</button></div>`);
+    root.insertAdjacentHTML('afterbegin', `<div class="kb-tools"><button class="switch" role="switch" aria-checked="${S.showDone}" data-act="done"><span class="sw-track" aria-hidden="true"></span>Show Done</button></div>`);
   }
 
   /* Stacked view: one band per Kanban, all sharing one sideways scroller so the columns line up. */

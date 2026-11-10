@@ -212,7 +212,7 @@ h1.big{margin:0;font-weight:600;font-size:clamp(2rem,3.6vw,3rem);line-height:1.0
 .more{border:0;background:none;color:var(--accent);font-size:14px;padding:6px 8px;border-radius:8px;text-align:left;margin:0 10px}
 .col.done .more{color:var(--up)}
 .card{position:relative;background:var(--panel);border-radius:14px;padding:12px 40px 12px 14px;box-shadow:var(--shadow);cursor:grab;user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:box-shadow .2s,transform .2s}
-.card:hover{box-shadow:var(--shadow-lift);transform:translateY(-1px)}
+@media (hover:hover){.card:hover{box-shadow:var(--shadow-lift);transform:translateY(-1px)}}
 .card .title{font-weight:500;line-height:1.35;overflow-wrap:anywhere}
 .tick{position:absolute;top:10px;right:10px;width:24px;height:24px;padding:0;border-radius:50%;border:1.5px solid var(--ctl);background:transparent;display:grid;place-items:center;color:transparent;opacity:0;transition:opacity .12s,background .12s,border-color .12s}
 .tick svg{width:12px;height:12px}
@@ -780,7 +780,7 @@ html{overscroll-behavior:none}
 .card .meta .due{display:inline-flex;align-items:center;gap:4px}
 .card .meta .ml:empty{display:none}
 /* pinned: a calm tint and a pin, sorted to the top of its column */
-.card.pinned{background:color-mix(in srgb,var(--fg) 5%,var(--panel))}
+.card.pinned{background:var(--fill-2);background:color-mix(in srgb,var(--fg) 5%,var(--panel))}
 .pin-i{display:inline-flex;vertical-align:-2px;margin-right:6px;color:var(--fg);opacity:.75}
 .pin-i svg{width:15px;height:15px}
 .pin-btn{width:28px;height:28px;flex:none;color:var(--muted);align-self:center}
@@ -820,7 +820,7 @@ html{overscroll-behavior:none}
 .card:hover .pin,.card:focus-within .pin,.card .pin:focus-visible{opacity:.7}
 .card .pin:hover{opacity:1;background:var(--fill-2)}
 .card .pin[aria-pressed="true"]{opacity:1;color:var(--fg)}
-@media (pointer:coarse){.card .pin{opacity:.35;width:32px;height:32px;top:4px;right:4px}.card .pin[aria-pressed="true"]{opacity:.9}}
+@media (pointer:coarse){.card .pin{opacity:1;color:color-mix(in srgb,var(--muted) 55%,transparent);width:32px;height:32px;top:4px;right:4px;transition:none}.card .pin[aria-pressed="true"]{color:var(--fg)}}
 .card{padding-right:36px}
 .card.compact{padding-right:34px}
 /* footer: due date and notes on the left, ⇄ on the right (touch only) */
@@ -856,8 +856,24 @@ html{overscroll-behavior:none}
 .crumbs a:hover{color:var(--fg)}
 /* touch: ⇄ stacked under the pin in the top-right corner, so the footer is just the date */
 @media (pointer:coarse){
-  .card > .mv{position:absolute;top:38px;right:4px;bottom:auto;width:32px;height:32px;opacity:.75;margin:0}
-  .card:not(.is-done){min-height:80px}
+  .card > .mv{position:absolute;top:38px;right:4px;bottom:auto;width:32px;height:32px;opacity:1;color:var(--muted);margin:0}
   .card .cl{margin-right:0}
 }
-@media (pointer:coarse){.card:not(.is-done),.card.compact:not(.is-done){padding-right:42px}}
+/* the title and flag keep clear of the corner buttons; subtasks and the date use the full width */
+.card{padding-right:14px}
+.card .card-head{padding-right:26px}
+@media (pointer:coarse){.card:not(.is-done) .card-head{padding-right:30px}}
+.card.is-done .card-head{padding-right:0}
+/* crisper small text on iPhone */
+.card .meta{font-variant-numeric:normal;letter-spacing:0;font-size:13px}
+.card .meta .due{white-space:normal}
+.kb-tools{margin:-6px 0 10px}
+@media (max-width:760px){.sheet{max-height:calc(100% - 74px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}}
+.card.compact,.card.compact:not(.is-done){padding-right:12px;min-height:0}
+@media (max-width:760px){.card.compact,.card.compact:not(.is-done){padding-right:10px;min-height:0}}
+/* touch: ⇄ at the right of the bottom row; the date wraps beside it rather than running under it */
+@media (pointer:coarse){
+  .card .meta{flex-wrap:nowrap;align-items:flex-end}
+  .card .meta .ml{flex:1;min-width:0}
+  .card .meta .mr .mv{position:static;opacity:1;color:var(--muted);width:30px;height:30px;margin:-6px -6px -6px 0}
+}

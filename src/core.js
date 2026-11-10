@@ -616,16 +616,17 @@ $('#fab').addEventListener('click', () => document.body.classList.toggle('side-o
   const open = () => {
     if(pop) return; const list = Array.isArray(CHANGELOG) ? CHANGELOG : [];
     pop = document.createElement('div'); pop.className = 'chlog'; pop.setAttribute('role','dialog'); pop.setAttribute('aria-label','What\'s new');
-    pop.innerHTML = `<h3>What's new</h3>` + list.map(v => `<section><h4>${esc(v.v)} <span>${esc(v.d)}</span></h4><ul>${v.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></section>`).join('');
+    pop.innerHTML = `<h3>What's new</h3>` + list.slice(0,3).map(v => `<section><h4>${esc(v.v)} <span>${esc(v.d)}</span></h4><ul>${v.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></section>`).join('');
     document.body.appendChild(pop); const r = btn.getBoundingClientRect();
     pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
     btn.setAttribute('aria-expanded','true');
     pop.addEventListener('mouseenter', () => clearTimeout(t)); pop.addEventListener('mouseleave', () => { t = setTimeout(close, 250); });
   };
-  if(!TOUCH){ btn.addEventListener('mouseenter', () => { clearTimeout(t); open(); }); btn.addEventListener('mouseleave', () => { t = setTimeout(close, 250); }); btn.addEventListener('focus', open); btn.addEventListener('blur', () => { t = setTimeout(close, 250); }); }
+  let quiet = false;   // focus we set ourselves (after Esc) shouldn't reopen it
+  if(!TOUCH){ btn.addEventListener('mouseenter', () => { clearTimeout(t); open(); }); btn.addEventListener('mouseleave', () => { t = setTimeout(close, 250); }); btn.addEventListener('focus', () => { if(!quiet) open(); }); btn.addEventListener('blur', () => { t = setTimeout(close, 250); }); }
   btn.addEventListener('click', e => { e.stopPropagation(); pop ? close() : open(); });
   document.addEventListener('click', e => { if(pop && !pop.contains(e.target)) close(); });
-  document.addEventListener('keydown', e => { if(e.key==='Escape' && pop){ close(); btn.focus(); } });
+  document.addEventListener('keydown', e => { if(e.key==='Escape' && pop){ close(); quiet = true; btn.focus(); setTimeout(() => { quiet = false; }, 0); } });
 })();
 /* keep the menu button's label right however the menu was opened or closed */
 new MutationObserver(() => { const open = document.body.classList.contains('side-open'), f = $('#fab'); f.setAttribute('aria-expanded', open); f.setAttribute('aria-label', open ? 'Close menu' : 'Menu'); f.title = open ? 'Close menu' : 'Menu'; }).observe(document.body, {attributes:true, attributeFilter:['class']});
@@ -682,7 +683,7 @@ function folderMenu(anchor, fid){
 function appMenu(anchor){
   const theme = ls.get('lo.theme','system');
   openMenu(anchor, [
-    {label:'New item…', value:'new', ...(TOUCH?{}:{kbd:'N'})}, {label:'New folder…', value:'folder'},
+    {label:'New item…', value:'new', ...(TOUCH?{}:{kbd:'N'})},
     {sep:true}, {head:'Appearance'},
     {label:'Match system', value:'t-system', checked:theme==='system'}, {label:'Light', value:'t-light', checked:theme==='light'}, {label:'Dark', value:'t-dark', checked:theme==='dark'},
     {sep:true}, {label:'Status flags…', value:'flags'}, {label:'Export…', value:'export'}, {label:'Import…', value:'import'}, ...(ls.get('lo.preImport','')?[{label:'Undo last import…', value:'undoimport'}]:[]), ...(Store.demo?[{label:'Reset demo data', value:'reset'}]:[]), ...(TOUCH?[]:[{label:'Keyboard shortcuts', value:'keys', kbd:'?'}]),
@@ -888,6 +889,10 @@ async function start(){
       if(col==='items' && window.__typingItem){ const i=docs.findIndex(d=>d.id===window.__typingItem); const local=itemById(window.__typingItem); if(i>-1 && local) docs[i]=local; }
       if(col==='tasks' && window.__typingTask){ const i=docs.findIndex(d=>d.id===window.__typingTask); const local=S.tasks.find(t=>t.id===window.__typingTask); if(i>-1 && local) docs[i]=local; }
       S[col] = docs; S.loaded[col] = true;
+      if((col==='items'||col==='folders') && S.loaded.items && S.loaded.folders && !S.navMigrated && S.items.some(i=>i.folderId)){ S.navMigrated = true;
+        const fo = id => S.folders.find(f=>f.id===id)?.order ?? 999;   // folders retired in 1.0.0-beta.18: keep the order people had
+        S.items.slice().sort((a,b)=>fo(a.folderId)-fo(b.folderId) || (a.order??0)-(b.order??0)).forEach((it,i)=>docPatch('items', it.id, {order:i, folderId:''}));
+      }
       if(col==='tasks') docs.filter(t=>t.col==='upcoming').forEach(t=>docPatch('tasks', t.id, {col:'todo'}));   // Upcoming column retired in 1.0.0-beta.13
       render(); refreshOverlays();
       if(col==='tasks' && !S.nudgeSet){ S.nudgeSet=true; setTimeout(bkNudge, 4000); }

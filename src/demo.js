@@ -22,7 +22,7 @@ function DemoDB(){
 ## Item types
 - **Kanban**: boards of one-off tasks. See [[Home]].
 - **Note**: pages like this one, with - [ ] checkboxes and [[links]].
-- **Collection**: a table with your own fields. See [[Coupons & vouchers]].
+- **Table**: a table with your own fields. See [[Coupons & vouchers]].
 - **Tracker**: dated numbers with a chart. See [[Home loan rate]].
 - **Checklist**: a reusable tick list.
 - **Bills**: recurring bills on a yearly timeline. See [[Bills & renewals]].
