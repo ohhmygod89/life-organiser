@@ -512,8 +512,8 @@ const flags = () => { const l = S.flags || DEFAULT_FLAGS; if(flags.src!==l){ fla
 const flagOf = id => flags().find(f=>f.id===id);
 /* Priority = signal bars (1 low, 2 medium, 3 high); count carries the meaning, colour backs it up. */
 const PLEVEL = {low:1, med:2, high:3};
-const prioIcon = p => { const n=PLEVEL[p]||0;   // no priority: outline-only bars
-  return `<svg class="pbars p-${p||'none'}" viewBox="0 0 14 12" aria-hidden="true">${[0,1,2].map(i=> n ? `<rect x="${i*5}" y="${8-i*4}" width="3.4" height="${4+i*4}" rx="1" ${i<n?'':'class="off"'}/>` : `<rect class="ol" x="${i*5+.5}" y="${8.5-i*4}" width="2.4" height="${3+i*4}" rx=".8"/>`).join('')}</svg>`; };
+const prioIcon = p => { p = PLEVEL[p] ? p : 'low'; const n=PLEVEL[p];   // three thin outlined bars in the priority's colour; 1, 2 or 3 of them filled
+  return `<svg class="pbars p-${p}" viewBox="0 0 14 12" aria-hidden="true">${[0,1,2].map(i=>`<rect class="ol ${i<n?'on':''}" x="${i*5+.5}" y="${8.5-i*4}" width="2.4" height="${3+i*4}" rx=".8"/>`).join('')}</svg>`; };
 const bangHTML = p => PRIO[p] ? `<span class="prio p-${p}" role="img" aria-label="${PRIO[p].label} priority" title="${PRIO[p].label} priority">${prioIcon(p)}</span>` : '';
 const FLAG_SHORT = {waiting:'Waiting', blocked:'Blocked', hold:'On hold', decision:'Needs decision'};
 const flagShort = f => FLAG_SHORT[f.id] || f.label;
@@ -568,7 +568,7 @@ function renderKanban(k, root){
   const list = pool.filter(q.test);
   const tie = (a,b) => byDue(a,b) || (a.updated||'').localeCompare(b.updated||'');
   let gs;
-  if(V.sort==='priority'){ list.sort((a,b)=>(PRANK[a.priority||'']-PRANK[b.priority||''])||tie(a,b)); gs=['high','med','low',''].map(p=>({title:p?PRIO[p].label+' priority':'No priority', bang:p, items:list.filter(t=>(t.priority||'')===p)})); }
+  if(V.sort==='priority'){ list.sort((a,b)=>(PRANK[a.priority||'']-PRANK[b.priority||''])||tie(a,b)); gs=['high','med','low'].map(p=>({title:PRIO[p].label+' priority', bang:p, items:list.filter(t=>(PLEVEL[t.priority]?t.priority:'low')===p)})); }
   else if(V.sort==='board'){ list.sort((a,b)=>(PRANK[a.priority||'']-PRANK[b.priority||''])||tie(a,b)); gs=stacks.map(b=>({title:b.name, items:list.filter(t=>t.boardId===b.id)})); }
   else if(V.sort==='due'){ list.sort((a,b)=>byDue(a,b)||(PRANK[a.priority||'']-PRANK[b.priority||''])); gs=[{title:'By due date', items:list}]; }
   else { list.sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')); gs=[{title:'Recently updated', items:list}]; }
@@ -1013,6 +1013,7 @@ async function start(){
       if(col==='tasks' && window.__typingTask){ const i=docs.findIndex(d=>d.id===window.__typingTask); const local=S.tasks.find(t=>t.id===window.__typingTask); if(i>-1 && local) docs[i]=local; }
       S[col] = docs; S.loaded[col] = true;
       if(col==='items' && !S.migrated19){ migrate19(); migrateNav20(); }
+      if(col==='tasks') S.tasks.forEach(t => { if(!PLEVEL[t.priority]) docPatch('tasks', t.id, {priority:'low', updated:t.updated||nowIso()}); });   // beta.25: every task has High, Medium or Low (Low by default)
       if(col==='tasks') docs.filter(t=>t.col==='upcoming').forEach(t=>docPatch('tasks', t.id, {col:'todo'}));   // Upcoming column retired in 1.0.0-beta.13
       render(); refreshOverlays();
       if(col==='tasks' && !S.nudgeSet){ S.nudgeSet=true; setTimeout(bkNudge, 4000); }

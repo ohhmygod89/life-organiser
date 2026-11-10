@@ -2,6 +2,15 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.25] - 2026-11-10
+### Changed
+- Priority is High, Medium or Low (no "none"); new tasks start as Low, and tasks without a priority became Low.
+- New priority icons: three thin outlined bars in the priority's colour, with 1, 2 or 3 filled.
+- Task window: a divider under every subtask again, with even spacing.
+- Phone: View comes before Filter, centred in the space beside the menu button.
+### Fixed
+- Phone card titles no longer wrap early: space for the pin is only kept on pinned cards.
+
 ## [1.0.0-beta.24] - 2026-11-10
 ### Added
 - Double-tap (or double-click) a column title or its empty space to sort it once: by priority, due date, title or newest. Undo puts it back.

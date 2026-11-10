@@ -62,12 +62,12 @@ TYPE_VIEWS.kanban = (() => {
     </article>`;
   }
   /* the priority bars are a button: a small menu of the four levels (icons only) */
-  const prioBtn = t => true ? `<button class="prio-btn ${PRIO[t.priority]?'':'none'}" data-prio="" aria-haspopup="menu" aria-expanded="false" aria-label="Priority: ${PRIO[t.priority]?.label||'None'}" title="Priority: ${PRIO[t.priority]?.label||'None'}">${prioIcon(t.priority)}</button>` : '';
+  const prioBtn = t => { const l = (PRIO[t.priority]||PRIO.low).label; return `<button class="prio-btn" data-prio="" aria-haspopup="menu" aria-expanded="false" aria-label="Priority: ${l}" title="Priority: ${l}">${prioIcon(t.priority)}</button>`; };
   function prioMenu(btn, t){
-    openMenu(btn, ['high','med','low',''].map(p=>({html:prioIcon(p), label:PRIO[p]?.label||'No priority', value:p, checked:(t.priority||'')===p})), v => {
-      if(v===(t.priority||'')) return; const before = {priority:t.priority||'', pos:t.pos};
+    openMenu(btn, ['high','med','low'].map(p=>({html:prioIcon(p), label:PRIO[p].label, value:p, checked:(t.priority||'low')===p})), v => {
+      if(v===(t.priority||'low')) return; const before = {priority:t.priority||'', pos:t.pos};
       docPatch('tasks', t.id, {priority:v}); render(true);
-      toast('Priority: '+(PRIO[v]?.label||'None'), ()=>docPatch('tasks', t.id, before));
+      toast('Priority: '+PRIO[v].label, ()=>docPatch('tasks', t.id, before));
     }, 'Priority', 'menu-icons');
   }
   /* desktop: click a card's title or a subtask to edit the text in place; the rest of the card opens the task window */
@@ -254,7 +254,7 @@ TYPE_VIEWS.kanban = (() => {
     if(!title.trim()) return;
     const pos = groupEnd(bid, col, grp({col}));   // bottom of the no-priority group, i.e. under the cards, by the add box
     const id = uid();
-    docSet('tasks', {id, boardId:bid, col, pos, title:title.trim(), notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
+    docSet('tasks', {id, boardId:bid, col, pos, title:title.trim(), notes:'', due:'', priority:'low', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
     touchItem(bid);
   }
   function keyMove(t, key){
@@ -384,7 +384,7 @@ TYPE_VIEWS.kanban = (() => {
         <div class="props" role="group" aria-label="Task details">
           ${propRow('hBoard','Stack', `<span class="lbl-t">${esc(b?.name||'')}</span>`)}
           ${propRow('pCol','Status', `<span class="sdot st-${t.col}" aria-hidden="true"></span><span class="lbl-t">${colName(t.col)}</span>`)}
-          ${propRow('pPri','Priority', t.priority ? `${prioIcon(t.priority)}<span class="lbl-t">${PRIO[t.priority].label}</span>` : `<span class="lbl-t muted">None</span>`)}
+          ${propRow('pPri','Priority', `${prioIcon(t.priority)}<span class="lbl-t">${(PRIO[t.priority]||PRIO.low).label}</span>`)}
           ${propRow('pDue','Due', d ? `${ICON.cal}<span class="lbl-t ${d.cls}">${esc(d.t)}</span>` : `<span class="lbl-t muted">No date</span>`)}
           ${propRow('pFlag','Flag', f ? `<span class="fdot" style="--fc:${colorOf(f.color)}"></span><span class="lbl-t">${esc(f.label)}</span>` : `<span class="lbl-t muted">None</span>`)}
           ${flagAsk(f)?`<div class="prop"><label class="prop-l" for="fWho">${flagAskLabel(f)}</label><input class="prop-in" id="fWho" type="text" placeholder="${flagAsk(f)}" value="${esc(t.flagWho||'')}"></div>`:''}
@@ -460,7 +460,7 @@ TYPE_VIEWS.kanban = (() => {
     const pc = e.target.closest('#pCol');
     if(pc) return openMenu(pc, COLS.map(c=>({label:c.name, value:c.id, checked:c.id===t.col})), v => { if(v!==t.col){ moveTo(t, v); renderSheet(); render(); markSaved(); } }, 'Status');
     const pp = e.target.closest('#pPri');
-    if(pp) return openMenu(pp, ['high','med','low',''].map(p=>({label:p?PRIO[p].label:'None', value:p, checked:(t.priority||'')===p})), v => { if(v===(t.priority||'')) return; docPatch('tasks', t.id, {priority:v}); renderSheet(); markSaved(); render(); }, 'Priority');
+    if(pp) return openMenu(pp, ['high','med','low'].map(p=>({label:PRIO[p].label, value:p, checked:(t.priority||'low')===p})), v => { if(v===(t.priority||'low')) return; docPatch('tasks', t.id, {priority:v}); renderSheet(); markSaved(); render(); }, 'Priority');
     const pd = e.target.closest('#pDue');
     if(pd) return openMenu(pd, [...quickDates().map(([l,v])=>({label:`${l} · ${dateLabel(v)}`, value:v, checked:t.due===v})), {sep:true}, {label:'Pick a date…', value:'pick'}, ...(t.due?[{label:'No due date', value:'clear'}]:[])], v => {
       if(v==='pick') return pickDate();

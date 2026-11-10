@@ -1159,3 +1159,19 @@ body.placing,body.placing *{cursor:copy!important}
 .ci.add{gap:10px}
 .lcol-h[data-sortcol]{cursor:default;-webkit-user-select:none;user-select:none}
 .rt-edit.md{max-width:none}
+
+/* ===== beta.25 ===== */
+.pbars rect.ol{fill:none;stroke:currentColor;stroke-width:.8}
+.pbars rect.ol.on{fill:currentColor}
+.pbars.p-low,.prio-btn .pbars.p-low{color:var(--p-low)}
+.pbars.p-none{opacity:1}
+/* subtasks: a divider under every row, the same spacing everywhere */
+.ci{border-bottom:1px solid var(--sep);padding:6px 0}
+.ci.add{border-bottom:0}
+.ci-m{gap:6px}
+.ci-f{padding-bottom:4px}
+/* phone: View first, then Filter */
+.kb-ctl .kb-filter{order:2}
+/* card titles only make room for the pin when there is one (phone) */
+@media (pointer:coarse){ .card:not(.pinned) .card-head{padding-right:0} }
+@media (max-width:860px){ .kb-ctl{left:calc((100% - 70px) / 2)} }
