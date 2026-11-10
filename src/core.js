@@ -49,6 +49,7 @@ const ICON = {
   rtQ:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6v12"/><path d="M10 8h10M10 12h10M10 16h6"/></svg>',
   rtLink:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
   rtClear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5h12M12 5 9 19M4 4l16 16"/></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   chevD:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 9 5 5 5-5"/></svg>',
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 14 5-5 5 5"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 2.5 21.5 8.5l-2 .9-3.6 3.6.6 4.6-1.6 1.6-4-4-5 5-1.2-1.2 5-5-4-4 1.6-1.6 4.6.6 3.6-3.6z"/></svg>',
@@ -247,10 +248,11 @@ function lockPage(on){
   document.addEventListener('focusout', () => { lastFocusOut = Date.now(); });
   const fit = () => {
     const sh = $('#sheet'); if(!sh || !matchMedia('(max-width:760px)').matches) return;
-    if(!sh.classList.contains('show')){ sh.style.bottom = sh.style.maxHeight = ''; return; }
+    if(!sh.classList.contains('show')){ sh.style.top = sh.style.maxHeight = ''; return; }
     if(vv.scale > 1.01) return;                                         // pinch zoom, not a keyboard
     let kb = Math.max(0, innerHeight - vv.height - vv.offsetTop); if(kb < 80) kb = 0;   // keyboard height; ignore toolbar wobble
-    sh.style.bottom = kb ? `${kb + 8}px` : ''; sh.style.maxHeight = kb ? `${vv.height - 24}px` : '';
+    sh.style.top = kb ? `${vv.offsetTop + 8}px` : ''; sh.style.maxHeight = kb ? `${vv.height - 16}px` : '';
+    if(kb) setTimeout(() => { const a = document.activeElement; if(a && sh.contains(a) && a.matches('input,textarea')) a.scrollIntoView({block:'nearest'}); }, 60);   // keep the field you are typing in on screen
     clearTimeout(fit.t1); clearTimeout(fit.t2);
     if(!kb && vv.offsetTop > 0){ const back = () => { if(vv.offsetTop > 0) window.scrollTo(0, 0); }; fit.t1 = setTimeout(back, 100); fit.t2 = setTimeout(back, 350); }
   };
@@ -391,6 +393,8 @@ function saveNavOrder(){
   $$('#nav .nav-folder').forEach((g,i) => { const f=folderById(g.dataset.fid); if(f && f.order!==i) docPatch('folders', f.id, {order:i}); });
 }
 /* right-click (or the ••• on touch) */
+/* send buttons (beside add boxes) keep the keyboard up: the box doesn't lose focus when the button is pressed */
+document.addEventListener('pointerdown', e => { if(e.target.closest?.('.send-btn')){ window.__sendPress = Date.now(); e.preventDefault(); } }, true);
 /* a menu opened at the pointer (right-click) */
 const pointAnchor = e => ({getBoundingClientRect:()=>({left:e.clientX, right:e.clientX, top:e.clientY, bottom:e.clientY, width:0, height:0}), setAttribute(){}, focus(){}});
 function navContextMenu(e){
@@ -499,12 +503,13 @@ function renderHome(c){
 /* ----- All tasks (across every Kanban) ----- */
 const PRIO = {high:{label:'High',short:'High'},med:{label:'Medium',short:'Medium'},low:{label:'Low',short:'Low'}};
 const PRANK = {high:0,med:1,low:2,'':3};
-const DEFAULT_FLAGS = [{id:'waiting',label:'Waiting on someone',color:'amber',who:true},{id:'blocked',label:'Blocked',color:'red'},{id:'hold',label:'On hold',color:'slate'},{id:'decision',label:'Needs decision',color:'violet'}];
-const flags = () => S.flags || DEFAULT_FLAGS;
+const DEFAULT_FLAGS = [{id:'waiting',label:'Waiting',color:'amber',who:true},{id:'blocked',label:'Blocked',color:'red'},{id:'hold',label:'On hold',color:'slate'},{id:'decision',label:'Needs decision',color:'violet'}];
+const flags = () => { const l = S.flags || DEFAULT_FLAGS; if(flags.src!==l){ flags.src=l; flags.out = l.map(f => f.id==='waiting' && f.label==='Waiting on someone' ? {...f, label:'Waiting'} : f); } return flags.out; };
 const flagOf = id => flags().find(f=>f.id===id);
 /* Priority = signal bars (1 low, 2 medium, 3 high); count carries the meaning, colour backs it up. */
 const PLEVEL = {low:1, med:2, high:3};
-const prioIcon = p => { const n=PLEVEL[p]||0; return `<svg class="pbars p-${p||'none'}" viewBox="0 0 14 12" aria-hidden="true">${[0,1,2].map(i=>`<rect x="${i*5}" y="${8-i*4}" width="3.4" height="${4+i*4}" rx="1" ${i<n?'':'class="off"'}/>`).join('')}</svg>`; };
+const prioIcon = p => { const n=PLEVEL[p]||0;   // no priority: outline-only bars
+  return `<svg class="pbars p-${p||'none'}" viewBox="0 0 14 12" aria-hidden="true">${[0,1,2].map(i=> n ? `<rect x="${i*5}" y="${8-i*4}" width="3.4" height="${4+i*4}" rx="1" ${i<n?'':'class="off"'}/>` : `<rect class="ol" x="${i*5+.5}" y="${8.5-i*4}" width="2.4" height="${3+i*4}" rx=".8"/>`).join('')}</svg>`; };
 const bangHTML = p => PRIO[p] ? `<span class="prio p-${p}" role="img" aria-label="${PRIO[p].label} priority" title="${PRIO[p].label} priority">${prioIcon(p)}</span>` : '';
 const FLAG_SHORT = {waiting:'Waiting', blocked:'Blocked', hold:'On hold', decision:'Needs decision'};
 const flagShort = f => FLAG_SHORT[f.id] || f.label;
@@ -520,7 +525,7 @@ function effFlag(t){
 /* Flags that take a detail: Waiting asks who, Blocked and On hold ask why. */
 const FLAG_ASK = {waiting:'Who?', blocked:'Why?', hold:'Why?', decision:'Why?'};
 const flagAsk = f => !f ? '' : (FLAG_ASK[f.id] || (f.who ? 'Who?' : ''));
-const flagAskLabel = f => flagAsk(f)==='Who?' ? 'Waiting on' : 'Reason';
+const flagAskLabel = f => 'Reason';
 const chipHTML = (t, cls='') => { const e=effFlag(t); const f=e&&flagOf(e.flag); if(!f) return ''; const who = flagAsk(f) && e.who ? e.who : '';
   return `<span class="chip ${cls}" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${who?' · '+esc(who):''}${e.from?' (subtask: '+esc(e.from.text)+')':''}">${esc(flagShort(f))}${who?` · ${esc(who)}`:''}</span>`; };
 const byDue = (a,b) => (a.due||'9999').localeCompare(b.due||'9999');

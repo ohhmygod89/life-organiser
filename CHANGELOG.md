@@ -2,6 +2,19 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.21] - 2026-11-10
+### Added
+- Phone: press and hold a card for its menu: Pin or Unpin, Move to another column, Duplicate, Open. Desktop right-click shows the same menu.
+- Send buttons at the end of the add boxes (subtasks, updates, checklist items, new tasks), so Enter isn't needed.
+- Text editor: a labelled "Item link" button near the start of the formatting bar inserts a link to another item.
+### Changed
+- Phone task window sits near the top, leaving room below to tap out of it; it keeps the box you're typing in, and what you just added, in view.
+- "Waiting on someone" is now "Waiting", and its box is labelled "Reason" like the other flags.
+- No priority shows as outline bars, and you can tap the bars to set one.
+- Phone cards: the ⇄ button and the faint pin are gone (both are in the hold menu); pinned cards still show a pin.
+- Phone: Board / List / Archive is an even three-way control; filter groups no longer cut off their last chip; the stack name box looks like a proper text box.
+- Neutral colours for the checklist actions, send buttons and Add block buttons.
+
 ## [1.0.0-beta.20] - 2026-11-10
 ### Added
 - Text blocks have a rich editor with a formatting bar: text style (Normal, Headings), bold, italic, strikethrough, code, bulleted, numbered and checklist lists, quote, web links, links to items and clear formatting. "Write" is now "Raw" (the markdown underneath).

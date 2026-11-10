@@ -118,11 +118,11 @@ TYPE_VIEWS.note = (() => {
   const TOOLS = [
     {c:'style', l:'Text style', menu:true},
     {sep:true},
+    {c:'itemlink', l:'Link to another item in the app', i:`${ICON.page}<span class="rt-txt">Item link</span>`, wide:true}, {c:'link', l:'Web link (⌘K)', i:ICON.rtLink},
+    {sep:true},
     {c:'bold', l:'Bold (⌘B)', i:'<b>B</b>'}, {c:'italic', l:'Italic (⌘I)', i:'<i>I</i>'}, {c:'strikeThrough', l:'Strikethrough', i:'<s>S</s>'}, {c:'code', l:'Code', i:'<span class="mono">&lt;/&gt;</span>'},
     {sep:true},
     {c:'insertUnorderedList', l:'Bulleted list', i:ICON.rtUl}, {c:'insertOrderedList', l:'Numbered list', i:ICON.rtOl}, {c:'tasks', l:'Checklist', i:ICON.rtCk}, {c:'quote', l:'Quote', i:ICON.rtQ},
-    {sep:true},
-    {c:'link', l:'Web link (⌘K)', i:ICON.rtLink}, {c:'itemlink', l:'Link to an item', i:'<span class="mono">[[ ]]</span>'},
     {sep:true},
     {c:'clear', l:'Clear formatting', i:ICON.rtClear},
   ];
@@ -141,7 +141,7 @@ TYPE_VIEWS.note = (() => {
         : `<div class="rt">
             <div class="rt-bar" role="toolbar" aria-label="Formatting">${TOOLS.map(t=> t.sep ? '<span class="rt-sep" aria-hidden="true"></span>'
               : t.menu ? `<button class="rt-btn rt-style" data-rt="style" aria-haspopup="menu" aria-expanded="false" title="${t.l}"><span class="lbl-t">Normal text</span>${ICON.chevD}</button>`
-              : `<button class="rt-btn" data-rt="${t.c}" aria-label="${esc(t.l)}" title="${esc(t.l)}" aria-pressed="false">${t.i}</button>`).join('')}</div>
+              : `<button class="rt-btn ${t.wide?'rt-wide':''}" data-rt="${t.c}" aria-label="${esc(t.l)}" title="${esc(t.l)}" aria-pressed="false">${t.i}</button>`).join('')}</div>
             <div class="rt-edit md" id="noteRich" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Note text" data-ph="Start writing…" spellcheck="true">${(it.body||'').trim() ? toHTML(it.body, true) : '<p><br></p>'}</div>
           </div>`}
       ${(bl.notes.length||bl.tasks.length)?`<section class="panel"><div class="panel-h"><h2>Linked from</h2><span class="caption">${plural(bl.notes.length+bl.tasks.length,'place')}</span></div><div class="backlinks">${bl.notes.map(n=>`<a class="chip-btn" href="#i-${esc(n.id)}" style="--c:${itemColor(n)};text-decoration:none"><span class="dot"></span>${esc(n.name)}</a>`).join('')}${bl.tasks.map(t=>`<button class="chip-btn" data-open="task:${esc(t.id)}" style="--c:${itemColor(itemById(t.boardId))}"><span class="dot"></span>${esc(t.title)}</button>`).join('')}</div></section>`:''}`;

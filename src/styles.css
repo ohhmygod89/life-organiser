@@ -1049,3 +1049,48 @@ body.placing,body.placing *{cursor:copy!important}
 .rt-edit{position:relative}
 .rt-edit .wl{display:inline;padding:1px 4px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 @media (max-width:560px){ .rt-bar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} .rt-bar::-webkit-scrollbar{display:none} .rt-bar > *{flex:none} }
+
+/* ===== beta.21 (phone polish) ===== */
+/* priority: none = outline bars */
+.pbars rect.ol{fill:none;stroke:currentColor;stroke-width:1}
+/* send buttons beside add boxes: neutral, dim until there is text */
+.send-btn{flex:none;width:32px;height:32px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:var(--fg);color:var(--bg);cursor:pointer;transition:opacity .12s,transform .12s}
+.send-btn svg{width:16px;height:16px}
+.send-btn:active{transform:scale(.92)}
+:is(.ci.add,.send-row,.add-wrap):has(:is(input,textarea):placeholder-shown) .send-btn{opacity:.25;background:var(--muted)}
+.ci.add{gap:8px}
+.ci.add input{flex:1 1 auto;min-width:0}
+.send-row{display:flex;align-items:center;gap:8px;margin-top:12px;padding:4px 4px 4px 0;border-radius:12px;background:var(--fill-2)}
+.send-row .field-in{flex:1 1 auto;min-width:0;background:none;border:0;box-shadow:none}
+.send-row:focus-within{box-shadow:0 0 0 3px var(--accent-ring)}
+.add-wrap{display:flex;align-items:flex-end;gap:6px}
+.add-wrap .add-input{flex:1 1 auto;min-width:0}
+.add-wrap .send-btn{margin-bottom:6px}
+/* checklist actions in neutral colours */
+.blk-body .link,[data-root] .ck-h .link{color:var(--muted)}
+.blk-body .link:not([disabled]):hover{color:var(--fg)}
+/* editor: labelled Item link button */
+.rt-btn.rt-wide{display:inline-flex;gap:5px;padding:0 9px;font-size:13px;font-weight:500}
+.rt-btn.rt-wide svg{width:15px;height:15px}
+/* stack name: a proper text box while editing */
+.lane-name{padding:4px 10px;margin-left:-10px;border-radius:10px;line-height:1.25;-webkit-appearance:none;appearance:none}
+.lane-name:focus{background:var(--fill-2);box-shadow:0 0 0 2px var(--accent-ring)}
+/* touch cards: hold for the card menu */
+@media (hover:none){
+  .card{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  .card span.pin{opacity:.9;color:var(--fg);pointer-events:none}
+  .card.held{transform:scale(.97);box-shadow:var(--shadow-lift);transition:transform .15s}
+}
+@media (max-width:860px){
+  /* Board / List / Archive: one even segmented control across the top */
+  .kb-tabs{display:grid;grid-template-columns:repeat(3,1fr);width:100%;align-self:stretch;margin-top:0}
+  .kb-tabs button{padding:7px 0;font-size:15px;text-align:center}
+  .fgroup{max-width:none}
+}
+@media (max-width:760px){
+  /* task window sits near the top, leaving room below to tap out of it */
+  .sheet{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto;max-height:calc(100% - 150px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));transform:translateY(calc(-100% - 24px))}
+}
+.send-row .field-in{background:none!important;box-shadow:none!important;padding-left:12px}
+.blk-add .btn{color:var(--fg)}
+.blk-add .btn svg{color:var(--icon)}

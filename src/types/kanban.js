@@ -46,13 +46,13 @@ TYPE_VIEWS.kanban = (() => {
     if(isDone && t.doneAt) left.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
     if(t.due && !isDone){ const d=dueLabel(t.due); const near = dayDiff(t.due) <= 7;   // overdue or due within a week: add how far away
       right.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}">${esc(d.full)}${near?` · ${esc(d.rel)}`:''}</span>`); }
-    const mvBtn = TOUCH ? (`<button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>`) : '';
+    const mvBtn = '';   // moving is in the card menu (hold on phone, right-click on desktop)
     const open = cl.filter(c=>!c.done); const lim = compact ? 4 : 8;
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
     const pinned = !!t.pinned && !isDone;
     const mvTop = mvBtn && !left.length && !right.length;   // no footer: ⇄ sits beside the pin rather than adding an empty row
     return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
-      ${isDone ? '' : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${ICON.pin}</button>`}
+      ${isDone || (TOUCH && !pinned) ? '' : TOUCH ? `<span class="pin" aria-hidden="true">${ICON.pin}</span>` : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${ICON.pin}</button>`}
       ${mvBtn && !left.length && !right.length ? mvBtn : ''}
       <div class="card-head"><div class="title">${!isDone?prioBtn(t):''}<span class="tt">${esc(t.title||'Untitled')}</span></div>
       ${!isDone ? chipHTML(t,'one') : ''}</div>
@@ -62,7 +62,7 @@ TYPE_VIEWS.kanban = (() => {
     </article>`;
   }
   /* the priority bars are a button: a small menu of the four levels (icons only) */
-  const prioBtn = t => PRIO[t.priority] || !TOUCH ? `<button class="prio-btn ${PRIO[t.priority]?'':'none'}" data-prio="" aria-haspopup="menu" aria-expanded="false" aria-label="Priority: ${PRIO[t.priority]?.label||'None'}" title="Priority: ${PRIO[t.priority]?.label||'None'}">${prioIcon(t.priority)}</button>` : '';
+  const prioBtn = t => true ? `<button class="prio-btn ${PRIO[t.priority]?'':'none'}" data-prio="" aria-haspopup="menu" aria-expanded="false" aria-label="Priority: ${PRIO[t.priority]?.label||'None'}" title="Priority: ${PRIO[t.priority]?.label||'None'}">${prioIcon(t.priority)}</button>` : '';
   function prioMenu(btn, t){
     openMenu(btn, ['high','med','low',''].map(p=>({html:prioIcon(p), label:PRIO[p]?.label||'No priority', value:p, checked:(t.priority||'')===p})), v => {
       if(v===(t.priority||'')) return; const before = {priority:t.priority||'', pos:t.pos};
@@ -101,32 +101,65 @@ TYPE_VIEWS.kanban = (() => {
   }
   /* right-click a card: Duplicate, then click the column (any stack) to drop the copy there */
   let placing = null;
+  function cardMenuItems(t){
+    const done = t.col==='done';
+    return [...(done?[]:[{label:t.pinned?'Unpin':'Pin to top', value:'pin'}]),
+      {sep:true}, ...COLS.filter(c=>c.id!==t.col).map(c=>({label:'Move to '+c.name, value:'col:'+c.id})),
+      {sep:true}, {label:'Duplicate…', value:'dup'}, {label:'Open', value:'open'}];
+  }
+  function cardAction(v, t, card, e){
+    if(v==='open') return openSheet(t.id, card);
+    if(v==='dup') return startPlacing(t, card, e);
+    if(v==='pin'){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); render(true);
+      return toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now, pos:t.pos})); }
+    if(v.startsWith('col:')){ moveTo(t, v.slice(4)); render(true); }
+  }
   function cardMenu(e){
     const card = e.target.closest('.card'); if(!card || e.target.closest('[contenteditable]')) return;
     const t = S.tasks.find(x=>x.id===card.dataset.id); if(!t) return;
     e.preventDefault();
-    openMenu(pointAnchor(e), [{label:'Duplicate…', value:'dup'}, {label:'Open', value:'open'}], v => {
-      if(v==='open') return openSheet(t.id, card);
-      if(v==='dup') startPlacing(t, card, e);
-    }, 'Card');
+    openMenu(pointAnchor(e), cardMenuItems(t), v => cardAction(v, t, card, e), 'Card');
+  }
+  /* phone: press and hold a card (without moving) for the same menu; moving instead drags it */
+  { let lp = null;
+    const content = $('#content');
+    content.addEventListener('touchstart', e => {
+      const card = e.target.closest('.card'); if(!card || e.touches.length>1 || !card.closest('.kb') || e.target.closest('button,input,textarea')) return;
+      const p = e.touches[0]; clearTimeout(lp?.timer);
+      lp = {card, x:p.clientX, y:p.clientY, fired:false, timer:setTimeout(() => {
+        if(!lp || document.querySelector('.sortable-fallback')) return; lp.fired = true;
+        const t = S.tasks.find(x=>x.id===card.dataset.id); if(!t) return;
+        document.dispatchEvent(new Event('touchend', {bubbles:true}));   // stand down the pending drag
+        card.classList.add('held'); try{ navigator.vibrate?.(10); }catch(err){}
+        setTimeout(() => { const r = card.getBoundingClientRect();
+          openMenu({getBoundingClientRect:()=>({left:r.left+12, right:r.left+12, top:r.top+20, bottom:r.top+20, width:0, height:0}), setAttribute(){}, focus(){}}, cardMenuItems(t), v => cardAction(v, t, card, {clientX:r.left+r.width/2, clientY:r.top+r.height/2}), 'Card');
+          card.classList.remove('held'); }, 40);
+      }, 480)};
+    }, {passive:true});
+    content.addEventListener('touchmove', e => { if(!lp || lp.fired) return; const p=e.touches[0]; if(Math.hypot(p.clientX-lp.x, p.clientY-lp.y) > 8){ clearTimeout(lp.timer); lp=null; } }, {passive:true});
+    const end = () => { if(!lp) return; clearTimeout(lp.timer); if(lp.fired){ const c=lp.card; const swallow = ev => { if(c.contains(ev.target) || ev.target===document.documentElement || ev.target===document.body){ ev.preventDefault(); ev.stopPropagation(); } document.removeEventListener('click', swallow, true); };
+        document.addEventListener('click', swallow, true); setTimeout(()=>document.removeEventListener('click', swallow, true), 700); } lp=null; };
+    content.addEventListener('touchend', e => { if(e.isTrusted) end(); }, {passive:true});
+    content.addEventListener('touchcancel', end, {passive:true});
+    content.addEventListener('contextmenu', e => { if(TOUCH && e.target.closest('.card')) e.preventDefault(); });
   }
   function startPlacing(t, card, e){
     stopPlacing();
     const g = card.cloneNode(true); g.className = card.className + ' dup-ghost'; g.removeAttribute('tabindex'); g.setAttribute('aria-hidden','true');
     g.style.width = card.offsetWidth + 'px'; document.body.appendChild(g);
-    const tip = document.createElement('div'); tip.className = 'dup-tip'; tip.setAttribute('role','status'); tip.textContent = 'Click a column to place the copy · Esc to cancel'; document.body.appendChild(tip);
+    const tip = document.createElement('div'); tip.className = 'dup-tip'; tip.setAttribute('role','status'); tip.innerHTML = TOUCH ? 'Tap a column to place the copy · <b>Cancel</b>' : 'Click a column to place the copy · Esc to cancel'; if(TOUCH) tip.style.pointerEvents='auto'; document.body.appendChild(tip);
     document.body.classList.add('placing');
     let over = null;
     const move = ev => { g.style.transform = `translate(${ev.clientX+14}px, ${ev.clientY+10}px)`;
       const l = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.lcol,.col'); const list = l?.querySelector('.cards');
       if(over && over!==list) over.closest('.lcol,.col')?.classList.remove('drop-on'); over = list || null; over?.closest('.lcol,.col')?.classList.add('drop-on'); };
     const down = ev => { if(ev.button!==0) return; ev.preventDefault(); ev.stopPropagation();
+      if(ev.target.closest('.dup-tip')) return stopPlacing();
       const list = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.lcol,.col')?.querySelector('.cards');
       stopPlacing(); if(list) duplicate(t, list.dataset.board, list.dataset.col); };
-    const swallow = ev => { ev.preventDefault(); ev.stopPropagation(); };
     const esc = ev => { if(ev.key==='Escape'){ ev.preventDefault(); ev.stopPropagation(); stopPlacing(); } };
-    document.addEventListener('pointermove', move, true); document.addEventListener('pointerdown', down, true); document.addEventListener('click', swallow, true); document.addEventListener('keydown', esc, true);
-    placing = {g, tip, off(){ document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerdown', down, true); setTimeout(()=>document.removeEventListener('click', swallow, true), 0); document.removeEventListener('keydown', esc, true); over?.closest('.lcol,.col')?.classList.remove('drop-on'); }};
+    document.addEventListener('pointermove', move, true); document.addEventListener('click', down, true); document.addEventListener('keydown', esc, true);
+    placing = {g, tip, off(){ document.removeEventListener('pointermove', move, true); document.removeEventListener('click', down, true); document.removeEventListener('keydown', esc, true); over?.closest('.lcol,.col')?.classList.remove('drop-on'); }};
     move(e);
   }
   function stopPlacing(){ if(!placing) return; placing.off(); placing.g.remove(); placing.tip.remove(); placing = null; document.body.classList.remove('placing'); }
@@ -139,10 +172,10 @@ TYPE_VIEWS.kanban = (() => {
     toast(`Copied to ${itemById(bid)?.name||'stack'} · ${colName(col)}`, ()=>docDel('tasks', id));
     requestAnimationFrame(()=>{ const c=document.querySelector(`.card[data-id="${CSS.escape(id)}"]`); c?.classList.add('flash'); c?.scrollIntoView({block:'nearest', inline:'nearest'}); });
   }
-  $('#content').addEventListener('contextmenu', e => { if(e.target.closest('.card') && currentItem()?.type==='kanban') cardMenu(e); });
+  $('#content').addEventListener('contextmenu', e => { if(e.target.closest('.kb .card')) cardMenu(e); });
   function addRowHTML(bid, c){
     const isAdding = adding?.board===bid && adding?.col===c.id;
-    return isAdding ? `<div class="add-row"><textarea class="add-input" id="kbAdd" rows="2" placeholder="Task name" aria-label="New task in ${c.name}">${esc(draft)}</textarea><div class="add-tip">Enter to add another · Esc to finish</div></div>`
+    return isAdding ? `<div class="add-row"><div class="add-wrap"><textarea class="add-input" id="kbAdd" rows="2" placeholder="Task name" aria-label="New task in ${c.name}" enterkeyhint="send">${esc(draft)}</textarea><button class="send-btn" data-send="task" aria-label="Add task" title="Add">${ICON.send}</button></div><div class="add-tip">${TOUCH?'Tap outside to finish':'Enter to add another · Esc to finish'}</div></div>`
       : `<div class="add-row"><button class="add-btn" data-add="${c.id}">${ICON.plus} Add task</button></div>`;
   }
   function bindSortables(root){
@@ -255,6 +288,8 @@ TYPE_VIEWS.kanban = (() => {
     const add = e.target.closest('[data-add]');
     if(add){ const bid = add.closest('[data-board]')?.dataset.board || add.closest('.col')?.querySelector('.cards')?.dataset.board; if(bid){ adding={board:bid, col:add.dataset.add}; draft=''; render(true); } return true; }
     const more = e.target.closest('[data-act="more"]'); if(more){ const k=more.dataset.board; showAllDone[k]=!showAllDone[k]; render(true); return true; }
+    const sb = e.target.closest('[data-send="task"]');
+    if(sb){ const el=$('#kbAdd'); const v=el?.value||''; if(adding && v.trim()){ draft=''; addSubmitting=true; addTask(adding.board, adding.col, v); render(true); addSubmitting=false; } else $('#kbAdd')?.focus(); return true; }
     const pb = e.target.closest('[data-prio]'); if(pb){ e.stopPropagation(); const t=cardOf(pb); if(t) prioMenu(pb, t); return true; }
     if(e.target.closest('.lane-name')) return true;
     const ed = !TOUCH && e.isTrusted && e.target.closest('.card:not(.is-done) .tt, .card .ctt');
@@ -291,7 +326,7 @@ TYPE_VIEWS.kanban = (() => {
   }
   $('#content').addEventListener('focusout', e => {
     if(e.target.id!=='kbAdd') return; const el=e.target;
-    setTimeout(()=>{ if(addSubmitting || !el.isConnected || !adding || document.activeElement===el) return;
+    setTimeout(()=>{ if(addSubmitting || Date.now()-(window.__sendPress||0) < 600 || !el.isConnected || !adding || document.activeElement===el) return;
       const v=el.value; draft=''; el.value=''; if(itemById(adding.board) && v.trim()) addTask(adding.board, adding.col, v); adding=null; render(true); }, 120);
   });
   function newShortcut(it){ const s = stacksOf(it.id)[0]; if(!s) return; adding={board:s.id, col:'todo'}; draft=''; render(true); }
@@ -368,13 +403,13 @@ TYPE_VIEWS.kanban = (() => {
                 <button class="icon-btn mini" data-cdel="${esc(c.id)}" aria-label="Delete subtask ${esc(c.text)}" title="Delete subtask">${ICON.x}</button></div>
                 ${cf && !c.done && flagAsk(cf)?`<div class="ci-f"><input type="text" class="ci-who" data-cw="${esc(c.id)}" value="${esc(c.flagWho||'')}" placeholder="${flagAsk(cf)}" aria-label="${flagAsk(cf)==='Who?'?'Who is this subtask waiting on?':'Why does this subtask '+esc(cf.label.toLowerCase())+'?'}"></div>`:''}</div>
             </div>`; }).join('')}
-            <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fCheckNew" placeholder="Add subtask" aria-label="New subtask" enterkeyhint="done"></div>
+            <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fCheckNew" placeholder="Add subtask" aria-label="New subtask" enterkeyhint="done"><button class="send-btn" data-send="check" aria-label="Add subtask" title="Add">${ICON.send}</button></div>
           </div>
         </section>
         <section class="sh-sec" aria-labelledby="lgLbl">
           <div class="sh-h"><h3 id="lgLbl">Updates</h3></div>
           ${(t.log||[]).length?`<div class="log">${(t.log||[]).slice().sort((a,b)=>(a.t||'').localeCompare(b.t||'')).map(l=>`<div class="log-i"><time>${esc(stamp(l.t))}</time><p>${esc(l.text)}</p><button class="x" data-del-l="${esc(l.id)}" aria-label="Remove update from ${esc(stamp(l.t))}">${ICON.x}</button></div>`).join('')}</div>`:''}
-          <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fLogNew" placeholder="Log an update, e.g. Called the insurer" aria-label="New update" enterkeyhint="send"></div>
+          <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fLogNew" placeholder="Log an update, e.g. Called the insurer" aria-label="New update" enterkeyhint="send"><button class="send-btn" data-send="log" aria-label="Add update" title="Add">${ICON.send}</button></div>
         </section>
         <div class="sh-foot"><span>Created ${esc(stamp(t.created))}${t.doneAt&&t.col==='done'?' · Done '+esc(stamp(t.doneAt)):''}</span><button class="btn danger" id="fDelete">Delete task</button></div>
       </div>`;
@@ -399,8 +434,10 @@ TYPE_VIEWS.kanban = (() => {
     const cw = e.target.dataset.cw; if(cw){ const v=e.target.value; debounced('w'+cw, ()=>{ const x=cur(); if(!x) return; patchCl(x, cw, c=>({...c,flagWho:v})); markSaved(); render(); }); }
   });
   sheet.addEventListener('change', e => { const t=cur(); if(t && e.target.id==='fDue'){ docPatch('tasks', t.id, {due:e.target.value}); renderSheet(); markSaved(); render(); } });
-  function addCheck(){ const el=$('#fCheckNew'); const v=el.value.trim(); if(!v) return; const t=cur(); docPatch('tasks', t.id, {checklist:[...(t.checklist||[]), {id:uid(), text:v, done:false}]}); renderSheet(); markSaved(); render(); $('#fCheckNew').focus(); }
-  function addLog(){ const v=$('#fLogNew').value.trim(); if(!v) return; const t=cur(); docPatch('tasks', t.id, {log:[...(t.log||[]), {id:uid(), t:nowIso(), text:v}]}); renderSheet(); markSaved(); $('#fLogNew').focus(); }
+  function addCheck(){ const el=$('#fCheckNew'); const v=el.value.trim(); if(!v) return; const t=cur(); docPatch('tasks', t.id, {checklist:[...(t.checklist||[]), {id:uid(), text:v, done:false}]}); renderSheet(); markSaved(); render(); const n=$('#fCheckNew'); n.focus({preventScroll:true}); reveal(n); }
+  function addLog(){ const v=$('#fLogNew').value.trim(); if(!v) return; const t=cur(); docPatch('tasks', t.id, {log:[...(t.log||[]), {id:uid(), t:nowIso(), text:v}]}); renderSheet(); markSaved(); const n=$('#fLogNew'); n.focus({preventScroll:true}); reveal(n); }
+  /* keep what you just added, or the box you are typing in, in view (also once the keyboard has opened) */
+  function reveal(el){ if(!el) return; const go = () => el.isConnected && el.scrollIntoView({block:'center', behavior:RM?'auto':'smooth'}); requestAnimationFrame(go); setTimeout(go, 350); }
   sheet.addEventListener('keydown', e => {
     if(e.key!=='Enter') return;
     if(e.target.id==='fTitle'){ e.preventDefault(); $('#fNotes')?.focus(); }
@@ -412,6 +449,7 @@ TYPE_VIEWS.kanban = (() => {
   function pickDate(){ const i=$('#fDue'); if(!i) return; try{ i.showPicker(); }catch(e){ i.classList.remove('sr-only'); i.removeAttribute('aria-hidden'); i.focus(); } }
   sheet.addEventListener('click', e => {
     const t = cur(); if(!t) return;
+    const sb = e.target.closest('[data-send]'); if(sb){ if(sb.dataset.send==='check') addCheck(); else addLog(); return; }
     if(e.target.closest('#closeSheet')) return closeSheet();
     const hb = e.target.closest('#hBoard');
     if(hb) return openMenu(hb, kanbans().map(x=>({label:(itemsOf(i=>i.type==='kanban').length>1 ? topOf(x).name+' › ' : '')+x.name, value:x.id, checked:x.id===t.boardId})), v => {
@@ -428,12 +466,12 @@ TYPE_VIEWS.kanban = (() => {
       if(v==='pick') return pickDate();
       docPatch('tasks', t.id, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
     const pf = e.target.closest('#pFlag');
-    if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $('#fWho')?.focus(); }, 'Flag');
+    if(pf) return openMenu(pf, flagItems(t.flag), v => { docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); const w=$('#fWho'); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Flag');
     if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
     const cd = e.target.closest('[data-cdel]');
     if(cd){ const id=cd.dataset.cdel; const c=(t.checklist||[]).find(x=>x.id===id); const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c?.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
     const cfb = e.target.closest('[data-cf]');
-    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v, ...(v!==x.flag?{flagWho:''}:{})})); renderSheet(); markSaved(); render(); if(flagAsk(flagOf(v))) $(`[data-cw="${CSS.escape(id)}"]`)?.focus(); }, 'Subtask flag'); }
+    if(cfb){ const id=cfb.dataset.cf; const c=(t.checklist||[]).find(x=>x.id===id); return openMenu(cfb, flagItems(c?.flag), v => { patchCl(t, id, x=>({...x, flag:v, ...(v!==x.flag?{flagWho:''}:{})})); renderSheet(); markSaved(); render(); const w=$(`[data-cw="${CSS.escape(id)}"]`); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Subtask flag'); }
     const cm = e.target.closest('[data-cm]');
     if(cm){ const id=cm.dataset.cm; const c=(t.checklist||[]).find(x=>x.id===id); if(!c) return;
       return openMenu(cm, [{head:'Flag'}, ...flagItems(c.flag), {sep:true}, {label:'Delete subtask', value:'del', danger:true}], v => {
@@ -457,7 +495,7 @@ TYPE_VIEWS.kanban = (() => {
     let fl = flags().map(f=>({...f}));
     const draw = () => {
       const m = openModal(`<h2 id="mTitle">Status flags</h2>
-        <p class="note">A flag sits on a card alongside its column, so a task can be In Progress and also Waiting on someone. Tick “Ask who” to add a name field. Flags are shared by every Kanban.</p>
+        <p class="note">A flag sits on a card alongside its column, so a task can be In Progress and also Waiting. Tick “Ask who” to add a name field. Flags are shared by every Kanban.</p>
         <div style="display:flex;flex-direction:column;gap:10px">${fl.map((f,i)=>`<div class="flag-row" data-i="${i}">
           <input class="txt-in" type="text" value="${esc(f.label)}" data-k="label" aria-label="Flag name">
           <label><input type="checkbox" data-k="who" ${f.who?'checked':''}>Ask who</label>

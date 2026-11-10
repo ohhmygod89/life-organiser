@@ -19,14 +19,14 @@ TYPE_VIEWS.checklist = (() => {
         <div class="ck-list" id="ckList" style="margin-top:8px">${shown.map(e=>`<div class="ck ${e.done?'on':''}" data-id="${esc(e.id)}" data-key="ck-${esc(e.id)}"><span class="grip" aria-hidden="true" title="Drag to reorder">${ICON.grip}</span><button class="cbox" data-ck="${esc(e.id)}" role="checkbox" aria-checked="${!!e.done}" aria-label="${esc(e.text)}">${ICON.check}</button><input type="text" data-ct="${esc(e.id)}" value="${esc(e.text)}" aria-label="Checklist item"><button class="x" data-del="${esc(e.id)}" aria-label="Remove ${esc(e.text)}">${ICON.x}</button></div>`).join('')}</div>
         ${!all.length?`<div class="empty-state" style="padding:18px">Add the first item below. Lists you reuse, like packing or monthly admin, work best: tick through, then Untick all next time.</div>`:''}
         ${all.length && !shown.length?`<div class="empty-state" style="padding:18px">Everything is done. Turn off Hide done to see the list.</div>`:''}
-        <div class="inline-add" style="margin-top:12px"><input class="field-in" id="ckNew" placeholder="Add an item, then Enter" aria-label="New checklist item"><button class="btn" data-act="add">Add</button></div>
+        <div class="send-row"><input class="field-in" id="ckNew" placeholder="Add an item" aria-label="New checklist item" enterkeyhint="send"><button class="send-btn" data-act="add" aria-label="Add item" title="Add">${ICON.send}</button></div>
       </section>`;
     if(shown.length>1) sortables[it.id] = Sortable.create(root.querySelector('#ckList'), {handle:'.grip', animation:RM?0:150, onStart(){S.dragging=true}, onEnd(){ S.dragging=false;
       const order = $$('#ckList .ck', R(it)).map(x=>x.dataset.id); const c = itemById(it.id); const hidden = (c.entries||[]).filter(e=>!order.includes(e.id));
       docPatch('items', it.id, {entries:[...order.map(id=>c.entries.find(e=>e.id===id)), ...hidden]}); render(true); }});
   }
   const setEntries = (it, list) => { docPatch('items', it.id, {entries:list}); renderSide(); };
-  function add(it){ const el=Q(it,'#ckNew'); const v=el.value.trim(); if(!v) return; setEntries(it, [...(it.entries||[]), {id:uid(), text:v, done:false}]); view(it, R(it)); Q(it,'#ckNew').focus(); }
+  function add(it){ const el=Q(it,'#ckNew'); const v=el.value.trim(); if(!v) return; setEntries(it, [...(it.entries||[]), {id:uid(), text:v, done:false}]); view(it, R(it)); const n=Q(it,'#ckNew'); n.focus({preventScroll:true}); n.scrollIntoView({block:'center', behavior:RM?'auto':'smooth'}); }
   function click(e, it){
     const a = e.target.closest('[data-act]');
     if(a){ const act=a.dataset.act;
