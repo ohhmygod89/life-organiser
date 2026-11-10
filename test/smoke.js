@@ -12,7 +12,7 @@ const {chromium} = require('playwright');
       await p.evaluate(x => location.hash = x, h2); await p.waitForTimeout(150);
     }
     if (w === 1440 && cs === 'light') {
-      await p.evaluate(() => location.hash = 'i-demokanbanhome1'); await p.waitForTimeout(200);
+      await p.evaluate(() => location.hash = 'tasks'); await p.waitForTimeout(200);
       await p.click('.card >> nth=0'); await p.waitForTimeout(300); await p.keyboard.press('Escape');
       await p.evaluate(() => location.hash = 'i-demobillsitem01'); await p.waitForTimeout(200);
       await p.click('.pay-row .cbox >> nth=0'); await p.waitForTimeout(200);

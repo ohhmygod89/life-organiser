@@ -2,6 +2,22 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.19] - 2026-11-09
+### Added
+- Page: a new item built from blocks. Add, remove, rename and reorder Text, Checklist and Table blocks.
+- Kanban: one Kanban item holds your stacks (Home, Work, …). Add a stack with + Stack, rename or remove one from its ••• menu. Archive is a tab inside the Kanban.
+- Right-click an item or folder in the menu for Rename, Move and Delete (on a phone, use ••• on the open item).
+- Folders are back, below the custom items. Drag folders, and drag pages into, out of and within folders.
+### Changed
+- Every existing note, checklist and table is now a Page holding it as its first block; every old board is now a stack in the Kanban.
+- Columns always sort by priority: pinned first, then High, Medium, Low, none. Drag to reorder within a group; new, newly pinned, re-prioritised and returned-from-Done cards go to the bottom of their group.
+- Card due date sits at the bottom right; the notes icon is gone; the add box is at the bottom of the column.
+- Kanban filters in three separate groups (Show, Stacks, Include), with Done and Backburner as toggles. Board / List / Archive tabs stay put.
+- New item always starts blank (no templates). All icons are one neutral colour. The top-right ••• menu is gone.
+- Demo item names are in Title Case.
+### Fixed
+- Folder assignments are no longer cleared when the menu loads.
+
 ## [1.0.0-beta.18] - 2026-11-09
 ### Added
 - What's new: hover the version number (tap on a phone) to see the latest changes.

@@ -4,7 +4,7 @@
    Data is fictional sample data and stays in this browser (localStorage).
    ============================================================ */
 function DemoDB(){
-  const KEY = 'lo.demo.v4';
+  const KEY = 'lo.demo.v5';
   const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); };
   const ahead = n => ago(-n);
   const iso = nowIso();
@@ -16,27 +16,34 @@ function DemoDB(){
     return {
       folders:[{id:F.p,name:'Personal',order:0},{id:F.w,name:'Work',order:1},{id:F.f,name:'Finance',order:2}],
       items:[
-        {id:'demonotestart01', type:'note', name:'Start here', folderId:F.p, order:0, created:iso, updated:iso, body:
+        {id:'demopagestart01', type:'page', name:'Start Here', folderId:F.p, order:0, created:iso, updated:iso},
+        {id:'demonotestart01', type:'note', name:'Welcome', parent:'demopagestart01', folderId:'', order:0, created:iso, updated:iso, body:
 `This is a **demo** of Life Organiser with made-up sample data. Changes you make stay in this browser only.
 
 ## Item types
-- **Kanban**: boards of one-off tasks. See [[Home]].
-- **Note**: pages like this one, with - [ ] checkboxes and [[links]].
-- **Table**: a table with your own fields. See [[Coupons & vouchers]].
-- **Tracker**: dated numbers with a chart. See [[Home loan rate]].
-- **Checklist**: a reusable tick list.
-- **Bills**: recurring bills on a yearly timeline. See [[Bills & renewals]].
+- **Kanban**: stacks of To Do, In Progress and Done columns. See [[Kanban]].
+- **Page**: a page built from blocks: Text like this, Checklists and Tables. See [[Japan Trip]].
+- **Tracker**: dated numbers with a chart. See [[Home Loan Rate]].
+- **Bills**: recurring bills on a yearly timeline. See [[Bills & Renewals]].
 
 ## Try it
-- [ ] Drag a card on [[Home]] to In Progress
-- [ ] Tick a payment on [[Bills & renewals]]
+- [ ] Drag a card on [[Kanban]] to In Progress
+- [ ] Tick a payment on [[Bills & Renewals]]
 - [x] Open the demo
 
 Press ? for keyboard shortcuts.`},
-        {id:'demokanbanhome1', type:'kanban', name:'Home', folderId:F.p, order:1, color:'teal', created:iso, updated:iso},
-        {id:'demokanbanwork1', type:'kanban', name:'Work', folderId:F.w, order:0, color:'blue', created:iso, updated:iso},
-        {id:'demokanbanside1', type:'kanban', name:'Side business', folderId:F.w, order:1, color:'violet', created:iso, updated:iso},
-        {id:'demobillsitem01', type:'bills', name:'Bills & renewals', folderId:F.f, order:0, created:iso, updated:iso, bills:[
+        {id:'demokanban0001', type:'kanban', container:true, name:'Kanban', folderId:'', order:0, created:iso, updated:iso},
+        {id:'demokanbanhome1', type:'stack', parent:'demokanban0001', name:'Home', folderId:'', order:0, created:iso, updated:iso},
+        {id:'demokanbanwork1', type:'stack', parent:'demokanban0001', name:'Work', folderId:'', order:1, created:iso, updated:iso},
+        {id:'demokanbanside1', type:'stack', parent:'demokanban0001', name:'Side Business', folderId:'', order:2, created:iso, updated:iso},
+        {id:'demopagejapan01', type:'page', name:'Japan Trip', folderId:F.p, order:1, created:iso, updated:iso},
+        {id:'demonotejapan01', type:'note', name:'Plan', parent:'demopagejapan01', folderId:'', order:0, created:iso, updated:iso, body:
+`Ten days in **April**: Tokyo, Kyoto, then Osaka.
+
+- Book the rail pass a month ahead
+- Keep the hotel confirmations in [[Bills & Renewals]] notes`},
+        {id:'demochecklist01', type:'checklist', name:'Travel Packing', parent:'demopagejapan01', folderId:'', order:1, created:iso, updated:iso, entries:['Passport','Phone charger','Travel adapter','Headphones','Toiletries'].map((t,i)=>({id:'dce'+i, text:t, done:i<2}))},
+        {id:'demobillsitem01', type:'bills', name:'Bills & Renewals', folderId:'', order:1, created:iso, updated:iso, bills:[
           bill('demobill1','Car','Insurance','Acme Insurance', ago(250), ahead(115), 12, 980),
           bill('demobill2','House','Insurance','Harbour Mutual', ago(100), ahead(265), 12, 1420),
           bill('demobill3','House','Council rates','City Council', ago(400), '', 3, 480, {paid:{}}),
@@ -44,11 +51,11 @@ Press ? for keyboard shortcuts.`},
           bill('demobill5','House','Internet','Fastnet', ago(300), '', 1, 79),
           bill('demobill6','Side business','Company renewal','Business registry', ago(320), ahead(45), 12, 310),
         ]},
-        {id:'democollcoupon1', type:'collection', name:'Coupons & vouchers', folderId:F.f, order:1, created:iso, updated:iso, sort:null, fields:[
+        {id:'demopagecoupon1', type:'page', name:'Coupons & Vouchers', folderId:F.f, order:0, created:iso, updated:iso},
+        {id:'democollcoupon1', type:'collection', name:'Coupons & Vouchers', parent:'demopagecoupon1', folderId:'', order:0, created:iso, updated:iso, sort:null, fields:[
           fld('dcf1','Store','text'), fld('dcf2','Value','currency'), fld('dcf3','Code','text'), fld('dcf4','Expires','date',{home:true}), fld('dcf5','Used','checkbox'), fld('dcf6','Notes','text')]},
-        {id:'demotrackrate01', type:'tracker', name:'Home loan rate', folderId:F.f, order:2, created:iso, updated:iso, unit:'%', decimals:2, step:true, points:[
+        {id:'demotrackrate01', type:'tracker', name:'Home Loan Rate', folderId:'', order:2, created:iso, updated:iso, unit:'%', decimals:2, step:true, points:[
           {id:'dp1',date:ago(900),value:5.89,note:'Fixed term ended'},{id:'dp2',date:ago(640),value:6.14,note:'Rate rise'},{id:'dp3',date:ago(380),value:5.99,note:'Cut'},{id:'dp4',date:ago(120),value:5.74,note:'Cut'}]},
-        {id:'demochecklist01', type:'checklist', name:'Travel packing', folderId:F.p, order:2, created:iso, updated:iso, entries:['Passport','Phone charger','Travel adapter','Headphones','Toiletries'].map((t,i)=>({id:'dce'+i, text:t, done:i<2}))},
       ],
       tasks:(() => {
         const W = 'waiting', B = 'blocked', H = 'hold', D = 'decision';
