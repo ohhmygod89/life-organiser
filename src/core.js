@@ -568,7 +568,20 @@ $('#sideToggle').addEventListener('click', () => {
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
 $('#fab').addEventListener('click', () => { const open = document.body.classList.toggle('side-open'); $('#fab').setAttribute('aria-expanded', open); $('#fab').setAttribute('aria-label', open ? 'Close menu' : 'Menu'); });
 /* No zooming: block pinch (Safari gesture events), double-tap zoom (touch-action) and ctrl+wheel zoom. */
-['gesturestart','gesturechange','gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), {passive:false}));
+/* Safari keeps a page's zoom, and older builds let it auto-zoom into small text boxes. Pinching is blocked only at
+   100%, so a zoomed-in page can always be pinched back out; and the page snaps back to 100% whenever it finds itself zoomed. */
+const isZoomed = () => (window.visualViewport?.scale || 1) > 1.01;
+['gesturestart','gesturechange'].forEach(ev => document.addEventListener(ev, e => { if(!isZoomed() && !(ev==='gesturechange' && e.scale<1)) e.preventDefault(); }, {passive:false}));
+function resetZoom(){
+  if(!isZoomed() || document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
+  const m = document.querySelector('meta[name=viewport]'); if(!m) return;
+  const base = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';
+  m.content = base.replace('initial-scale=1','initial-scale=1.0,minimum-scale=1'); setTimeout(() => { m.content = base; }, 60);
+}
+window.visualViewport?.addEventListener('resize', () => { clearTimeout(resetZoom.t); resetZoom.t = setTimeout(resetZoom, 250); });
+document.addEventListener('focusout', () => setTimeout(resetZoom, 150));
+window.addEventListener('pageshow', () => setTimeout(resetZoom, 100));
+setTimeout(resetZoom, 300);
 document.addEventListener('touchmove', e => { if(e.touches.length>1 || S.dragging) e.preventDefault(); }, {passive:false});
 document.addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, {passive:false});
 (() => { let m = document.querySelector('meta[name=viewport]'); if(!m){ m=document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); } m.content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover'; })();
