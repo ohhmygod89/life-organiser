@@ -151,7 +151,7 @@ function toast(msg, undo, bad){
 }
 
 /* ---------- focus helpers: survive re-renders ---------- */
-const KEY_ATTRS = ['data-pay','data-active','data-upd','data-period','data-b','data-k','data-yr','data-edit','data-act','data-tick','data-mv','data-cbox','data-add','data-open','data-go','data-quick','data-sort','data-mode','data-fb','data-year','data-p','data-due','data-id','data-fid','data-row','data-field','data-ck','data-seg'];
+const KEY_ATTRS = ['data-pay','data-active','data-upd','data-period','data-b','data-k','data-yr','data-edit','data-act','data-tick','data-mv','data-cbox','data-ci','data-ct','data-cw','data-cf','data-cm','data-add','data-open','data-go','data-quick','data-sort','data-mode','data-fb','data-year','data-p','data-due','data-id','data-fid','data-row','data-field','data-ck','data-seg'];
 function focusKey(el){
   if(!el || el===document.body || el===document.documentElement) return null;
   const own = e => { if(e.id) return '#'+CSS.escape(e.id); const parts=KEY_ATTRS.filter(a=>e.hasAttribute(a)).map(a=>`[${a}="${CSS.escape(e.getAttribute(a))}"]`); return parts.length ? e.tagName.toLowerCase()+parts.join('') : null; };
@@ -417,13 +417,19 @@ function renderHome(c){
 }
 
 /* ----- All tasks (across every Kanban) ----- */
-const PRIO = {high:{label:'High',short:'High',bang:'!!!'},med:{label:'Medium',short:'Med',bang:'!!'},low:{label:'Low',short:'Low',bang:'!'}};
+const PRIO = {high:{label:'High',short:'High'},med:{label:'Medium',short:'Medium'},low:{label:'Low',short:'Low'}};
 const PRANK = {high:0,med:1,low:2,'':3};
 const DEFAULT_FLAGS = [{id:'waiting',label:'Waiting on someone',color:'amber',who:true},{id:'blocked',label:'Blocked',color:'red'},{id:'hold',label:'On hold',color:'slate'},{id:'decision',label:'Needs decision',color:'violet'}];
 const flags = () => S.flags || DEFAULT_FLAGS;
 const flagOf = id => flags().find(f=>f.id===id);
-const bangHTML = p => PRIO[p] ? `<span class="bang p-${p}" role="img" aria-label="${PRIO[p].label} priority">${PRIO[p].bang}</span>` : '';
-const chipHTML = t => { const f=flagOf(t.flag); return f ? `<span class="chip" style="--fc:${colorOf(f.color)}">${esc(f.label)}${f.who&&t.flagWho?`<b>· ${esc(t.flagWho)}</b>`:''}</span>` : ''; };
+/* Priority = signal bars (1 low, 2 medium, 3 high); count carries the meaning, colour backs it up. */
+const PLEVEL = {low:1, med:2, high:3};
+const prioIcon = p => { const n=PLEVEL[p]||0; return `<svg class="pbars p-${p||'none'}" viewBox="0 0 14 12" aria-hidden="true">${[0,1,2].map(i=>`<rect x="${i*5}" y="${8-i*4}" width="3.4" height="${4+i*4}" rx="1" ${i<n?'':'class="off"'}/>`).join('')}</svg>`; };
+const bangHTML = p => PRIO[p] ? `<span class="prio p-${p}" role="img" aria-label="${PRIO[p].label} priority" title="${PRIO[p].label} priority">${prioIcon(p)}</span>` : '';
+const FLAG_SHORT = {waiting:'Waiting', blocked:'Blocked', hold:'On hold', decision:'Decision'};
+const flagShort = f => FLAG_SHORT[f.id] || f.label;
+/* one-line chip: short flag name plus who, cut off with … if long */
+const chipHTML = (t, cls='') => { const f=flagOf(t.flag); return f ? `<span class="chip ${cls}" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${f.who&&t.flagWho?' · '+esc(t.flagWho):''}">${esc(flagShort(f))}${f.who&&t.flagWho?` · ${esc(t.flagWho)}`:''}</span>` : ''; };
 const byDue = (a,b) => (a.due||'9999').localeCompare(b.due||'9999');
 function taskRow(t){
   const b = itemById(t.boardId); const d = t.due ? dueLabel(t.due) : null; const col = {upcoming:'Upcoming',todo:'To Do',doing:'In Progress',done:'Done',backburner:'Back Burner'}[t.col];
@@ -551,6 +557,7 @@ $('#sideToggle').addEventListener('click', () => {
   else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0'); }
 });
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
+$('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
 $('#newBtn').addEventListener('click', e => openNewItem({opener:e.currentTarget}));
 $('#itemMenu').addEventListener('click', e => { const it=currentItem(); if(it) itemMenu(e.currentTarget, it); });
 
@@ -690,7 +697,7 @@ function openNewItem({folderId, type='note', opener}={}){
 }
 
 /* ----- touch gestures (phone) -----
-   Swipe sideways anywhere to move the board; swipe right at the first column to open the menu. Screen edges are left to the browser. */
+   Swipe sideways anywhere to move the board. Screen edges are left to the browser. The menu opens from the floating button. */
 (() => {
   const narrow = () => matchMedia('(max-width:860px)').matches;
   const side = $('#side');
@@ -698,8 +705,6 @@ function openNewItem({folderId, type='note', opener}={}){
   const hScroller = el => { for(let n=el; n && n!==document.body; n=n.parentElement){ if(n.scrollWidth>n.clientWidth+2 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return n; } return null; };
   const boardScroller = () => $('#content [data-hs]');
   function snapPoints(sc){ const r=sc.getBoundingClientRect(); const first=sc.querySelector('.col'); if(!first) return [0]; const row=first.parentElement; return $$(':scope > .col', row).map(el=>Math.max(0, Math.min(el.getBoundingClientRect().left - r.left + sc.scrollLeft - (parseFloat(getComputedStyle(sc).paddingLeft)||0), sc.scrollWidth-sc.clientWidth))); }
-  function drawerAt(x){ const w=side.offsetWidth; side.style.transition='none'; side.style.transform=`translateX(${Math.min(0, x-w)}px)`; }
-  function drawerEnd(open){ side.style.transition=''; side.style.transform=''; document.body.classList.toggle('side-open', open); }
   document.addEventListener('touchstart', e => {
     g = null;
     if(e.touches.length!==1 || S.dragging || window.__sheetOpen || modalOpen() || menuEl) return;
@@ -716,23 +721,18 @@ function openNewItem({folderId, type='note', opener}={}){
     const t = e.touches[0], dx = t.clientX-g.x0, dy = t.clientY-g.y0;
     if(!g.axis){ if(Math.abs(dx)<10 && Math.abs(dy)<10) return; g.axis = Math.abs(dx) > Math.abs(dy)*1.2 ? 'x' : 'y'; if(g.axis==='y'){ g=null; return; }
       const nw = narrow();
-      if(g.isOpen && nw) g.mode='close';
-      else if(nw && dx>0 && ((!g.own && (!g.board || g.board.scrollLeft<=8)) || (g.own && g.own.scrollLeft<=8))) g.mode='open';
+      if(g.isOpen) g.mode=null;
       else if(g.own) g.mode=null;                         // the browser scrolls it natively
       else if(g.board){ g.mode='board'; g.sl=g.board.scrollLeft; g.board.style.scrollSnapType='none'; }
       if(!g.mode){ g=null; return; }
     }
-    if(g.mode==='open') drawerAt(dx);
-    else if(g.mode==='close') drawerAt(side.offsetWidth + Math.min(0, dx));
-    else if(g.mode==='board') g.board.scrollLeft = g.sl - dx;
+    if(g.mode==='board') g.board.scrollLeft = g.sl - dx;
     g.dx = dx; g.lastX = t.clientX; g.lastT = Date.now();
   }, {passive:true});
   function end(){
     if(!g || !g.mode){ g=null; return; }
     const dx = g.dx||0, dt = Math.max(1, Date.now()-g.t0), fast = Math.abs(dx)/dt > .45;
-    if(g.mode==='open') drawerEnd(dx > side.offsetWidth*.35 || (fast && dx>30));
-    else if(g.mode==='close') drawerEnd(!(dx < -side.offsetWidth*.3 || (fast && dx<-30)));
-    else if(g.mode==='board'){
+    if(g.mode==='board'){
       const sc = g.board, pts = snapPoints(sc), cur = sc.scrollLeft;
       let i = pts.reduce((bi,p,j)=>Math.abs(p-cur)<Math.abs(pts[bi]-cur)?j:bi, 0);
       if(fast || Math.abs(dx)>40){ const startI = pts.reduce((bi,p,j)=>Math.abs(p-g.sl)<Math.abs(pts[bi]-g.sl)?j:bi, 0); i = Math.max(0, Math.min(pts.length-1, startI + (dx<0?1:-1))); }

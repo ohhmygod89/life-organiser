@@ -4,7 +4,7 @@
    Data is fictional sample data and stays in this browser (localStorage).
    ============================================================ */
 function DemoDB(){
-  const KEY = 'lo.demo.v1';
+  const KEY = 'lo.demo.v2';
   const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); };
   const ahead = n => ago(-n);
   const iso = nowIso();
@@ -35,6 +35,7 @@ function DemoDB(){
 Press ? for keyboard shortcuts.`},
         {id:'demokanbanhome1', type:'kanban', name:'Home', folderId:F.p, order:1, color:'teal', created:iso, updated:iso},
         {id:'demokanbanwork1', type:'kanban', name:'Work', folderId:F.w, order:0, color:'blue', created:iso, updated:iso},
+        {id:'demokanbanside1', type:'kanban', name:'Side business', folderId:F.w, order:1, color:'violet', created:iso, updated:iso},
         {id:'demobillsitem01', type:'bills', name:'Bills & renewals', folderId:F.f, order:0, created:iso, updated:iso, bills:[
           bill('demobill1','Car','Insurance','Acme Insurance', ago(250), ahead(115), 12, 980),
           bill('demobill2','House','Insurance','Harbour Mutual', ago(100), ahead(265), 12, 1420),
@@ -49,15 +50,38 @@ Press ? for keyboard shortcuts.`},
           {id:'dp1',date:ago(900),value:5.89,note:'Fixed term ended'},{id:'dp2',date:ago(640),value:6.14,note:'Rate rise'},{id:'dp3',date:ago(380),value:5.99,note:'Cut'},{id:'dp4',date:ago(120),value:5.74,note:'Cut'}]},
         {id:'demochecklist01', type:'checklist', name:'Travel packing', folderId:F.p, order:2, created:iso, updated:iso, entries:['Passport','Phone charger','Travel adapter','Headphones','Toiletries'].map((t,i)=>({id:'dce'+i, text:t, done:i<2}))},
       ],
-      tasks:[
-        task('dt1','demokanbanhome1','todo',1024,'Book car service',{due:ahead(3), priority:'med'}),
-        task('dt2','demokanbanhome1','todo',2048,'Renew passport',{flag:'waiting', flagWho:'Passport office', priority:'high', checklist:[{id:'c1',text:'Photos',done:true},{id:'c2',text:'Lodge form',done:false}]}),
-        task('dt3','demokanbanhome1','doing',1024,'Clean gutters'),
-        task('dt4','demokanbanhome1','backburner',1024,'Repaint the fence'),
-        task('dt5','demokanbanhome1','done',1024,'Pay parking fine',{doneAt:iso}),
-        task('dt6','demokanbanwork1','todo',1024,'Submit timesheet',{due:ahead(1), priority:'high'}),
-        task('dt7','demokanbanwork1','upcoming',1024,'Plan training course'),
-      ],
+      tasks:(() => {
+        const W = 'waiting', B = 'blocked', H = 'hold', D = 'decision';
+        const sub = (text, done=false, x={}) => ({id:'s'+Math.random().toString(36).slice(2,9), text, done, ...x});
+        const L = (n, text) => ({id:'l'+Math.random().toString(36).slice(2,9), t:ago(n)+'T09:30:00.000Z', text});
+        const spec = {
+          demokanbanhome1: {
+            upcoming:[['Plan spring garden',{priority:'low', due:ahead(40)}], ['Book annual car rego',{due:ahead(25), priority:'med'}], ['Research solar panels',{notes:'Compare 6.6 kW systems, ask about the feed-in tariff.'}]],
+            todo:[['Renew passport',{priority:'high', flag:W, flagWho:'Passport office', due:ahead(6), checklist:[sub('Photos',true), sub('Lodge form'), sub('Collect from post office',false,{flag:W, flagWho:'Post office'})]}],
+                  ['Book car service',{priority:'med', due:ahead(3)}], ['Fix leaking tap',{due:ago(2), priority:'high'}], ['Clear out garage',{checklist:[sub('Sort donations'), sub('Book council pickup',false,{flag:D})]}]],
+            doing:[['Clean gutters',{priority:'med', checklist:[sub('Front',true), sub('Back')]}], ['Switch energy plan',{flag:W, flagWho:'Bright Energy', log:[L(3,'Called, waiting on a quote')], priority:'low'}]],
+            done:[['Pay parking fine',{doneAt:ago(1)}], ['Replace smoke alarm batteries',{doneAt:ago(4)}], ['Order new mattress',{doneAt:ago(9)}]],
+            backburner:[['Repaint the fence',{flag:H}], ['Build a veggie patch',{priority:'low'}]],
+          },
+          demokanbanwork1: {
+            upcoming:[['Plan training course',{due:ahead(30)}], ['Quarterly review prep',{priority:'med', due:ahead(21)}]],
+            todo:[['Submit timesheet',{priority:'high', due:ahead(1)}], ['Update project risk register',{priority:'med', checklist:[sub('Schedule risks',true), sub('Supplier risks',false,{flag:W, flagWho:'Procurement'}), sub('Review with lead')]}], ['Reply to client email',{due:ago(1), priority:'high'}]],
+            doing:[['Write test procedure',{priority:'high', flag:B, notes:'Needs the updated drawing set.', checklist:[sub('Draft steps',true), sub('Peer review',false,{flag:W, flagWho:'Sam'}), sub('Sign-off')]}], ['Onboard new starter',{checklist:[sub('Laptop',true), sub('Access cards'), sub('Induction')]}], ['Expense claim',{flag:W, flagWho:'Finance', priority:'low'}]],
+            done:[['Book flights for site visit',{doneAt:ago(2)}], ['Safety refresher module',{doneAt:ago(6)}]],
+            backburner:[['Reorganise shared drive',{priority:'low'}], ['Lunch-and-learn talk',{flag:D}]],
+          },
+          demokanbanside1: {
+            upcoming:[['Logo refresh',{priority:'low'}], ['Apply for market stall',{due:ahead(45), flag:D}]],
+            todo:[['Photograph new range',{priority:'med', due:ahead(5), checklist:[sub('Book studio',true), sub('Props'), sub('Model',false,{flag:W, flagWho:'Agency'})]}], ['Update shop prices',{priority:'high', due:ahead(2)}]],
+            doing:[['Website copy',{priority:'med', flag:W, flagWho:'Copywriter', log:[L(5,'Brief sent'), L(1,'First draft received')]}], ['Supplier samples',{flag:B, checklist:[sub('Request',true), sub('Customs clearance',false,{flag:W, flagWho:'Courier'})]}]],
+            done:[['Register business name',{doneAt:ago(12)}], ['Open business account',{doneAt:ago(20)}]],
+            backburner:[['Podcast idea',{}], ['Second product line',{flag:H, priority:'low'}]],
+          },
+        };
+        const out = []; let n = 0;
+        for(const [bid, cols] of Object.entries(spec)) for(const [col, list] of Object.entries(cols)) list.forEach(([title, x], i) => out.push(task('dt'+(++n), bid, col, (i+1)*1024, title, x)));
+        return out;
+      })(),
       rows:[
         {id:'dr1', itemId:'democollcoupon1', pos:0, values:{dcf1:'Bookshop', dcf2:25, dcf3:'READ25', dcf4:ahead(20), dcf5:false}, created:iso, updated:iso},
         {id:'dr2', itemId:'democollcoupon1', pos:1, values:{dcf1:'Cinema', dcf2:15, dcf3:'MOVIE15', dcf4:ahead(75), dcf5:false}, created:iso, updated:iso},

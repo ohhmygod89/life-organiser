@@ -2,6 +2,19 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.12] - 2026-11-09
+### Added
+- Subtasks can carry a flag too (for example Waiting on someone, with who).
+- Floating menu button at the bottom right on phones.
+- Demo: three Kanbans with 2–5 tasks in every column and a mix of priorities, dates, flags and subtasks.
+### Changed
+- Priority shows as signal bars (one, two or three) instead of exclamation marks.
+- Cards show their subtasks in every view; flag chips stay on one line ("Waiting · Passport office").
+- Task window redesigned: one column, title, a Status / Priority / Due / Flag list, notes that grow as you type, subtasks with their own options, updates and a footer. Opens as a bottom sheet on phones.
+- Drag and drop: drop anywhere in a column, not only under the last card.
+### Removed
+- Swipe to open the menu (Safari uses the edge for Back).
+
 ## [1.0.0-beta.11] - 2026-11-09
 ### Added
 - **Export** from the ••• menu: everything in one file, encrypted with your passphrase (default) or plain.
