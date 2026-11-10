@@ -212,7 +212,7 @@ function setBackgroundInert(){
   else { scrim.classList.remove('show'); setTimeout(()=>{ if(!modalOpen() && !window.__sheetOpen) scrim.hidden=true; }, 220); }
 }
 function openModal(html, {opener, wide}={}){
-  document.body.classList.remove('side-open'); $('#fab')?.setAttribute('aria-expanded','false');
+  document.body.classList.remove('side-open');
   if(!modalOpen()) modalOpener = opener || document.activeElement;
   const m = modal(); m.innerHTML = html; m.classList.toggle('wide', !!wide);
   m.oninput = m.onchange = m.onkeydown = m.onclick = null;
@@ -568,23 +568,27 @@ $('#sideToggle').addEventListener('click', () => {
   else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0'); }
 });
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
-$('#fab').addEventListener('click', () => { const open = document.body.classList.toggle('side-open'); $('#fab').setAttribute('aria-expanded', open); $('#fab').setAttribute('aria-label', open ? 'Close menu' : 'Menu'); });
+$('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
+/* keep the menu button's label right however the menu was opened or closed */
+new MutationObserver(() => { const open = document.body.classList.contains('side-open'), f = $('#fab'); f.setAttribute('aria-expanded', open); f.setAttribute('aria-label', open ? 'Close menu' : 'Menu'); f.title = open ? 'Close menu' : 'Menu'; }).observe(document.body, {attributes:true, attributeFilter:['class']});
 /* No zooming: block pinch (Safari gesture events), double-tap zoom (touch-action) and ctrl+wheel zoom. */
 /* Safari keeps a page's zoom, and older builds let it auto-zoom into small text boxes. Pinching is blocked only at
    100%, so a zoomed-in page can always be pinched back out; and the page snaps back to 100% whenever it finds itself zoomed. */
 const isZoomed = () => (window.visualViewport?.scale || 1) > 1.01;
 ['gesturestart','gesturechange'].forEach(ev => document.addEventListener(ev, e => { if(!isZoomed() && !(ev==='gesturechange' && e.scale<1)) e.preventDefault(); }, {passive:false}));
 function resetZoom(){
+  if(Date.now() - (resetZoom.last||0) < 2000) return;   // at most one attempt every 2 s, so it can't loop if Safari ignores it
   if(!isZoomed() || document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
   const m = document.querySelector('meta[name=viewport]'); if(!m) return;
   const base = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';
+  resetZoom.last = Date.now();
   m.content = base.replace('initial-scale=1','initial-scale=1.0,minimum-scale=1'); setTimeout(() => { m.content = base; }, 60);
 }
 window.visualViewport?.addEventListener('resize', () => { clearTimeout(resetZoom.t); resetZoom.t = setTimeout(resetZoom, 250); });
 document.addEventListener('focusout', () => setTimeout(resetZoom, 150));
 window.addEventListener('pageshow', () => setTimeout(resetZoom, 100));
 setTimeout(resetZoom, 300);
-document.addEventListener('touchmove', e => { if(e.touches.length>1 || S.dragging) e.preventDefault(); }, {passive:false});
+document.addEventListener('touchmove', e => { if((e.touches.length>1 && !isZoomed()) || S.dragging) e.preventDefault(); }, {passive:false});
 document.addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, {passive:false});
 (() => { let m = document.querySelector('meta[name=viewport]'); if(!m){ m=document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); } m.content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover'; })();
 $('#newBtn').addEventListener('click', e => openNewItem({opener:e.currentTarget}));
@@ -751,7 +755,7 @@ function openNewItem({folderId, type='note', opener}={}){
     if(!g.axis){ if(Math.abs(dx)<10 && Math.abs(dy)<10) return; g.axis = Math.abs(dx) > Math.abs(dy)*1.2 ? 'x' : 'y'; if(g.axis==='y'){ g=null; return; }
       const nw = narrow();
       if(g.isOpen) g.mode=null;
-      else if(g.own) g.mode=null;                         // the browser scrolls it natively
+      else if(g.own && g.own!==g.board) g.mode=null;     // other sideways scrollers (filter chips, tables) scroll natively
       else if(g.board){ g.mode='board'; g.sl=g.board.scrollLeft; g.board.style.scrollSnapType='none'; }
       if(!g.mode){ g=null; return; }
     }

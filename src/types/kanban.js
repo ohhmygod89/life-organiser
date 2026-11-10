@@ -12,7 +12,7 @@ TYPE_VIEWS.kanban = (() => {
   const colName = id => id==='upcoming' ? 'To Do' : (COLS.find(c=>c.id===id)?.name || '');
   const DONE_LIMIT = 5;
   const showAllDone = {};
-  let sortables = [], adding = null, draft = '', addSubmitting = false;
+  let sortables = [], adding = null, draft = '', addSubmitting = false, lastAdd = null;
 
   const archived = t => t.col==='done' && doneYear(t) < CUR_YEAR;
   function tasksIn(bid, col){
@@ -63,6 +63,8 @@ TYPE_VIEWS.kanban = (() => {
       delay:200, delayOnTouchOnly:true, touchStartThreshold:6, forceFallback:true, fallbackOnBody:true, fallbackClass:'dragging', fallbackTolerance:3,
       emptyInsertThreshold:60, swapThreshold:.6, invertSwap:false, direction:'vertical', ghostClass:'ghost-card',
       scroll:true, bubbleScroll:true, scrollSensitivity:44, scrollSpeed:9,
+      /* touch: only scroll up/down near the top or bottom edge; never slide the board sideways under a picked-up card */
+      scrollFn: TOUCH ? (dx, dy) => { if(dy) window.scrollBy(0, dy); } : undefined,
       onStart(){ S.dragging=true; document.body.classList.add('is-dragging'); }, onEnd(evt){ S.dragging=false; document.body.classList.remove('is-dragging'); onDrop(evt); render(true); }
     })));
     if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); a.scrollIntoView({block:'nearest', inline:'nearest'}); } }
@@ -119,8 +121,11 @@ TYPE_VIEWS.kanban = (() => {
   }
   function addTask(bid, col, title){
     if(!title.trim()) return;
-    const l=tasksIn(bid,col); const top=l.length?Math.min(...l.map(x=>x.pos||0))-1024:1024;   // the add box sits at the top, so new tasks go there too
-    docSet('tasks', {id:uid(), boardId:bid, col, pos:top, title:title.trim(), notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
+    const l=tasksIn(bid,col); let pos=l.length?Math.min(...l.map(x=>x.pos||0))-1024:1024;   // the add box sits at the top, so new tasks go there
+    const i = lastAdd ? l.findIndex(x=>x.id===lastAdd) : -1;   // several in a row keep the order they were typed
+    if(i>=0) pos = l[i+1] ? (l[i].pos + l[i+1].pos)/2 : l[i].pos + 1024;
+    const id = uid(); lastAdd = id;
+    docSet('tasks', {id, boardId:bid, col, pos, title:title.trim(), notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
     touchItem(bid);
   }
   function keyMove(t, key){
@@ -139,7 +144,7 @@ TYPE_VIEWS.kanban = (() => {
     const cb = e.target.closest('[data-cbox]');
     if(cb){ e.stopPropagation(); const t=cardOf(cb); if(t){ const id=cb.dataset.cbox; docPatch('tasks', t.id, {checklist:(t.checklist||[]).map(c=>c.id===id?{...c,done:!c.done}:c)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-cbox="${CSS.escape(id)}"]`); } return true; }
     const add = e.target.closest('[data-add]');
-    if(add){ const bid = add.closest('[data-board]')?.dataset.board || add.closest('.col')?.querySelector('.cards')?.dataset.board; if(bid){ adding={board:bid, col:add.dataset.add}; draft=''; render(true); } return true; }
+    if(add){ const bid = add.closest('[data-board]')?.dataset.board || add.closest('.col')?.querySelector('.cards')?.dataset.board; if(bid){ adding={board:bid, col:add.dataset.add}; draft=''; lastAdd=null; render(true); } return true; }
     const more = e.target.closest('[data-act="more"]'); if(more){ const k=more.dataset.board; showAllDone[k]=!showAllDone[k]; render(true); return true; }
     const card = e.target.closest('.card'); if(card){ openSheet(card.dataset.id, card); return true; }
     return false;
@@ -164,7 +169,7 @@ TYPE_VIEWS.kanban = (() => {
     setTimeout(()=>{ if(addSubmitting || !el.isConnected || !adding || document.activeElement===el) return;
       const v=el.value; draft=''; el.value=''; if(itemById(adding.board) && v.trim()) addTask(adding.board, adding.col, v); adding=null; render(true); }, 120);
   });
-  function newShortcut(it){ adding={board:it.id, col:'todo'}; draft=''; render(true); }
+  function newShortcut(it){ adding={board:it.id, col:'todo'}; draft=''; lastAdd=null; render(true); }
 
   /* ---------- task window ----------
      Layout: top bar (board · saved · close), title, a property list (Status, Priority, Due, Flag),
