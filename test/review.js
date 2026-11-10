@@ -3,7 +3,7 @@ const { chromium, devices } = require('playwright');
 const path=require('path'), fs=require('fs');
 const out=path.join(__dirname,'shots')+'/'; fs.mkdirSync(out,{recursive:true});
 const URL='file://'+path.join(__dirname,'local.html');
-const overflow = p => p.evaluate(()=>{ const W=innerWidth; const o=[]; document.querySelectorAll('body *').forEach(e=>{ const cs=getComputedStyle(e); if(cs.visibility==='hidden'||cs.display==='none') return; if(e.closest('.lanes,.board,.tb-filters,.fgroups,.tl-scroll,.tl-in,.tbl-wrap,.menu,[hidden]')) return; const r=e.getBoundingClientRect(); if(r.width && (r.right>W+1 || r.left<-1)) o.push((e.id||(typeof e.className==='string'?e.className:'svg')||e.tagName).slice(0,30)+'@'+Math.round(r.left)+'-'+Math.round(r.right)); }); return o.slice(0,8); });
+const overflow = p => p.evaluate(()=>{ const W=innerWidth; const o=[]; document.querySelectorAll('body *').forEach(e=>{ const cs=getComputedStyle(e); if(cs.visibility==='hidden'||cs.display==='none') return; if(e.closest('.lanes,.board,.tb-filters,.fgroups,.rt-bar,.tl-scroll,.tl-in,.tbl-wrap,.menu,[hidden]')) return; const r=e.getBoundingClientRect(); if(r.width && (r.right>W+1 || r.left<-1)) o.push((e.id||(typeof e.className==='string'?e.className:'svg')||e.tagName).slice(0,30)+'@'+Math.round(r.left)+'-'+Math.round(r.right)); }); return o.slice(0,8); });
 (async () => { const b = await chromium.launch(); const errs=[];
 for(const [tag, opt] of [['ph',{...devices['iPhone 13']}],['dt',{viewport:{width:1440,height:900}}]]){
   const ctx = await b.newContext(opt); const p = await ctx.newPage(); p.on('pageerror',e=>errs.push(tag+': '+e.message)); p.on('console',m=>{ if(m.type()==='error' && !/fonts|TUNNEL/.test(m.text())) errs.push(tag+' console: '+m.text()); });

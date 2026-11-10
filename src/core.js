@@ -9,6 +9,17 @@
 const TOUCH = matchMedia('(pointer:coarse)').matches;
 const COLORS = {blue:'#007aff',indigo:'#5856d6',violet:'#af52de',rose:'#ff2d55',red:'#ff3b30',orange:'#ff9500',amber:'#ffb300',green:'#34c759',teal:'#30b0c7',slate:'#8e8e93'};
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* Every drag in the app: the mouse uses the scripted drag (a native link drag makes Chrome offer "Create split view"),
+   and no text gets selected from the moment an item is picked up until it is dropped. */
+if(window.Sortable){ const make = Sortable.create.bind(Sortable);
+  const on = () => { document.body.classList.add('no-select'); try{ getSelection().removeAllRanges(); }catch(e){} };
+  const off = () => document.body.classList.remove('no-select');
+  Sortable.create = (el, o={}) => make(el, {forceFallback:true, fallbackOnBody:true, ...o,
+    onChoose(e){ on(); o.onChoose?.(e); }, onUnchoose(e){ off(); o.onUnchoose?.(e); },
+    onStart(e){ on(); o.onStart?.(e); }, onEnd(e){ off(); o.onEnd?.(e); }}); }
+/* Right-click does nothing unless a feature offers its own menu there (menu items, cards). Text fields keep the
+   browser's menu for copy, paste and spelling. */
+document.addEventListener('contextmenu', e => { if(e.defaultPrevented || e.target.closest?.('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]')) return; e.preventDefault(); });
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const MONTH = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAY = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -32,6 +43,12 @@ const ICON = {
   grip:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
   plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   chev:'<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m7 9 5 5 5-5"/></svg>',
+  rtUl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  rtOl:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 4.5 5 4v4M3.8 14.2c.3-.6 2.2-.8 2.2.3 0 .9-2.2 1.6-2.2 2.5H6.2" stroke-width="1.5"/></svg>',
+  rtCk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="6" height="6" rx="1.5"/><path d="m4.5 7 1.2 1.2L8 5.8"/><rect x="3" y="14" width="6" height="6" rx="1.5"/><path d="M13 7h8M13 17h8"/></svg>',
+  rtQ:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6v12"/><path d="M10 8h10M10 12h10M10 16h6"/></svg>',
+  rtLink:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
+  rtClear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5h12M12 5 9 19M4 4l16 16"/></svg>',
   chevD:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 9 5 5 5-5"/></svg>',
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 14 5-5 5 5"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 2.5 21.5 8.5l-2 .9-3.6 3.6.6 4.6-1.6 1.6-4-4-5 5-1.2-1.2 5-5-4-4 1.6-1.6 4.6.6 3.6-3.6z"/></svg>',
@@ -189,13 +206,13 @@ function closeMenu(refocus){
 }
 function outsideMenu(e){ if(menuEl && !menuEl.contains(e.target) && e.target.closest('[aria-haspopup]')!==menuAnchor) closeMenu(false); }
 /* items: {label, value, checked?, dot?, kbd?, danger?} | {sep:true} | {head:'text'} */
-function openMenu(anchor, items, onPick, label){
+function openMenu(anchor, items, onPick, label, cls=''){
   if(menuEl && menuAnchor===anchor){ closeMenu(true); return; }
   closeMenu(false);
-  const m = document.createElement('div'); m.className='menu'; m.setAttribute('role','menu'); m.setAttribute('aria-label', label||'Menu');
+  const m = document.createElement('div'); m.className='menu '+cls; m.setAttribute('role','menu'); m.setAttribute('aria-label', label||'Menu');
   m.innerHTML = items.map((it,i)=> it.sep ? '<div class="menu-sep" role="separator"></div>' : it.head ? `<div class="menu-h" role="presentation">${esc(it.head)}</div>` :
     `<button role="${it.checked!==undefined?'menuitemradio':'menuitem'}" ${it.checked!==undefined?`aria-checked="${!!it.checked}"`:''} data-i="${i}" tabindex="-1" class="${it.danger?'danger':''}">`+
-    `${it.checked!==undefined?`<span class="mk" aria-hidden="true">${it.checked?ICON.check:''}</span>`:''}${it.dot?`<span class="dot" style="--oc:${it.dot}"></span>`:''}<span>${esc(it.label)}</span>${it.kbd?`<span class="kbd" aria-hidden="true">${esc(it.kbd)}</span>`:''}</button>`).join('');
+    `${it.checked!==undefined?`<span class="mk" aria-hidden="true">${it.checked?ICON.check:''}</span>`:''}${it.dot?`<span class="dot" style="--oc:${it.dot}"></span>`:''}${it.html ? `<span class="mi" ${it.label?`aria-label="${esc(it.label)}" title="${esc(it.label)}"`:''}>${it.html}</span>` : `<span>${esc(it.label)}</span>`}${it.kbd?`<span class="kbd" aria-hidden="true">${esc(it.kbd)}</span>`:''}</button>`).join('');
   document.body.appendChild(m); menuEl=m; menuAnchor=anchor; anchor.setAttribute('aria-expanded','true');
   const r = anchor.getBoundingClientRect(); const w=m.offsetWidth, h=m.offsetHeight;
   m.style.left = Math.max(8, Math.min(r.left, innerWidth-w-8))+'px';
@@ -302,7 +319,7 @@ window.addEventListener('hashchange', () => {
 
 /* ---------- render ---------- */
 let contentPending = false;
-function isEditing(){ const a=document.activeElement; return !!a && $('#content').contains(a) && a.matches('input:not([type=checkbox]):not([type=date]),textarea'); }
+function isEditing(){ const a=document.activeElement; return !!a && $('#content').contains(a) && a.matches('input:not([type=checkbox]):not([type=date]),textarea,[contenteditable="true"],[contenteditable="plaintext-only"]'); }
 function render(force){
   renderSide(); renderBar();
   if(S.dragging){ contentPending=true; return; }
@@ -336,7 +353,7 @@ function navItemHTML(it){
   let ct = '';
   if(it.type==='kanban'){ const ids = stacksOf(it.id).map(s=>s.id); ct = S.tasks.filter(t=>ids.includes(t.boardId) && !['done','backburner'].includes(t.col)).length || ''; }
   else if(it.type==='bills') ct = TYPE_VIEWS.bills.pending(it, 30).length || '';
-  return `<a class="nav-item" href="#i-${esc(it.id)}" data-id="${esc(it.id)}" ${cur?'aria-current="page"':''} style="--c:${itemColor(it)}"><span class="ti" aria-hidden="true">${ICON[it.type]}</span><span class="nm">${esc(it.name||'Untitled')}</span>${ct!==''?`<span class="ct" aria-label="${esc(String(ct))}">${ct}</span>`:''}${TOUCH&&cur?`<button class="icon-btn mini nav-more" data-act="item-menu" data-iid="${esc(it.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(it.name)} options">${ICON.more}</button>`:''}</a>`;
+  return `<a class="nav-item" draggable="false" href="#i-${esc(it.id)}" data-id="${esc(it.id)}" ${cur?'aria-current="page"':''} style="--c:${itemColor(it)}"><span class="ti" aria-hidden="true">${ICON[it.type]}</span><span class="nm">${esc(it.name||'Untitled')}</span>${ct!==''?`<span class="ct" aria-label="${esc(String(ct))}">${ct}</span>`:''}${TOUCH&&cur?`<button class="icon-btn mini nav-more" data-act="item-menu" data-iid="${esc(it.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(it.name)} options">${ICON.more}</button>`:''}</a>`;
 }
 /* Sidebar: Home · custom items (Kanbans, Bills, Trackers; drag to reorder) · folders of Pages (drag folders, and
    drag pages within or between folders) · unfiled Pages. Right-click an item or folder for its options. */
@@ -346,20 +363,20 @@ const itemsOf = (pred) => S.items.filter(i=>isTop(i) && pred(i)).sort(byOrder);
 function renderSide(){
   const el = $('#nav');
   const navLink = (v,l,ic) => `<a class="nav-item" href="#${v}" ${S.route.v===v&&!S.q?'aria-current="page"':''}><span class="ti plain" aria-hidden="true">${ic}</span><span class="nm">${l}</span></a>`;
-  const custom = itemsOf(i=>TYPE_GROUP[i.type]==='custom');
-  const pagesIn = fid => itemsOf(i=>i.type==='page' && (i.folderId||'')===fid && (fid==='' || folderById(fid)));
-  const loose = itemsOf(i=>i.type==='page' && (!i.folderId || !folderById(i.folderId)));
+  const navable = i => !!TYPE_GROUP[i.type];
+  const inFolder = fid => itemsOf(i=>navable(i) && (i.folderId||'')===fid);
+  const root = itemsOf(i=>navable(i) && (!i.folderId || !folderById(i.folderId)));
   let html = `<div class="nav-group">${navLink('home','Home',ICON.home)}</div>`;
-  html += `<div class="nav-group"><div class="nav-list" data-list="custom">${custom.map(navItemHTML).join('')}</div></div>`;
-  html += `<div class="nav-folders">${sortedFolders().map(f=>{ const open=!S.collapsed.has(f.id); const its=pagesIn(f.id);
+  /* items without a folder first, then the folders; drag anything anywhere */
+  html += `<div class="nav-group nav-root"><div class="nav-list" data-list="items" data-fid="">${root.map(navItemHTML).join('')}${root.length?'':'<div class="nav-empty nav-drop-root">Drop here for no folder</div>'}</div></div>`;
+  html += `<div class="nav-folders">${sortedFolders().map(f=>{ const open=!S.collapsed.has(f.id); const its=inFolder(f.id);
     return `<div class="nav-group nav-folder" data-fid="${esc(f.id)}" data-key="f-${esc(f.id)}"><div class="nav-h" data-folder="${esc(f.id)}"><button class="fold" data-act="fold" data-fid="${esc(f.id)}" aria-expanded="${open}">${ICON.chevD}<span>${esc(f.name)}</span></button>${TOUCH?`<button class="icon-btn mini" data-act="folder-menu" data-fid="${esc(f.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(f.name)} options">${ICON.more}</button>`:''}</div>
-      <div class="nav-list" data-list="pages" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}${its.length?'':`<div class="nav-empty">Drag pages here</div>`}</div></div>`; }).join('')}</div>`;
-  html += `<div class="nav-group nav-loose"><div class="nav-list" data-list="pages" data-fid="">${loose.map(navItemHTML).join('')}${loose.length?'':'<div class="nav-empty nav-drop-root">Drop here for no folder</div>'}</div></div>`;
+      <div class="nav-list" data-list="items" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}${its.length?'':`<div class="nav-empty">Drag items here</div>`}</div></div>`; }).join('')}</div>`;
   html += `<div class="side-foot"><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
   const fk = el.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   navSortables.forEach(s=>s.destroy()); navSortables=[];
   el.innerHTML = html;
-  const opts = {animation:RM?0:150, delay:250, delayOnTouchOnly:true, ghostClass:'ghost', onStart(){ S.dragging=true; document.body.classList.add('nav-dragging'); }, onEnd(){ S.dragging=false; document.body.classList.remove('nav-dragging'); saveNavOrder(); render(true); }};
+  const opts = {animation:RM?0:150, delay:250, delayOnTouchOnly:true, fallbackTolerance:4, ghostClass:'ghost', onStart(){ S.dragging=true; document.body.classList.add('nav-dragging'); }, onEnd(){ S.dragging=false; document.body.classList.remove('nav-dragging'); saveNavOrder(); render(true); }};
   $$('.nav-list', el).forEach(list => navSortables.push(Sortable.create(list, {...opts, group:'nav-'+list.dataset.list, draggable:'.nav-item'})));
   const fl = $('.nav-folders', el); if(fl) navSortables.push(Sortable.create(fl, {...opts, draggable:'.nav-folder', handle:'.nav-h'}));
   if(fk) restoreFocus(fk, el);
@@ -374,11 +391,13 @@ function saveNavOrder(){
   $$('#nav .nav-folder').forEach((g,i) => { const f=folderById(g.dataset.fid); if(f && f.order!==i) docPatch('folders', f.id, {order:i}); });
 }
 /* right-click (or the ••• on touch) */
+/* a menu opened at the pointer (right-click) */
+const pointAnchor = e => ({getBoundingClientRect:()=>({left:e.clientX, right:e.clientX, top:e.clientY, bottom:e.clientY, width:0, height:0}), setAttribute(){}, focus(){}});
 function navContextMenu(e){
   const a = e.target.closest('.nav-item[data-id]'), h = e.target.closest('.nav-h[data-folder]');
   if(!a && !h) return;
   e.preventDefault();
-  const at = {getBoundingClientRect:()=>({left:e.clientX, right:e.clientX, top:e.clientY, bottom:e.clientY, width:0, height:0}), setAttribute(){}, focus(){}};
+  const at = pointAnchor(e);
   if(a) itemMenu(at, itemById(a.dataset.id)); else folderMenu(at, h.dataset.folder);
 }
 $('#side').addEventListener('contextmenu', navContextMenu);
@@ -520,17 +539,19 @@ function renderKanban(k, root){
   const pool = S.tasks.filter(t=>ids.has(t.boardId) && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)));
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
-  const tabs = `<div class="kb-top"><div class="seg" role="group" aria-label="View">${[['board','Board'],['list','List'],['archive','Archive']].map(([m,l])=>`<button data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div><span class="spacer"></span><button class="btn" data-act="add-stack">${ICON.plus} Stack</button></div>`;
+  const seg = `<div class="seg kb-tabs" role="group" aria-label="View">${[['board','Board'],['list','List'],['archive','Archive']].map(([m,l])=>`<button data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
   const groups = mode==='archive' ? '' : `<div class="fgroups">
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
-    <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}</div>
+    <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}<button class="chip-btn add-stack" data-act="add-stack" title="Add a stack">${ICON.plus}Stack</button></div>
     <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
   </div>`;
+  /* one row: the filter groups, then Board · List · Archive at the right end (they never move between views) */
+  const tabs = `<div class="kb-bar">${mode==='archive'?'<div class="fgroups"></div>':groups}${seg}</div>`;
   if(mode==='archive'){ root.innerHTML = `<div class="kb">${tabs}<div id="kbArch"></div></div>`; return renderArchive($('#kbArch'), stacksOf(k.id)); }
   if(!stacks.length){ root.innerHTML = `<div class="kb">${tabs}<div class="panel empty-state"><b>No stacks yet</b>A stack is a set of To Do, In Progress and Done columns, for example Home or Work. <button class="pill" data-act="add-stack" style="margin-top:12px">${ICON.plus} Add a stack</button></div></div>`; return; }
   if(mode==='board'){
-    root.innerHTML = `<div class="kb tasks-board">${tabs}${groups}${shown.length ? '<div id="lanesRoot"></div>' : `<div class="panel empty-state">Pick a stack above.</div>`}</div>`;
+    root.innerHTML = `<div class="kb tasks-board">${tabs}${shown.length ? '<div id="lanesRoot"></div>' : `<div class="panel empty-state">Pick a stack above.</div>`}</div>`;
     if(shown.length) TYPE_VIEWS.kanban.lanes(shown, $('#lanesRoot'), {bb:V.bb, done:S.showDone, test: V.quick==='open' ? null : q.test});
     return;
   }
@@ -542,7 +563,7 @@ function renderKanban(k, root){
   else if(V.sort==='due'){ list.sort((a,b)=>byDue(a,b)||(PRANK[a.priority||'']-PRANK[b.priority||''])); gs=[{title:'By due date', items:list}]; }
   else { list.sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')); gs=[{title:'Recently updated', items:list}]; }
   gs = gs.filter(g=>g.items.length);
-  root.innerHTML = `<div class="kb">${tabs}${groups}
+  root.innerHTML = `<div class="kb">${tabs}
     <div class="toolbar"><span class="lbl" id="sLbl">Sort</span><div class="seg" role="group" aria-labelledby="sLbl">${[['priority','Priority'],['due','Due date'],['board','Stack'],['updated','Recently updated']].map(([m,l])=>`<button data-sort="${m}" aria-pressed="${V.sort===m}">${l}</button>`).join('')}</div></div>
     ${gs.length ? gs.map(g=>`<section class="panel"><div class="panel-h"><h2>${g.bang?bangHTML(g.bang):''}${esc(g.title)}</h2><span class="caption">${g.items.length}</span></div><div class="list-rows">${g.items.map(taskRow).join('')}</div></section>`).join('')
       : `<div class="panel empty-state">${pool.length?'Nothing matches these filters.':'No open tasks. Nice work.'}</div>`}
@@ -742,13 +763,13 @@ function itemMenu(anchor, it){
   if(!it) return;
   openMenu(anchor, [
     {label:'Rename…', value:'rename'},
-    ...(it.type==='page'?[{label:'Move to folder…', value:'move'}]:[]),
+    {label:'Move to folder…', value:'move'},
     ...(it.type==='kanban'?[{label:'Add stack…', value:'stack'}, {label:'Status flags…', value:'flags'}]:[]),
     ...(it.type==='tracker'?[{label:'Tracker settings…', value:'tsettings'}]:[]),
     {sep:true}, {label:'Delete…', value:'del', danger:true}
   ], async v => {
     if(v==='rename'){ const n = await promptModal({title:'Rename', label:'Name', value:it.name||'', opener:anchor}); if(n){ docPatch('items', it.id, {name:n}); render(true); } }
-    if(v==='move') openMenu(anchor, [{label:'No folder', value:'', checked:!it.folderId}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:it.folderId===f.id}))], fid => { docPatch('items', it.id, {folderId:fid, order:itemsOf(i=>i.type==='page' && (i.folderId||'')===fid).length}); render(true); toast('Moved to '+(folderById(fid)?.name||'No folder')); }, 'Move to folder');
+    if(v==='move') openMenu(anchor, [{label:'No folder', value:'', checked:!it.folderId}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:it.folderId===f.id}))], fid => { docPatch('items', it.id, {folderId:fid, order:itemsOf(i=>TYPE_GROUP[i.type] && (i.folderId||'')===fid).length}); render(true); toast('Moved to '+(folderById(fid)?.name||'No folder')); }, 'Move to folder');
     if(v==='stack') addStack(it, anchor);
     if(v==='flags') TYPE_VIEWS.kanban.openFlagsModal(anchor);
     if(v==='tsettings') TYPE_VIEWS.tracker.settingsModal(it, anchor);
@@ -822,9 +843,18 @@ function migrate19(){
   });
 }
 
+/* beta.20: any item can sit in any folder, so items without a folder become one ordered list: the custom items keep
+   their place above the pages, as the menu showed them before. Runs once (every top-level item then carries nav:1). */
+function migrateNav20(){
+  const top = S.items.filter(i=>isTop(i) && TYPE_GROUP[i.type]);
+  if(!top.some(i=>!i.nav)) return;
+  const rank = i => TYPE_GROUP[i.type]==='custom' ? 0 : 1;
+  const lists = {}; top.forEach(i=>{ const f = i.folderId && folderById(i.folderId) ? i.folderId : ''; (lists[f] ||= []).push(i); });
+  Object.values(lists).forEach(l => l.sort((a,b)=>rank(a)-rank(b) || byOrder(a,b)).forEach((i,n) => docPatch('items', i.id, {order:n, nav:1, updated:i.updated||nowIso()})));
+}
 /* ----- New item: always starts blank ----- */
 function buildItem(type, name, folderId, parent){
-  const base = {id:uid(), type, name, folderId:parent?'':(folderId||''), order: parent ? blocksOf(parent).length : itemsOf(i=>TYPE_GROUP[i.type]===TYPE_GROUP[type] && (type!=='page' || (i.folderId||'')===(folderId||''))).length, created:nowIso(), updated:nowIso()};
+  const base = {id:uid(), type, name, folderId:parent?'':(folderId||''), order: parent ? blocksOf(parent).length : itemsOf(i=>TYPE_GROUP[i.type] && (i.folderId||'')===(folderId||'')).length, ...(parent?{}:{nav:1}), created:nowIso(), updated:nowIso()};
   if(parent) base.parent = parent;
   if(type==='kanban') base.container = true;
   if(type==='note') base.body = '';
@@ -836,17 +866,17 @@ function buildItem(type, name, folderId, parent){
 }
 function openNewItem({folderId, type='page', opener}={}){
   let t = TYPES[type] && !TYPES[type].part ? type : 'page';
-  let fid = folderId ?? (currentItem()?.type==='page' ? currentItem().folderId||'' : '');
+  let fid = folderId ?? (currentItem()?.folderId || '');
   const draw = () => {
     const nameVal = $('#niName')?.value || '';
     const tile = ([k,v]) => `<button class="type-opt" data-type="${k}" aria-pressed="${k===t}"><span class="ti" aria-hidden="true">${ICON[k]}</span><b>${v.label}</b><span>${esc(v.desc)}</span></button>`;
     const m = openModal(`<h2 id="mTitle">New item</h2>
       <label class="field"><span class="lbl">Name</span><input class="txt-in" id="niName" value="${esc(nameVal)}" placeholder="e.g. Home Loan Rate, Japan Trip" maxlength="80" autofocus></label>
-      <div class="field"><span class="lbl" id="tyL">Type</span><div class="type-grid" role="group" aria-labelledby="tyL">${Object.entries(TYPES).filter(([k,v])=>!v.part).map(tile).join('')}</div></div>
-      ${t==='page'&&S.folders.length?`<div class="field"><span class="lbl">Folder</span><button class="pop wide" id="niFolder" aria-haspopup="menu" aria-expanded="false"><span class="lbl-t">${esc(folderById(fid)?.name||'No folder')}</span>${ICON.chev}</button></div>`:''}
+      <div class="field"><span class="lbl" id="tyL">Type</span><div class="type-grid" role="group" aria-labelledby="tyL">${tile(['page', TYPES.page]).replace('class="type-opt"','class="type-opt wide"')}${Object.entries(TYPES).filter(([k,v])=>!v.part && k!=='page').map(tile).join('')}</div></div>
+      ${S.folders.length?`<div class="field"><span class="lbl">Folder</span><button class="pop wide" id="niFolder" aria-haspopup="menu" aria-expanded="false"><span class="lbl-t">${esc(folderById(fid)?.name||'No folder')}</span>${ICON.chev}</button></div>`:''}
       <div class="row-end"><button class="btn" data-x="no">Cancel</button><button class="pill" data-x="yes">Create ${TYPES[t].label.toLowerCase()}</button></div>`, {opener, wide:true});
     m.onclick = e => {
-      const ty = e.target.closest('[data-type]'); if(ty){ t=ty.dataset.type; draw(); requestAnimationFrame(()=>restoreFocus(`[data-type="${t}"]`, m)); return; }
+      const ty = e.target.closest('[data-type]'); if(ty){ t=ty.dataset.type; draw(); focusName(); return; }
       const fb = e.target.closest('#niFolder'); if(fb){ openMenu(fb, [{label:'No folder', value:'', checked:!fid}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:fid===f.id}))], v=>{ fid=v; fb.querySelector('.lbl-t').textContent = folderById(v)?.name||'No folder'; }, 'Folder'); return; }
       const b = e.target.closest('[data-x]'); if(!b) return;
       if(b.dataset.x==='no') return closeModal();
@@ -854,14 +884,15 @@ function openNewItem({folderId, type='page', opener}={}){
     };
     m.onkeydown = e => { if(e.key==='Enter' && e.target.id==='niName'){ e.preventDefault(); create(); } };
   };
+  const focusName = (sel) => requestAnimationFrame(()=>{ const n=$('#niName'); if(n){ n.focus(); if(sel) n.select(); else n.setSelectionRange(n.value.length, n.value.length); } });
   const create = () => {
     const name = $('#niName').value.trim() || 'Untitled '+TYPES[t].label.toLowerCase();
-    const it = buildItem(t, name, t==='page'?fid:'');
+    const it = buildItem(t, name, fid);
     docSet('items', it);
     if(t==='kanban') docSet('items', {id:uid(), type:'stack', parent:it.id, name:'Tasks', order:0, created:nowIso(), updated:nowIso()});
     closeModal(); go('i-'+it.id);
   };
-  draw();
+  draw(); focusName(true);
 }
 
 /* ----- touch gestures (phone) -----
@@ -934,7 +965,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); if(!modalOpen() && !window.__sheetOpen){ if(matchMedia('(max-width:860px)').matches) document.body.classList.add('side-open'); $('#q').focus(); $('#q').select(); } return; }
-  const tg = e.target; const typing = tg.closest && tg.closest('input,textarea,select,[contenteditable="true"]');
+  const tg = e.target; const typing = tg.closest && tg.closest('input,textarea,select,[contenteditable="true"],[contenteditable="plaintext-only"]');
   if(typing || e.metaKey || e.ctrlKey || e.altKey || modalOpen() || window.__sheetOpen || menuEl) return;
   if(e.key==='/'){ e.preventDefault(); if(matchMedia('(max-width:860px)').matches) document.body.classList.add('side-open'); $('#q').focus(); return; }
   if(e.key==='?'){ e.preventDefault(); openKeys(null); return; }
@@ -968,7 +999,7 @@ async function start(){
       if(col==='items' && window.__typingItem){ const i=docs.findIndex(d=>d.id===window.__typingItem); const local=itemById(window.__typingItem); if(i>-1 && local) docs[i]=local; }
       if(col==='tasks' && window.__typingTask){ const i=docs.findIndex(d=>d.id===window.__typingTask); const local=S.tasks.find(t=>t.id===window.__typingTask); if(i>-1 && local) docs[i]=local; }
       S[col] = docs; S.loaded[col] = true;
-      if(col==='items' && !S.migrated19) migrate19();
+      if(col==='items' && !S.migrated19){ migrate19(); migrateNav20(); }
       if(col==='tasks') docs.filter(t=>t.col==='upcoming').forEach(t=>docPatch('tasks', t.id, {col:'todo'}));   // Upcoming column retired in 1.0.0-beta.13
       render(); refreshOverlays();
       if(col==='tasks' && !S.nudgeSet){ S.nudgeSet=true; setTimeout(bkNudge, 4000); }

@@ -2,6 +2,20 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.20] - 2026-11-10
+### Added
+- Text blocks have a rich editor with a formatting bar: text style (Normal, Headings), bold, italic, strikethrough, code, bulleted, numbered and checklist lists, quote, web links, links to items and clear formatting. "Write" is now "Raw" (the markdown underneath).
+- Cards: click a title or subtask on desktop to edit it in place; click the priority bars to pick a priority from an icon menu.
+- Right-click a card: Duplicate, then click any column in any stack to drop the copy there (Esc cancels).
+- Stack names are edited in place.
+### Changed
+- Every menu item can go anywhere: Kanban, Bills and Trackers can sit in folders and mix with pages.
+- Kanban: Board / List / Archive sit at the right end of the filter row; + Stack is in the Stacks group; the grey bar by stack names is gone.
+- New item: Page on the first row, the others below; the name box is ready to type.
+- Right-click does nothing except where the app offers a menu (menu items, cards); text fields keep copy and paste.
+### Fixed
+- Dragging menu items no longer offers "Create split view", and no text gets selected while dragging.
+
 ## [1.0.0-beta.19] - 2026-11-09
 ### Added
 - Page: a new item built from blocks. Add, remove, rename and reorder Text, Checklist and Table blocks.
