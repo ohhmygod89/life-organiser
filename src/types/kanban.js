@@ -35,7 +35,7 @@ TYPE_VIEWS.kanban = (() => {
   const toggleDone = t => moveTo(t, t.col==='done' ? (t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo') : 'done');
 
   /* subtask chip on cards: just who it's waiting on (or the short flag name), full text on hover */
-  const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = d || flagShort(f);   // the colour dot says which flag; the space goes to who or why
+  const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = flagShort(f);   // the flag's name; its reason is in the task window   // the colour dot says which flag; the space goes to who or why
     return `<span class="chip one sub" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${d?' · '+esc(d):''}">${esc(txt)}</span>`; };
   /* Card, top to bottom: title (priority bars) · flag chip · open subtasks (indented) · footer with the due date and
      notes on the left. Top right: the pin button (always shown when pinned, on hover otherwise). No done tick: tasks
@@ -100,7 +100,7 @@ TYPE_VIEWS.kanban = (() => {
     el.addEventListener('keydown', key); el.addEventListener('blur', blur);
   }
   /* right-click a card: Duplicate, then click the column (any stack) to drop the copy there */
-  let placing = null;
+  let placing = null, tap = null;
   function cardMenuItems(t){
     const done = t.col==='done';
     return [...(done?[]:[{label:t.pinned?'Unpin':'Pin to top', value:'pin'}]),
@@ -121,28 +121,8 @@ TYPE_VIEWS.kanban = (() => {
     e.preventDefault();
     openMenu(pointAnchor(e), cardMenuItems(t), v => cardAction(v, t, card, e), 'Card');
   }
-  /* phone: press and hold a card (without moving) for the same menu; moving instead drags it */
-  { let lp = null;
-    const content = $('#content');
-    content.addEventListener('touchstart', e => {
-      const card = e.target.closest('.card'); if(!card || e.touches.length>1 || !card.closest('.kb') || e.target.closest('button,input,textarea')) return;
-      const p = e.touches[0]; clearTimeout(lp?.timer);
-      lp = {card, x:p.clientX, y:p.clientY, fired:false, timer:setTimeout(() => {
-        if(!lp || document.querySelector('.sortable-fallback')) return; lp.fired = true;
-        const t = S.tasks.find(x=>x.id===card.dataset.id); if(!t) return;
-        card.classList.add('held'); haptic();
-        setTimeout(() => { if(!lp?.fired) return; const r = card.getBoundingClientRect();
-          openMenu({getBoundingClientRect:()=>({left:r.left+12, right:r.left+12, top:r.top+20, bottom:r.top+20, width:0, height:0}), setAttribute(){}, focus(){}}, cardMenuItems(t), v => cardAction(v, t, card, {clientX:r.left+r.width/2, clientY:r.top+r.height/2}), 'Card');
-          card.classList.remove('held'); }, 40);
-      }, 480)};
-    }, {passive:true});
-    /* moving the finger: before the menu, it's a drag or scroll; after the menu opened, the menu closes and the card drags */
-    content.addEventListener('touchmove', e => { if(!lp) return; const p=e.touches[0]; if(Math.hypot(p.clientX-lp.x, p.clientY-lp.y) <= 8) return;
-      if(lp.fired){ lp.card.classList.remove('held'); closeMenu(); lp.fired=false; } clearTimeout(lp.timer); lp=null; }, {passive:true});
-    const end = () => { if(!lp) return; clearTimeout(lp.timer); if(lp.fired){ const c=lp.card; const swallow = ev => { if(c.contains(ev.target) || ev.target===document.documentElement || ev.target===document.body){ ev.preventDefault(); ev.stopPropagation(); } document.removeEventListener('click', swallow, true); };
-        document.addEventListener('click', swallow, true); setTimeout(()=>document.removeEventListener('click', swallow, true), 700); } lp=null; };
-    content.addEventListener('touchend', e => { if(e.isTrusted) end(); }, {passive:true});
-    content.addEventListener('touchcancel', end, {passive:true});
+  /* phone: double-tap a card for the same menu (a single tap opens the task window; holding drags) */
+  { const content = $('#content');
     content.addEventListener('contextmenu', e => { if(TOUCH && e.target.closest('.card')) e.preventDefault(); });
   }
   function startPlacing(t, card, e){
@@ -297,7 +277,13 @@ TYPE_VIEWS.kanban = (() => {
     const ed = !TOUCH && e.isTrusted && e.target.closest('.card:not(.is-done) .tt, .card .ctt');
     if(ed){ if(!ed.isContentEditable) startEdit(ed, e); return true; }
     if(e.target.closest('[contenteditable]')) return true;
-    const card = e.target.closest('.card'); if(card){ openSheet(card.dataset.id, card); return true; }
+    const card = e.target.closest('.card');
+    if(card && TOUCH){ const id = card.dataset.id;
+      if(tap && tap.id===id){ clearTimeout(tap.timer); tap=null; const t=S.tasks.find(x=>x.id===id); const r=card.getBoundingClientRect();
+        if(t) openMenu({getBoundingClientRect:()=>({left:r.left+12, right:r.left+12, top:r.top+20, bottom:r.top+20, width:0, height:0}), setAttribute(){}, focus(){}}, cardMenuItems(t), v => cardAction(v, t, card, {clientX:r.left+r.width/2, clientY:r.top+r.height/2}), 'Card');
+        return true; }
+      clearTimeout(tap?.timer); tap = {id, timer:setTimeout(() => { tap=null; if(card.isConnected) openSheet(id, card); }, 260)}; return true; }
+    if(card){ openSheet(card.dataset.id, card); return true; }
     return false;
   }
   function input(e){ if(e.target.id==='kbAdd') draft = e.target.value; if(e.target.matches('.lane-name')) e.target.size = Math.max(3, e.target.value.length+1); }

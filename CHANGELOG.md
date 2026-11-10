@@ -2,6 +2,16 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.23] - 2026-11-10
+### Changed
+- Phone: double-tap a card for its menu (a single tap opens it, holding drags). The hold menu and its haptic tick are gone, and no menu item is pre-highlighted.
+- Phone: Filter and View float at the bottom, beside the menu button; the filter panel opens above them and closes when you tap elsewhere.
+- A card shows only its own flag; subtask flags stay on the subtasks and show the flag name (the reason is in the task window).
+- No-priority bars are fainter, so they don't look like Low.
+- The page header drops the type word ("Page", "Kanban"); the icon says it.
+- Text blocks: Editor / Raw sits on the right; formatting (B, I, S, code) comes before the link buttons.
+- Send buttons only appear once you tap into the box.
+
 ## [1.0.0-beta.22] - 2026-11-10
 ### Added
 - Card menu (hold on phone, right-click on desktop) has Delete, with Undo.

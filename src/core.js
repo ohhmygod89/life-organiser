@@ -396,12 +396,8 @@ function saveNavOrder(){
 /* right-click (or the ••• on touch) */
 /* send buttons (beside add boxes) keep the keyboard up: the box doesn't lose focus when the button is pressed */
 document.addEventListener('pointerdown', e => { if(e.target.closest?.('.send-btn')){ window.__sendPress = Date.now(); e.preventDefault(); } }, true);
-/* a short tap of haptic feedback: Android via vibrate; iPhone Safari (18+) has no vibrate, but toggling a native switch gives a tick */
-const haptic = (() => { let lbl = null;
-  return () => { try{ if(navigator.vibrate && navigator.vibrate(12)) return; }catch(e){}
-    try{ if(!lbl){ lbl = document.createElement('label'); lbl.setAttribute('aria-hidden','true'); lbl.style.cssText='position:fixed;left:-99px;top:0;width:1px;height:1px;overflow:hidden;opacity:0';
-        lbl.innerHTML='<input type="checkbox" switch tabindex="-1">'; document.body.appendChild(lbl); }
-      lbl.click(); }catch(e){} }; })();
+/* phone filter panel: tapping anywhere else closes it */
+document.addEventListener('click', e => { if(!S.filtersOpen || e.target.closest?.('#kbFilters, [data-act="filters"], .menu')) return; S.filtersOpen=false; $('#kbFilters')?.classList.remove('open'); $('[data-act="filters"]')?.setAttribute('aria-expanded','false'); }, true);
 /* a menu opened at the pointer (right-click) */
 const pointAnchor = e => ({getBoundingClientRect:()=>({left:e.clientX, right:e.clientX, top:e.clientY, bottom:e.clientY, width:0, height:0}), setAttribute(){}, focus(){}});
 function navContextMenu(e){
@@ -445,7 +441,7 @@ function renderContent(){
 function headHTML(it){
   const f = folderById(it.folderId);
   return `<div class="ihead"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
-    <div class="ihead-t"><p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} › </span>`:''}${TYPES[it.type].label}${it.updated?' · Edited '+esc(shortDate(it.updated)):''}</p>
+    <div class="ihead-t"><p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(shortDate(it.updated)):''}</p>
     <input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80"></div></div>`;
 }
 
@@ -525,9 +521,7 @@ const flagShort = f => FLAG_SHORT[f.id] || f.label;
 const FLAG_ORDER = ['blocked','waiting','decision','hold'];
 const flagRank = id => { const i = FLAG_ORDER.indexOf(id); return i>=0 ? i : FLAG_ORDER.length + Math.max(0, flags().findIndex(f=>f.id===id)); };
 function effFlag(t){
-  let best = flagOf(t.flag) ? {flag:t.flag, who:t.flagWho||'', from:null} : null;
-  if(t.col!=='done') for(const c of (t.checklist||[])) if(!c.done && flagOf(c.flag) && (!best || flagRank(c.flag) < flagRank(best.flag))) best = {flag:c.flag, who:c.flagWho||'', from:c};
-  return best;
+  return flagOf(t.flag) ? {flag:t.flag, who:t.flagWho||'', from:null} : null;   // only the task's own flag; subtasks show theirs
 }
 /* Flags that take a detail: Waiting asks who, Blocked and On hold ask why. */
 const FLAG_ASK = {waiting:'Who?', blocked:'Why?', hold:'Why?', decision:'Why?'};

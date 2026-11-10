@@ -1131,3 +1131,18 @@ body.placing,body.placing *{cursor:copy!important}
 .ck-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;min-height:32px}
 .ck-count{font-weight:600;font-size:16px;letter-spacing:-.01em}
 .ck-head .switch{font-size:14px}
+
+/* ===== beta.23 ===== */
+.pbars.p-none{opacity:.38}
+:is(.ci.add,.send-row,.add-wrap):has(:is(input,textarea):placeholder-shown):not(:focus-within) .send-btn{display:none}
+.card{touch-action:manipulation}
+@media (max-width:860px){
+  /* Filter and View float at the bottom, left of the menu button */
+  .kb-ctl{position:fixed;z-index:29;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(25px + env(safe-area-inset-bottom,0px));width:auto;margin:0;gap:8px}
+  .kb-ctl .btn{flex:none;height:42px;padding:0 16px;border-radius:21px;background:var(--panel);box-shadow:0 0 0 1px var(--sep),0 6px 20px rgba(0,0,0,.14)}
+  body.side-open .kb-ctl,body.sheet-open .kb-ctl{opacity:0;pointer-events:none}
+  .kb-bar .fgroups.open{position:fixed;z-index:29;left:12px;right:12px;bottom:calc(80px + env(safe-area-inset-bottom,0px));max-height:62vh;overflow:auto;background:var(--bg);border-radius:18px;padding:10px;box-shadow:0 0 0 1px var(--sep),0 12px 40px rgba(0,0,0,.2);gap:8px}
+  .kb-bar{gap:0}
+  .lanes,.board{padding-bottom:84px}
+}
+@media (hover:none){ .menu button:focus:not(:focus-visible){background:none;color:var(--fg)} .menu button.danger:focus:not(:focus-visible){color:var(--red,#d70015)} }

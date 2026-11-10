@@ -118,9 +118,9 @@ TYPE_VIEWS.note = (() => {
   const TOOLS = [
     {c:'style', l:'Text style', menu:true},
     {sep:true},
-    {c:'itemlink', l:'Link to another item in the app', i:`${ICON.page}<span class="rt-txt">Item link</span>`, wide:true}, {c:'link', l:'Web link (⌘K)', i:ICON.rtLink},
-    {sep:true},
     {c:'bold', l:'Bold (⌘B)', i:'<b>B</b>'}, {c:'italic', l:'Italic (⌘I)', i:'<i>I</i>'}, {c:'strikeThrough', l:'Strikethrough', i:'<s>S</s>'}, {c:'code', l:'Code', i:'<span class="mono">&lt;/&gt;</span>'},
+    {sep:true},
+    {c:'itemlink', l:'Link to another item in the app', i:`${ICON.page}<span class="rt-txt">Item link</span>`, wide:true}, {c:'link', l:'Web link (⌘K)', i:ICON.rtLink},
     {sep:true},
     {c:'insertUnorderedList', l:'Bulleted list', i:ICON.rtUl}, {c:'insertOrderedList', l:'Numbered list', i:ICON.rtOl}, {c:'tasks', l:'Checklist', i:ICON.rtCk}, {c:'quote', l:'Quote', i:ICON.rtQ},
     {sep:true},
@@ -133,9 +133,9 @@ TYPE_VIEWS.note = (() => {
     const words = (it.body||'').trim() ? (it.body.trim().split(/\s+/).length) : 0;
     const bl = backlinks(it);
     root.innerHTML = `
-      <div class="note-tools"><div class="seg" role="group" aria-label="Mode"><button data-seg="rich" aria-pressed="${m==='rich'}">Editor</button><button data-seg="raw" aria-pressed="${m==='raw'}">Raw</button></div>
-        <span class="caption" id="noteSaved" role="status" aria-live="polite">${plural(words,'word')}</span>
-        <span class="spacer"></span>${m==='raw'?'<span class="caption raw-tip"># Heading · - list · - [ ] checkbox · **bold** · [[Item name]] link</span>':''}</div>
+      <div class="note-tools"><span class="caption" id="noteSaved" role="status" aria-live="polite">${plural(words,'word')}</span>
+        ${m==='raw'?'<span class="caption raw-tip"># Heading · - list · - [ ] checkbox · **bold** · [[Item name]] link</span>':''}<span class="spacer"></span>
+        <div class="seg" role="group" aria-label="Mode"><button data-seg="rich" aria-pressed="${m==='rich'}">Editor</button><button data-seg="raw" aria-pressed="${m==='raw'}">Raw</button></div></div>
       ${m==='raw'
         ? `<textarea class="note-edit" id="noteBody" aria-label="Note text (markdown)" placeholder="Start writing…\n\n# Heading\n- [ ] A checkbox\nLink another item with [[Home Loan Rate]]">${esc(it.body||'')}</textarea>`
         : `<div class="rt">
