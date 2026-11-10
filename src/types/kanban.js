@@ -4,20 +4,19 @@
    ============================================================ */
 TYPE_VIEWS.kanban = (() => {
   const COLS = [
-    {id:'upcoming', name:'Upcoming', hint:'Later'},
     {id:'todo', name:'To Do', hint:''},
     {id:'doing', name:'In Progress', hint:''},
     {id:'done', name:'Done', hint:'Newest first'},
     {id:'backburner', name:'Back Burner', hint:'Parked'},
   ];
-  const colName = id => COLS.find(c=>c.id===id)?.name || '';
+  const colName = id => id==='upcoming' ? 'To Do' : (COLS.find(c=>c.id===id)?.name || '');
   const DONE_LIMIT = 5;
   const showAllDone = {};
   let sortables = [], adding = null, draft = '', addSubmitting = false;
 
   const archived = t => t.col==='done' && doneYear(t) < CUR_YEAR;
   function tasksIn(bid, col){
-    const l = S.tasks.filter(t=>t.boardId===bid && t.col===col && !archived(t));
+    const l = S.tasks.filter(t=>t.boardId===bid && (t.col===col || (col==='todo' && t.col==='upcoming')) && !archived(t));
     return col==='done' ? l.sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||'')) : l.sort((a,b)=>(a.pos??0)-(b.pos??0));
   }
   function endPos(bid, col, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except); return (l.length?Math.max(...l.map(x=>x.pos||0)):0)+1024; }
@@ -45,7 +44,7 @@ TYPE_VIEWS.kanban = (() => {
     return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       <button class="tick" data-tick="" title="${isDone?'Not done, back to '+back:'Mark done'}" aria-label="${isDone?'Mark not done':'Mark done'}: ${esc(t.title)}">${ICON.check}</button>
       <button class="mv" data-mv="" aria-haspopup="menu" aria-expanded="false" title="Move to column" aria-label="Move ${esc(t.title)} to another column">${ICON.move}</button>
-      ${!isDone && flagOf(t.flag) ? chipHTML(t,'one') : ''}
+      ${!isDone ? chipHTML(t,'one') : ''}
       <div class="title">${!isDone?bangHTML(t.priority):''}${esc(t.title||'Untitled')}</div>
       ${showCl ? `<ul class="cl">${cl.slice(0,lim).map(c=>`<li class="${c.done?'on':''}"><button class="cbox" data-cbox="${esc(c.id)}" role="checkbox" aria-checked="${!!c.done}" aria-label="${esc(c.text)}">${ICON.check}</button><span class="ct">${esc(c.text)}${!c.done && flagOf(c.flag) ? subChip(c) : ''}</span></li>`).join('')}${cl.length>lim?`<li class="more-c">+${cl.length-lim} more</li>`:''}</ul>` : ''}
       ${parts.length?`<div class="meta">${parts.join('')}</div>`:''}
@@ -59,10 +58,10 @@ TYPE_VIEWS.kanban = (() => {
   function bindSortables(root){
     sortables.forEach(s=>s.destroy()); sortables = [];
     $$('.cards', root).forEach(list => sortables.push(Sortable.create(list, {
-      group:'cards', animation:RM?0:180, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.tick,.cbox,.mv', preventOnFilter:false,
+      group:'cards', animation:RM?0:140, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.tick,.cbox,.mv', preventOnFilter:false,
       delay:200, delayOnTouchOnly:true, touchStartThreshold:6, forceFallback:true, fallbackOnBody:true, fallbackClass:'dragging', fallbackTolerance:3,
       emptyInsertThreshold:60, swapThreshold:.6, invertSwap:false, direction:'vertical', ghostClass:'ghost-card',
-      scroll:true, bubbleScroll:true, scrollSensitivity:80,
+      scroll:true, bubbleScroll:true, scrollSensitivity:44, scrollSpeed:9,
       onStart(){ S.dragging=true; document.body.classList.add('is-dragging'); }, onEnd(evt){ S.dragging=false; document.body.classList.remove('is-dragging'); onDrop(evt); render(true); }
     })));
     if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); } }
@@ -215,6 +214,7 @@ TYPE_VIEWS.kanban = (() => {
           ${propRow('pDue','Due', d ? `${ICON.cal}<span class="lbl-t ${d.cls}">${esc(dateLabel(t.due))} · ${esc(d.t)}</span>` : `<span class="lbl-t muted">No date</span>`)}
           ${propRow('pFlag','Flag', f ? `<span class="fdot" style="--fc:${colorOf(f.color)}"></span><span class="lbl-t">${esc(f.label)}</span>` : `<span class="lbl-t muted">None</span>`)}
           ${f&&f.who?`<div class="prop"><label class="prop-l" for="fWho">Waiting on</label><input class="prop-in" id="fWho" type="text" placeholder="Who?" value="${esc(t.flagWho||'')}"></div>`:''}
+          ${(() => { const e=effFlag(t); const ef=e&&e.from&&flagOf(e.flag); return ef ? `<p class="prop-note"><span class="fdot" style="--fc:${colorOf(ef.color)}"></span>Card shows ${esc(ef.label)}${e.who&&ef.who?' · '+esc(e.who):''}, from subtask “${esc(e.from.text)}”</p>` : ''; })()}
           <input type="date" id="fDue" class="sr-only" tabindex="-1" aria-hidden="true" value="${esc(t.due||'')}">
         </div>
         <section class="sh-sec">
@@ -233,8 +233,8 @@ TYPE_VIEWS.kanban = (() => {
         </section>
         <section class="sh-sec" aria-labelledby="lgLbl">
           <div class="sh-h"><h3 id="lgLbl">Updates</h3></div>
+          ${(t.log||[]).length?`<div class="log">${(t.log||[]).slice().sort((a,b)=>(a.t||'').localeCompare(b.t||'')).map(l=>`<div class="log-i"><time>${esc(stamp(l.t))}</time><p>${esc(l.text)}</p><button class="x" data-del-l="${esc(l.id)}" aria-label="Remove update from ${esc(stamp(l.t))}">${ICON.x}</button></div>`).join('')}</div>`:''}
           <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fLogNew" placeholder="Log an update, e.g. Called the insurer" aria-label="New update" enterkeyhint="send"></div>
-          ${(t.log||[]).length?`<div class="log">${(t.log||[]).slice().reverse().map(l=>`<div class="log-i"><time>${esc(stamp(l.t))}</time><p>${esc(l.text)}</p><button class="x" data-del-l="${esc(l.id)}" aria-label="Remove update from ${esc(stamp(l.t))}">${ICON.x}</button></div>`).join('')}</div>`:''}
         </section>
         <div class="sh-foot"><span>Created ${esc(stamp(t.created))}${t.doneAt&&t.col==='done'?' · Done '+esc(stamp(t.doneAt)):''}</span><button class="btn danger" id="fDelete">Delete task</button></div>
       </div>`;

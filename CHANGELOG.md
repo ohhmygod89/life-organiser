@@ -2,6 +2,19 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.13] - 2026-11-09
+### Changed
+- Columns are now To Do, In Progress, Done (Back Burner unchanged). Tasks that were in Upcoming move to To Do.
+- A card shows the most serious flag among the task and its open subtasks (Blocked, then Waiting, Needs decision, On hold). The task window says when the card's flag comes from a subtask.
+- Updates list oldest to newest, with the add box underneath.
+- Phone task window floats with a gap on every side; tap outside it to close.
+- The menu button stays visible while the menu is open and turns into a close button.
+- Touch drag: once a card is picked up, only the card moves; the board no longer scrolls under your finger. Edge auto-scroll is gentler.
+### Fixed
+- No zooming anywhere: pinch, double-tap and the automatic zoom when tapping a text box are all blocked.
+### Removed
+- The tick logo next to the app name.
+
 ## [1.0.0-beta.12] - 2026-11-09
 ### Added
 - Subtasks can carry a flag too (for example Waiting on someone, with who).

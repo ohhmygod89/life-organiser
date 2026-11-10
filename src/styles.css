@@ -65,8 +65,6 @@ body.side-collapsed .shell{grid-template-columns:0 minmax(0,1fr)}
 body.side-collapsed .side{visibility:hidden}
 .side-top{display:flex;align-items:center;gap:8px;min-height:36px;padding:0 4px}
 .brand{margin:0;font-weight:600;font-size:15px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;white-space:nowrap}
-.brand i{width:20px;height:20px;border-radius:6px;background:var(--accent-fill);display:grid;place-items:center;flex:none}
-.brand i::after{content:"";width:9px;height:5px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 .side-top .icon-btn{margin-left:auto}
 .search{position:relative}
 .search input{width:100%;height:32px;border:0;background:var(--fill);border-radius:980px;padding:0 12px 0 32px;font-size:13.5px;outline:none}
@@ -712,3 +710,25 @@ body.is-dragging .lanes,body.is-dragging .board{scroll-snap-type:none}
 .lane-cols{align-items:stretch}
 .lcol{display:flex;flex-direction:column}
 .lcol .cards{flex:1}
+
+/* ----- beta.13 ----- */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.prop-note{grid-column:1/-1;margin:2px 0 6px;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.log{margin:4px 0 2px}
+.fab .fab-x{display:none}
+body.side-open .fab .fab-m{display:none}
+body.side-open .fab .fab-x{display:block}
+@media (max-width:860px){
+  body.side-open .fab{opacity:1;pointer-events:auto;z-index:60}
+}
+/* iOS zooms into any field under 16px: keep every field at 16px on touch screens */
+@media (pointer:coarse){
+  input,textarea,select,.prop-in,.ci input[type=text],.sheet textarea.notes,.add-input,.txt-in{font-size:16px!important}
+  .ci-f .ci-who{font-size:16px!important}
+}
+/* phone task window: a floating card with a gap on every side; tap the gap to close */
+@media (max-width:760px){
+  .sheet{left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));top:auto;max-height:calc(100% - 64px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border-radius:20px;padding-bottom:0;transform:translateY(calc(100% + 24px))}
+  .sheet.show{transform:none}
+}
+@media (max-width:860px){.side{padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}}

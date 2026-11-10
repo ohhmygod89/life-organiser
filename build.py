@@ -25,7 +25,7 @@ body = head + '<style>\n' + css + '</style>\n' + shell + sortable + '\n<script>\
 (R/'dist'/'life-organiser.html').write_text(body)
 # GitHub Pages needs a full document
 doc = ('<!doctype html><html lang="en-AU"><head><meta charset="utf-8">'
-       '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>' + body + '</body></html>\n')
+       '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"></head><body>' + body + '</body></html>\n')
 (R/'dist'/'index.html').write_text(doc)
 if '--local' in sys.argv:
     lib = (R/'node_modules'/'sortablejs'/'Sortable.min.js')

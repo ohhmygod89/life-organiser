@@ -4,7 +4,7 @@
    Data is fictional sample data and stays in this browser (localStorage).
    ============================================================ */
 function DemoDB(){
-  const KEY = 'lo.demo.v2';
+  const KEY = 'lo.demo.v3';
   const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); };
   const ahead = n => ago(-n);
   const iso = nowIso();
@@ -79,7 +79,10 @@ Press ? for keyboard shortcuts.`},
           },
         };
         const out = []; let n = 0;
-        for(const [bid, cols] of Object.entries(spec)) for(const [col, list] of Object.entries(cols)) list.forEach(([title, x], i) => out.push(task('dt'+(++n), bid, col, (i+1)*1024, title, x)));
+        for(const [bid, cols] of Object.entries(spec)){
+          cols.todo = [...cols.todo, ...(cols.upcoming||[])].slice(0,5); delete cols.upcoming;   // no Upcoming column since beta.13
+          for(const [col, list] of Object.entries(cols)) list.forEach(([title, x], i) => out.push(task('dt'+(++n), bid, col, (i+1)*1024, title, x)));
+        }
         return out;
       })(),
       rows:[

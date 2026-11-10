@@ -365,7 +365,7 @@ const QUICK = [
   {id:'open', label:'Open tasks', test:()=>true, c:'#007aff', ic:'list'},
   {id:'overdue', label:'Overdue', test:t=>t.due && dayDiff(t.due)<0, c:'#ff3b30', ic:'bang'},
   {id:'week', label:'Due in 7 days', test:t=>t.due && dayDiff(t.due)>=0 && dayDiff(t.due)<=7, c:'#30b0c7', ic:'cal'},
-  {id:'waiting', label:'Flagged', test:t=>!!flagOf(t.flag), c:'#ff9500', ic:'flag'},
+  {id:'waiting', label:'Flagged', test:t=>!!effFlag(t), c:'#ff9500', ic:'flag'},
 ];
 function comingUp(){
   const out = [];
@@ -429,10 +429,19 @@ const bangHTML = p => PRIO[p] ? `<span class="prio p-${p}" role="img" aria-label
 const FLAG_SHORT = {waiting:'Waiting', blocked:'Blocked', hold:'On hold', decision:'Decision'};
 const flagShort = f => FLAG_SHORT[f.id] || f.label;
 /* one-line chip: short flag name plus who, cut off with … if long */
-const chipHTML = (t, cls='') => { const f=flagOf(t.flag); return f ? `<span class="chip ${cls}" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${f.who&&t.flagWho?' · '+esc(t.flagWho):''}">${esc(flagShort(f))}${f.who&&t.flagWho?` · ${esc(t.flagWho)}`:''}</span>` : ''; };
+/* A task shows the most serious flag among its own flag and its open subtasks' flags. */
+const FLAG_ORDER = ['blocked','waiting','decision','hold'];
+const flagRank = id => { const i = FLAG_ORDER.indexOf(id); return i>=0 ? i : FLAG_ORDER.length + Math.max(0, flags().findIndex(f=>f.id===id)); };
+function effFlag(t){
+  let best = flagOf(t.flag) ? {flag:t.flag, who:t.flagWho||'', from:null} : null;
+  if(t.col!=='done') for(const c of (t.checklist||[])) if(!c.done && flagOf(c.flag) && (!best || flagRank(c.flag) < flagRank(best.flag))) best = {flag:c.flag, who:c.flagWho||'', from:c};
+  return best;
+}
+const chipHTML = (t, cls='') => { const e=effFlag(t); const f=e&&flagOf(e.flag); if(!f) return ''; const who = f.who && e.who ? e.who : '';
+  return `<span class="chip ${cls}" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${who?' · '+esc(who):''}${e.from?' (subtask: '+esc(e.from.text)+')':''}">${esc(flagShort(f))}${who?` · ${esc(who)}`:''}</span>`; };
 const byDue = (a,b) => (a.due||'9999').localeCompare(b.due||'9999');
 function taskRow(t){
-  const b = itemById(t.boardId); const d = t.due ? dueLabel(t.due) : null; const col = {upcoming:'Upcoming',todo:'To Do',doing:'In Progress',done:'Done',backburner:'Back Burner'}[t.col];
+  const b = itemById(t.boardId); const d = t.due ? dueLabel(t.due) : null; const col = {upcoming:'To Do',todo:'To Do',doing:'In Progress',done:'Done',backburner:'Back Burner'}[t.col];
   return `<button class="lrow" data-open="task:${esc(t.id)}"><span class="t">${bangHTML(t.priority)}${esc(t.title||'Untitled')}${chipHTML(t)}</span><span class="m"><i style="--c:${itemColor(b)}"></i>${esc(b?.name||'')} · <span class="status ${t.col}">${col}</span></span><span class="r ${d?d.cls:''}">${d?esc(d.t):''}</span></button>`;
 }
 function renderTasks(c){
@@ -557,7 +566,12 @@ $('#sideToggle').addEventListener('click', () => {
   else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0'); }
 });
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
-$('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
+$('#fab').addEventListener('click', () => { const open = document.body.classList.toggle('side-open'); $('#fab').setAttribute('aria-expanded', open); $('#fab').setAttribute('aria-label', open ? 'Close menu' : 'Menu'); });
+/* No zooming: block pinch (Safari gesture events), double-tap zoom (touch-action) and ctrl+wheel zoom. */
+['gesturestart','gesturechange','gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), {passive:false}));
+document.addEventListener('touchmove', e => { if(e.touches.length>1 || S.dragging) e.preventDefault(); }, {passive:false});
+document.addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, {passive:false});
+(() => { let m = document.querySelector('meta[name=viewport]'); if(!m){ m=document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); } m.content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover'; })();
 $('#newBtn').addEventListener('click', e => openNewItem({opener:e.currentTarget}));
 $('#itemMenu').addEventListener('click', e => { const it=currentItem(); if(it) itemMenu(e.currentTarget, it); });
 
@@ -800,7 +814,9 @@ async function start(){
       clearTimeout(slow);
       if(col==='items' && window.__typingItem){ const i=docs.findIndex(d=>d.id===window.__typingItem); const local=itemById(window.__typingItem); if(i>-1 && local) docs[i]=local; }
       if(col==='tasks' && window.__typingTask){ const i=docs.findIndex(d=>d.id===window.__typingTask); const local=S.tasks.find(t=>t.id===window.__typingTask); if(i>-1 && local) docs[i]=local; }
-      S[col] = docs; S.loaded[col] = true; render(); refreshOverlays();
+      S[col] = docs; S.loaded[col] = true;
+      if(col==='tasks') docs.filter(t=>t.col==='upcoming').forEach(t=>docPatch('tasks', t.id, {col:'todo'}));   // Upcoming column retired in 1.0.0-beta.13
+      render(); refreshOverlays();
       if(col==='tasks' && !S.nudgeSet){ S.nudgeSet=true; setTimeout(bkNudge, 4000); }
     }, onErr);
   }
