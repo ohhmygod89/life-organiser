@@ -4,6 +4,8 @@
    Rows live in the `rows` collection: {itemId, pos, values:{fieldId:value}}
    ============================================================ */
 TYPE_VIEWS.collection = (() => {
+  const R = it => document.querySelector(`[data-root="${CSS.escape(it.id)}"]`) || $('#tv');   // this item's own root (it may be one block of a Page)
+  const Q = (it, sel) => R(it)?.querySelector(sel);
   const FT = {text:'Text', number:'Number', currency:'Money ($)', percent:'Percent (%)', date:'Date', select:'Choice', checkbox:'Tick box', url:'Link'};
   const f = (name, type, extra={}) => ({id:uid(), name, type, ...extra});
   function template(t){
@@ -43,10 +45,11 @@ TYPE_VIEWS.collection = (() => {
       default: return `<td><input type="text" ${key} value="${esc(v||'')}" ${lab}></td>`;
     }
   }
-  let sortable = null;
+  const sortables = {};
   function view(it, root){
+    root.dataset.root = it.id;
     const fields = it.fields||[]; const rs = sorted(it); const total = rowsOf(it).length; const s = it.sort;
-    sortable?.destroy(); sortable = null;
+    sortables[it.id]?.destroy(); delete sortables[it.id];
     root.innerHTML = `
       <div class="toolbar"><span class="caption">${plural(total,'row')}${(filter[it.id]||'').trim()?` · ${rs.length} shown`:''}</span>
         <input class="field-in" id="colFilter" style="max-width:240px;min-height:34px;padding:6px 12px;border-radius:980px" placeholder="Filter rows" aria-label="Filter rows" value="${esc(filter[it.id]||'')}">
@@ -56,7 +59,7 @@ TYPE_VIEWS.collection = (() => {
         <tbody id="colBody">${rs.map(r=>`<tr data-id="${esc(r.id)}" data-key="row-${esc(r.id)}"><td class="grip" title="${s?'Clear sort to drag rows':'Drag to reorder'}" aria-hidden="true">${s?'':ICON.grip}</td>${fields.map(fl=>cellHTML(it,r,fl)).join('')}<td><button class="x row-x" data-del-row="${esc(r.id)}" aria-label="Delete row">${ICON.x}</button></td></tr>`).join('')}</tbody></table>
         ${rs.length?'':`<div class="empty-state">${total?'No rows match the filter.':'<b>No rows yet</b>Add your first row. Change the columns with Edit fields.'}</div>`}
         <div class="tbl-foot"><button class="add-btn" data-act="add-row" style="width:auto">${ICON.plus} Add row</button></div></div>`;
-    if(!s && rs.length>1) sortable = Sortable.create($('#colBody'), {handle:'.grip', animation:RM?0:150, onStart(){S.dragging=true}, onEnd(){ S.dragging=false; $$('#colBody tr').forEach((tr,i)=>{ const r=S.rows.find(x=>x.id===tr.dataset.id); if(r && r.pos!==i) docPatch('rows', r.id, {pos:i}); }); render(true); }});
+    if(!s && rs.length>1) sortables[it.id] = Sortable.create(root.querySelector('#colBody'), {handle:'.grip', animation:RM?0:150, onStart(){S.dragging=true}, onEnd(){ S.dragging=false; $$('#colBody tr', R(it)).forEach((tr,i)=>{ const r=S.rows.find(x=>x.id===tr.dataset.id); if(r && r.pos!==i) docPatch('rows', r.id, {pos:i}); }); render(true); }});
   }
   function setVal(it, rowId, fid, v){
     const r = S.rows.find(x=>x.id===rowId); if(!r) return;
@@ -87,7 +90,7 @@ TYPE_VIEWS.collection = (() => {
     if(dr){ const snap = docDel('rows', dr.dataset.delRow); touchItem(it.id); render(true); toast('Row deleted', ()=>docSet('rows', snap)); }
   }
   function input(e, it){
-    if(e.target.id==='colFilter'){ filter[it.id] = e.target.value; const pos=e.target.selectionStart; render(true); const f=$('#colFilter'); f.focus(); f.setSelectionRange(pos,pos); return; }
+    if(e.target.id==='colFilter'){ filter[it.id] = e.target.value; const pos=e.target.selectionStart; render(true); const f=Q(it,'#colFilter'); f.focus(); f.setSelectionRange(pos,pos); return; }
     const el = e.target; if(!el.dataset.row) return;
     const fld = (it.fields||[]).find(x=>x.id===el.dataset.field); if(!fld) return;
     const k = el.dataset.row+':'+fld.id; clearTimeout(saveT[k]);

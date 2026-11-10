@@ -14,7 +14,7 @@
   --shadow-lift:0 10px 30px rgba(0,0,0,.12);
   --pop-shadow:0 14px 44px rgba(0,0,0,.16),0 0 0 1px rgba(0,0,0,.05);
   --scrim:rgba(0,0,0,.28);
-  --board:#0071e3;
+  --board:#0071e3; --icon:#8e8e93;
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Helvetica Neue",Helvetica,Arial,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --side-w:264px;
@@ -884,3 +884,73 @@ html{overscroll-behavior:none}
   .card.mv-top > .mv{position:absolute;top:4px;right:36px;bottom:auto;width:32px;height:32px;opacity:1;color:var(--muted);margin:0}
   .card.mv-top .card-head{padding-right:62px}
 }
+
+/* ===== beta.19 ===== */
+/* every icon in one neutral colour */
+.nav-item .ti{background:none;color:var(--icon)}
+.nav-item .ti svg{width:17px;height:17px}
+.nav-item[aria-current="page"] .ti{color:var(--fg)}
+.ihead .ti{background:var(--fill);color:var(--icon)}
+.type-opt .ti{background:var(--fill);color:var(--icon)}
+.s-ic{background:var(--fill);color:var(--icon)}
+.lrow .m i{background:var(--icon)!important}
+/* sidebar folders: below the custom items, draggable */
+.nav-folders{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.nav-folder .nav-h{cursor:grab}
+.nav-folder .nav-list{padding-left:10px;min-height:6px}
+.nav-folder.collapsed .nav-list{display:none}
+.nav-list.sortable-ghost,.nav-item.sortable-ghost{opacity:.35}
+.nav-item.sortable-drag,.nav-folder.sortable-drag{box-shadow:var(--shadow-lift);background:var(--panel);border-radius:8px}
+/* Kanban page: fixed tabs, then three distinct filter groups */
+.kb{display:flex;flex-direction:column;gap:12px;min-width:0}
+.kb-top{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+.kb-top .seg{flex-wrap:nowrap}
+.kb-top .btn{white-space:nowrap}
+.fgroups{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.fgroup{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 8px 6px 10px;border-radius:12px;background:var(--panel);border:1px solid var(--sep);min-width:0;max-width:100%}
+.fg-l{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.chip-btn.tog{gap:6px}
+.chip-btn.tog::before{content:"";width:22px;height:13px;border-radius:7px;background:var(--sw-off);box-shadow:inset 0 0 0 1px var(--sep);transition:background .15s;flex:none;
+  background-image:radial-gradient(circle at 6.5px 50%, #fff 4.5px, transparent 5px)}
+.chip-btn.tog[aria-pressed="true"]::before{background-color:var(--sw-on);background-image:radial-gradient(circle at 15.5px 50%, #fff 4.5px, transparent 5px)}
+.lane-more{margin-left:auto}
+@media (max-width:860px){
+  .fgroups{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 calc(-1 * var(--gut,16px));padding:0 var(--gut,16px)}
+  .fgroups::-webkit-scrollbar{display:none}
+  .fgroup{flex-wrap:nowrap;flex:none}
+  .fgroup .chip-btn{white-space:nowrap}
+}
+/* card: due date bottom-right */
+.card .meta .mr{margin-left:auto;display:inline-flex;align-items:center;gap:6px}
+.card .meta .has-notes{display:none}
+/* Page: blocks */
+.blocks{display:flex;flex-direction:column;gap:16px}
+.block{display:flex;flex-direction:column;gap:6px;min-width:0}
+.blk-bar{display:flex;align-items:center;gap:6px;min-height:30px;padding:0 2px}
+.blk-grip{cursor:grab;color:var(--muted);display:grid;place-items:center;width:22px;height:26px;touch-action:none}
+.blk-grip svg{width:14px;height:14px}
+.blk-ic{color:var(--icon);display:grid;place-items:center}
+.blk-ic svg{width:15px;height:15px}
+.blk-name{flex:1 1 auto;min-width:0;border:0;background:none;font:inherit;font-weight:600;font-size:15px;color:var(--fg);padding:4px 6px;border-radius:6px}
+.blk-name:hover{background:var(--fill-2)}
+.blk-name:focus{outline:none;background:var(--panel);box-shadow:0 0 0 3px var(--accent-ring)}
+.blk-kind{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:none}
+.blk-bar .icon-btn.mini{opacity:.55}
+.block:hover .blk-bar .icon-btn.mini,.block:focus-within .blk-bar .icon-btn.mini{opacity:1}
+.blk-body{background:var(--panel);border:1px solid var(--sep);border-radius:14px;padding:14px;min-width:0;box-shadow:var(--shadow)}
+.blk-body .panel{background:none;border:0;box-shadow:none;padding:0;margin:0}
+.blk-body .note-edit{min-height:160px}
+.block.sortable-ghost{opacity:.35}
+.block.sortable-drag{box-shadow:var(--shadow-lift)}
+.blk-add{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px;padding:12px;border:1.5px dashed var(--line);border-radius:14px}
+.blk-add .pill svg{width:14px;height:14px}
+@media (hover:none){ .blk-bar .icon-btn.mini{opacity:1} .blk-name{font-size:16px} }
+@media (max-width:560px){ .blk-kind{display:none} .blk-body{padding:12px} }
+.btn:has(svg){display:inline-flex;align-items:center;gap:6px}
+.btn svg{width:14px;height:14px;flex:none}
+.blk-body .note-body{min-height:0;padding:6px 4px;border-radius:0;background:none}
+.blk-body .note-edit{padding:10px 12px;border-radius:10px;background:var(--fill-2)}
+.blk-body .note-tools{margin-bottom:8px}
+/* touch: a card with no footer keeps ⇄ in the top-right corner (under the pin when pinned), clear of the subtasks */
+.card.mv-top .mv{top:6px;bottom:auto}
+.card.mv-top.pinned .mv{top:36px}

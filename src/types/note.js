@@ -3,9 +3,11 @@
    item.body holds the text.
    ============================================================ */
 TYPE_VIEWS.note = (() => {
+  const R = it => document.querySelector(`[data-root="${CSS.escape(it.id)}"]`) || $('#tv');   // this item's own root (it may be one block of a Page)
+  const Q = (it, sel) => R(it)?.querySelector(sel);
   const mode = {};             // item id -> 'write' | 'read'
   let timer = null;
-  const findByName = n => S.items.find(i => (i.name||'').trim().toLowerCase() === n.trim().toLowerCase());
+  const findByName = n => S.items.find(i => isTop(i) && (i.name||'').trim().toLowerCase() === n.trim().toLowerCase());
 
   function inline(raw){
     // raw is unescaped text for one line
@@ -48,48 +50,49 @@ TYPE_VIEWS.note = (() => {
   }
   function backlinks(it){
     const key = '[['+(it.name||'').trim().toLowerCase()+']]';
-    const notes = S.items.filter(x => x.id!==it.id && x.type==='note' && (x.body||'').toLowerCase().includes(key));
+    const notes = S.items.filter(x => x.id!==it.id && x.type==='note' && (x.body||'').toLowerCase().includes(key)).map(topOf).filter((x,i,a)=>x && x.id!==topOf(it)?.id && a.indexOf(x)===i);
     const tasks = S.tasks.filter(t => (t.notes||'').toLowerCase().includes(key));
     return {notes, tasks};
   }
 
   function view(it, root){
+    root.dataset.root = it.id;
     const m = mode[it.id] || ((it.body||'').trim() ? 'read' : 'write');
     const words = (it.body||'').trim() ? (it.body.trim().split(/\s+/).length) : 0;
     const bl = backlinks(it);
     root.innerHTML = `
       <div class="note-tools"><div class="seg" role="group" aria-label="Mode"><button data-seg="read" aria-pressed="${m==='read'}">Read</button><button data-seg="write" aria-pressed="${m==='write'}">Write</button></div>
         <span class="caption" id="noteSaved" role="status" aria-live="polite">${plural(words,'word')}</span>
-        <span class="spacer"></span><span class="caption">${m==='write'?'# Heading · - list · - [ ] checkbox · **bold** · [[Item name]] link':'Double-click the page to edit'}</span></div>
+        <span class="spacer"></span><span class="caption">${m==='write'?'# Heading · - list · - [ ] checkbox · **bold** · [[Item name]] link':(TOUCH?'Double-tap':'Double-click')+' the text to edit'}</span></div>
       ${m==='write'
         ? `<textarea class="note-edit" id="noteBody" aria-label="Note text" placeholder="Start writing…\n\n# Heading\n- [ ] A checkbox\nLink another item with [[Home loan rate]]">${esc(it.body||'')}</textarea>`
         : `<article class="note-body md" id="noteRead">${(it.body||'').trim() ? toHTML(it.body) : '<p style="color:var(--muted)">This note is empty. Switch to Write to start.</p>'}</article>`}
       ${(bl.notes.length||bl.tasks.length)?`<section class="panel"><div class="panel-h"><h2>Linked from</h2><span class="caption">${plural(bl.notes.length+bl.tasks.length,'place')}</span></div><div class="backlinks">${bl.notes.map(n=>`<a class="chip-btn" href="#i-${esc(n.id)}" style="--c:${itemColor(n)};text-decoration:none"><span class="dot"></span>${esc(n.name)}</a>`).join('')}${bl.tasks.map(t=>`<button class="chip-btn" data-open="task:${esc(t.id)}" style="--c:${itemColor(itemById(t.boardId))}"><span class="dot"></span>${esc(t.title)}</button>`).join('')}</div></section>`:''}`;
-    if(m==='write'){ const ta=$('#noteBody'); autoSize(ta); }
+    if(m==='write'){ const ta=root.querySelector('#noteBody'); autoSize(ta); }
   }
-  const autoSize = ta => { if(!ta) return; ta.style.height='auto'; ta.style.height=Math.max(420, ta.scrollHeight+4)+'px'; };
+  const autoSize = ta => { if(!ta) return; ta.style.height='auto'; ta.style.height=Math.max(160, ta.scrollHeight+4)+'px'; };
   function save(it, v){
     window.__typingItem = it.id; clearTimeout(timer);
-    timer = setTimeout(()=>{ docPatch('items', it.id, {body:v}); window.__typingItem=null; const s=$('#noteSaved'); if(s) s.textContent = 'Saved · '+plural(v.trim()?v.trim().split(/\s+/).length:0,'word'); renderSide(); }, 500);
+    timer = setTimeout(()=>{ docPatch('items', it.id, {body:v}); window.__typingItem=null; const s=Q(it,'#noteSaved'); if(s) s.textContent = 'Saved · '+plural(v.trim()?v.trim().split(/\s+/).length:0,'word'); renderSide(); }, 500);
   }
-  function setMode(it, m){ if(timer){ clearTimeout(timer); const ta=$('#noteBody'); if(ta) docPatch('items', it.id, {body:ta.value}); window.__typingItem=null; timer=null; } mode[it.id]=m; view(it, $('#tv')); if(m==='write'){ const ta=$('#noteBody'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } else restoreFocus('[data-seg="read"]'); }
+  function setMode(it, m){ if(timer){ clearTimeout(timer); const ta=Q(it,'#noteBody'); if(ta) docPatch('items', it.id, {body:ta.value}); window.__typingItem=null; timer=null; } mode[it.id]=m; view(it, R(it)); if(m==='write'){ const ta=Q(it,'#noteBody'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } else restoreFocus('[data-seg="read"]'); }
 
   function click(e, it){
     const sg = e.target.closest('[data-seg]'); if(sg) return setMode(it, sg.dataset.seg);
     const cb = e.target.closest('[data-line]');
-    if(cb){ const lines=(it.body||'').split('\n'); const i=+cb.dataset.line; lines[i] = lines[i].replace(/\[( |x|X)\]/, m => m==='[ ]'?'[x]':'[ ]'); docPatch('items', it.id, {body:lines.join('\n')}); view(it, $('#tv')); restoreFocus(`[data-line="${i}"]`); return; }
+    if(cb){ const lines=(it.body||'').split('\n'); const i=+cb.dataset.line; lines[i] = lines[i].replace(/\[( |x|X)\]/, m => m==='[ ]'?'[x]':'[ ]'); docPatch('items', it.id, {body:lines.join('\n')}); view(it, R(it)); restoreFocus(`[data-line="${i}"]`, R(it)); return; }
     const wl = e.target.closest('[data-wl]');
     if(wl){ const name = wl.dataset.wl; const t = findByName(name); if(t) return go('i-'+t.id);
-      const n = buildItem('note', 'blank', name.trim(), it.folderId, null); docSet('items', n); go('i-'+n.id); toast('Created note “'+n.name+'”', ()=>{ docDel('items', n.id); go('i-'+it.id); }); }
+      const pg = topOf(it); const n = buildItem('page', name.trim(), pg?.folderId||''); const tb = buildItem('note', 'Text', '', n.id); docSet('items', n); docSet('items', tb); go('i-'+n.id); toast('Created page “'+n.name+'”', ()=>{ docDel('items', tb.id); docDel('items', n.id); go('i-'+pg.id); }); }
   }
   function input(e, it){ if(e.target.id==='noteBody'){ autoSize(e.target); save(it, e.target.value); } }
   function keydown(e, it){
     if(e.target.id==='noteBody' && (e.metaKey||e.ctrlKey) && e.key==='Enter'){ e.preventDefault(); setMode(it, 'read'); }
   }
-  $('#content').addEventListener('dblclick', e => { const it=currentItem(); if(it?.type==='note' && e.target.closest('#noteRead') && !e.target.closest('button,a')) setMode(it, 'write'); });
-  $('#content').addEventListener('focusout', e => { if(e.target.id==='noteBody' && timer){ const it=currentItem(); if(it){ clearTimeout(timer); timer=null; docPatch('items', it.id, {body:e.target.value}); window.__typingItem=null; } } });
+  $('#content').addEventListener('dblclick', e => { const r=e.target.closest('[data-root]'); const it=r && itemById(r.dataset.root); if(it?.type==='note' && e.target.closest('#noteRead') && !e.target.closest('button,a')) setMode(it, 'write'); });
+  $('#content').addEventListener('focusout', e => { if(e.target.id==='noteBody' && timer){ const r=e.target.closest('[data-root]'); const it=r && itemById(r.dataset.root); if(it){ clearTimeout(timer); timer=null; docPatch('items', it.id, {body:e.target.value}); window.__typingItem=null; } } });
 
   return {narrow:true, render:view, click, input, keydown, toHTML,
-    focusStart(it){ mode[it.id]='write'; view(it, $('#tv')); $('#noteBody')?.focus(); },
+    focusStart(it){ mode[it.id]='write'; view(it, R(it)); Q(it,'#noteBody')?.focus(); },
     newShortcut(it){ setMode(it, 'write'); }};
 })();

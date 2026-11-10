@@ -47,14 +47,22 @@ const ICON = {
   link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
   sort:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m8 10 4-4 4 4M8 14l4 4 4-4"/></svg>',
 };
+/* Item types. Kanban, Bills, Tracker and Page are created from New item; a Kanban holds stacks, a Page holds
+   blocks (Text, Checklist, Table), and those live as items with a `parent`. */
+ICON.page = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M7.5 8h9M7.5 12h9M7.5 16h5" stroke-linecap="round"/></svg>';
+ICON.stack = ICON.kanban;
 const TYPES = {
-  kanban:    {label:'Kanban',     color:'slate',   desc:'Columns of cards you drag along. Your Life Boards.'},
-  note:      {label:'Note',       color:'amber',  desc:'A page of writing with headings, checklists and [[links]].'},
-  collection:{label:'Table',      color:'green',  desc:'A table with fields you choose: accounts, coupons, renewals.'},
-  tracker:   {label:'Tracker',    color:'indigo', desc:'Dated numbers with a chart: loan rate, balances, weight.'},
+  kanban:    {label:'Kanban',     color:'slate',  desc:'Stacks of To Do / In Progress / Done columns you drag cards across.'},
   bills:     {label:'Bills',      color:'orange', desc:'Recurring bills and renewals on a yearly timeline, with paid ticks.'},
-  checklist: {label:'Checklist',  color:'teal',   desc:'A reusable list to tick through: packing, monthly admin.'},
+  tracker:   {label:'Tracker',    color:'indigo', desc:'Dated numbers with a chart: loan rate, balances, weight.'},
+  page:      {label:'Page',       color:'amber',  desc:'A page you build from blocks: text, checklists and tables.'},
+  stack:     {label:'Stack',      color:'slate',  part:true},
+  note:      {label:'Text',       color:'amber',  part:true},
+  checklist: {label:'Checklist',  color:'teal',   part:true},
+  collection:{label:'Table',      color:'green',  part:true},
 };
+const isTop = i => !i.parent;                    // stacks and page blocks have a parent
+const topOf = i => i?.parent ? itemById(i.parent) || i : i;   // the sidebar item something belongs to
 const TYPE_VIEWS = {};
 const CHANGELOG = '__CHANGELOG__';
 function toggleShowDone(){ S.showDone = !S.showDone; ls.set('lo.showDone', S.showDone?'1':'0'); render(true); }   // filled in by build.py from CHANGELOG.md
@@ -101,7 +109,9 @@ const itemById = id => S.items.find(i=>i.id===id);
 const folderById = id => S.folders.find(f=>f.id===id);
 const itemsIn = fid => S.items.filter(i=>(i.folderId||'')===(fid||'')).sort((a,b)=>(a.order??0)-(b.order??0));
 const sortedFolders = () => S.folders.slice().sort((a,b)=>(a.order??0)-(b.order??0));
-const kanbans = () => S.items.filter(i=>i.type==='kanban');
+const kanbans = () => S.items.filter(i=>i.type==='stack');                       // every stack, across all Kanbans
+const stacksOf = kid => S.items.filter(i=>i.type==='stack' && i.parent===kid).sort((a,b)=>(a.order??0)-(b.order??0)||(a.name||'').localeCompare(b.name||''));
+const blocksOf = pid => S.items.filter(i=>i.parent===pid && i.type!=='stack').sort((a,b)=>(a.order??0)-(b.order??0));
 
 /* ---------- store: the only code that knows about the database.
    Swap this object for a PocketBase version later; the rest of the app stays the same. ---------- */
@@ -309,64 +319,78 @@ function render(force){
 $('#content').addEventListener('focusout', () => setTimeout(()=>{ if(contentPending && !isEditing() && !S.dragging) render(true); }, 160));
 
 function currentItem(){ return S.route.v==='item' ? itemById(S.route.id) : null; }
+/* old links: #tasks / #archive open the first Kanban; a stack or a block opens the item it belongs to */
+function resolveRoute(){
+  if(!S.loaded.items) return false;
+  if(S.route.v==='tasks' || S.route.v==='archive'){ const k = itemsOf(i=>i.type==='kanban')[0]; if(k){ S.tasksView.mode = S.route.v==='archive' ? 'archive' : S.tasksView.mode==='archive' ? 'board' : S.tasksView.mode; location.replace('#i-'+k.id); S.route={v:'item', id:k.id}; return false; } }
+  const it = currentItem(); if(it?.parent){ location.replace('#i-'+it.parent); S.route={v:'item', id:it.parent}; }
+  return false;
+}
 /* Kanbans (categories) all share one standard colour; other item types keep their type colour. */
-function itemColor(it){ return it?.type==='kanban' ? COLORS.slate : colorOf(it?.color || TYPES[it?.type]?.color); }
+function itemColor(it){ return 'var(--icon)'; }   // every icon is one neutral colour
 
 /* ----- sidebar ----- */
 let navSortables = [];
 function navItemHTML(it){
   const cur = S.route.v==='item' && S.route.id===it.id && !S.q;
   let ct = '';
-  if(it.type==='kanban') ct = S.tasks.filter(t=>t.boardId===it.id && !['done','backburner'].includes(t.col)).length || '';
-  else if(it.type==='checklist'){ const e=it.entries||[]; ct = e.length ? `${e.filter(x=>x.done).length}/${e.length}` : ''; }
-  else if(it.type==='collection') ct = S.rows.filter(r=>r.itemId===it.id).length || '';
+  if(it.type==='kanban'){ const ids = stacksOf(it.id).map(s=>s.id); ct = S.tasks.filter(t=>ids.includes(t.boardId) && !['done','backburner'].includes(t.col)).length || ''; }
   else if(it.type==='bills') ct = TYPE_VIEWS.bills.pending(it, 30).length || '';
-  return `<a class="nav-item" href="#i-${esc(it.id)}" data-id="${esc(it.id)}" ${cur?'aria-current="page"':''} style="--c:${itemColor(it)}"><span class="ti" aria-hidden="true">${ICON[it.type]}</span><span class="nm">${esc(it.name||'Untitled')}</span>${ct!==''?`<span class="ct" aria-label="${esc(String(ct))}">${ct}</span>`:''}</a>`;
+  return `<a class="nav-item" href="#i-${esc(it.id)}" data-id="${esc(it.id)}" ${cur?'aria-current="page"':''} style="--c:${itemColor(it)}"><span class="ti" aria-hidden="true">${ICON[it.type]}</span><span class="nm">${esc(it.name||'Untitled')}</span>${ct!==''?`<span class="ct" aria-label="${esc(String(ct))}">${ct}</span>`:''}${TOUCH&&cur?`<button class="icon-btn mini nav-more" data-act="item-menu" data-iid="${esc(it.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(it.name)} options">${ICON.more}</button>`:''}</a>`;
 }
-/* Sidebar: Home, then two groups.
-   Custom  — purpose-built pages: All tasks (with every Kanban and the Archive under it), Bills, Trackers.
-   General — free-form pages: Notes, Tables (collections), Checklists. */
-const TYPE_GROUP = {kanban:'custom', bills:'custom', tracker:'custom', note:'general', collection:'general', checklist:'general'};
+/* Sidebar: Home · custom items (Kanbans, Bills, Trackers; drag to reorder) · folders of Pages (drag folders, and
+   drag pages within or between folders) · unfiled Pages. Right-click an item or folder for its options. */
+const TYPE_GROUP = {kanban:'custom', bills:'custom', tracker:'custom', page:'page'};
 const byOrder = (a,b) => (a.order??0)-(b.order??0) || (a.name||'').localeCompare(b.name||'');
-const itemsOf = (pred) => S.items.filter(pred).sort(byOrder);
+const itemsOf = (pred) => S.items.filter(i=>isTop(i) && pred(i)).sort(byOrder);
 function renderSide(){
   const el = $('#nav');
-  const navLink = (v,l,ic,sub) => `<a class="nav-item ${sub?'sub':''}" href="#${v}" ${S.route.v===v&&!S.q?'aria-current="page"':''}><span class="ti plain" aria-hidden="true">${ic}</span><span class="nm">${l}</span></a>`;
-  const group = (key, title, body) => { const open = !S.collapsed.has(key);
-    return `<div class="nav-group" data-key="g-${key}"><div class="nav-h"><button class="fold" data-act="fold" data-fid="${key}" aria-expanded="${open}">${ICON.chevD}<span>${title}</span></button></div><div class="nav-body" ${open?'':'hidden'}>${body}</div></div>`; };
-  const boards = itemsOf(i=>i.type==='kanban'), other = itemsOf(i=>TYPE_GROUP[i.type]==='custom' && i.type!=='kanban'), general = itemsOf(i=>TYPE_GROUP[i.type]==='general');
+  const navLink = (v,l,ic) => `<a class="nav-item" href="#${v}" ${S.route.v===v&&!S.q?'aria-current="page"':''}><span class="ti plain" aria-hidden="true">${ic}</span><span class="nm">${l}</span></a>`;
+  const custom = itemsOf(i=>TYPE_GROUP[i.type]==='custom');
+  const pagesIn = fid => itemsOf(i=>i.type==='page' && (i.folderId||'')===fid && (fid==='' || folderById(fid)));
+  const loose = itemsOf(i=>i.type==='page' && (!i.folderId || !folderById(i.folderId)));
   let html = `<div class="nav-group">${navLink('home','Home',ICON.home)}</div>`;
-  html += group('custom','Custom',
-    navLink('tasks','All tasks',ICON.tasks) +
-    `<div class="nav-list sub" data-list="kanban">${boards.map(navItemHTML).join('')}</div>` +
-    navLink('archive','Archive',ICON.archive,true) +
-    `<div class="nav-list" data-list="custom">${other.map(navItemHTML).join('')}</div>`);
-  html += group('general','General', `<div class="nav-list" data-list="general">${general.map(navItemHTML).join('')}${general.length?'':`<div class="nav-empty">Notes, tables and checklists go here</div>`}</div>`);
-  html += `<div class="side-foot"><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button></div>`;
+  html += `<div class="nav-group"><div class="nav-list" data-list="custom">${custom.map(navItemHTML).join('')}</div></div>`;
+  html += `<div class="nav-folders">${sortedFolders().map(f=>{ const open=!S.collapsed.has(f.id); const its=pagesIn(f.id);
+    return `<div class="nav-group nav-folder" data-fid="${esc(f.id)}" data-key="f-${esc(f.id)}"><div class="nav-h" data-folder="${esc(f.id)}"><button class="fold" data-act="fold" data-fid="${esc(f.id)}" aria-expanded="${open}">${ICON.chevD}<span>${esc(f.name)}</span></button>${TOUCH?`<button class="icon-btn mini" data-act="folder-menu" data-fid="${esc(f.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(f.name)} options">${ICON.more}</button>`:''}</div>
+      <div class="nav-list" data-list="pages" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}${its.length?'':`<div class="nav-empty">Drag pages here</div>`}</div></div>`; }).join('')}</div>`;
+  if(loose.length || !S.folders.length) html += `<div class="nav-group"><div class="nav-list" data-list="pages" data-fid="">${loose.map(navItemHTML).join('')}</div></div>`;
+  html += `<div class="side-foot"><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
   const fk = el.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   navSortables.forEach(s=>s.destroy()); navSortables=[];
   el.innerHTML = html;
-  $$('.nav-list', el).forEach(list => navSortables.push(Sortable.create(list, {
-    group:'nav-'+list.dataset.list, draggable:'.nav-item', animation:RM?0:150, delay:200, delayOnTouchOnly:true, ghostClass:'ghost',
-    onStart(){ S.dragging=true }, onEnd(){ S.dragging=false; saveNavOrder(); render(true); }
-  })));
+  const opts = {animation:RM?0:150, delay:250, delayOnTouchOnly:true, ghostClass:'ghost', onStart(){ S.dragging=true }, onEnd(){ S.dragging=false; saveNavOrder(); render(true); }};
+  $$('.nav-list', el).forEach(list => navSortables.push(Sortable.create(list, {...opts, group:'nav-'+list.dataset.list, draggable:'.nav-item'})));
+  const fl = $('.nav-folders', el); if(fl) navSortables.push(Sortable.create(fl, {...opts, draggable:'.nav-folder', handle:'.nav-h'}));
   if(fk) restoreFocus(fk, el);
 }
 function saveNavOrder(){
   $$('#nav .nav-list').forEach(list => {
-    $$('.nav-item[data-id]', list).forEach((a,i) => { const it=itemById(a.dataset.id); if(it && it.order!==i) docPatch('items', it.id, {order:i, updated:it.updated||nowIso()}); });
+    const fid = list.dataset.fid;
+    $$('.nav-item[data-id]', list).forEach((a,i) => { const it=itemById(a.dataset.id); if(!it) return; const p = {};
+      if(it.order!==i) p.order = i; if(fid!==undefined && (it.folderId||'')!==fid) p.folderId = fid;
+      if(Object.keys(p).length) docPatch('items', it.id, {...p, updated:it.updated||nowIso()}); });
   });
+  $$('#nav .nav-folder').forEach((g,i) => { const f=folderById(g.dataset.fid); if(f && f.order!==i) docPatch('folders', f.id, {order:i}); });
 }
+/* right-click (or the ••• on touch) */
+function navContextMenu(e){
+  const a = e.target.closest('.nav-item[data-id]'), h = e.target.closest('.nav-h[data-folder]');
+  if(!a && !h) return;
+  e.preventDefault();
+  const at = {getBoundingClientRect:()=>({left:e.clientX, right:e.clientX, top:e.clientY, bottom:e.clientY, width:0, height:0}), setAttribute(){}, focus(){}};
+  if(a) itemMenu(at, itemById(a.dataset.id)); else folderMenu(at, h.dataset.folder);
+}
+$('#side').addEventListener('contextmenu', navContextMenu);
 
 /* ----- top bar ----- */
 function renderBar(){
   const it = currentItem(); const f = it && folderById(it.folderId);
   let crumbs;
   if(S.q) crumbs = `<b>Search</b>`;
-  else if(it) crumbs = `${it.type==='kanban'?`<a href="#tasks">All tasks</a>`:`<span>${TYPE_GROUP[it.type]==='custom'?'Custom':'General'}</span>`}<span class="sep" aria-hidden="true">›</span><b>${esc(it.name||'Untitled')}</b>`;
+  else if(it) crumbs = `${f?`<span>${esc(f.name)}</span><span class="sep" aria-hidden="true">›</span>`:''}<b>${esc(it.name||'Untitled')}</b>`;
   else crumbs = `<b>${{home:'Home',tasks:'All tasks',archive:'Archive'}[S.route.v]||'Home'}</b>`;
   $('#crumbs').innerHTML = crumbs;
-  $('#itemMenu').hidden = !it || !!S.q;
 }
 
 /* ----- content ----- */
@@ -374,8 +398,7 @@ function renderContent(){
   const c = $('#content');
   if(!S.loaded.items){ c.innerHTML = `<div class="wrap"><div class="empty-state">Loading your organiser…</div></div>`; return; }
   if(S.q) return renderSearch(c);
-  if(S.route.v==='tasks') return renderTasks(c);
-  if(S.route.v==='archive') return renderArchive(c);
+  resolveRoute();
   if(S.route.v==='item'){
     const it = currentItem();
     if(!it){ c.innerHTML = `<div class="wrap"><div class="empty-state"><b>This item doesn’t exist any more</b>It may have been deleted. <a class="link" href="#home">Go to Home</a></div></div>`; return; }
@@ -414,7 +437,7 @@ function comingUp(){
     const titleField = (it.fields||[]).find(f=>f.type==='text');
     for(const r of S.rows.filter(r=>r.itemId===it.id)){
       if(boxFields.some(f=>r.values?.[f.id])) continue;     // ticked (e.g. Used) rows drop off Home
-      for(const f of dateFields){ const v=r.values?.[f.id]; if(v && dayDiff(v)<=HOME_DAYS && dayDiff(v)>=-7) out.push({kind:'row', date:v, title:(titleField&&r.values?.[titleField.id])||'Untitled', what:f.name, item:it, row:r}); }
+      for(const f of dateFields){ const v=r.values?.[f.id]; if(v && dayDiff(v)<=HOME_DAYS && dayDiff(v)>=-7) out.push({kind:'row', date:v, title:(titleField&&r.values?.[titleField.id])||'Untitled', what:f.name, item:topOf(it), row:r}); }
     }
   }
   for(const it of S.items.filter(i=>i.type==='bills'))
@@ -436,7 +459,8 @@ function renderHome(c){
   const billItems = S.items.filter(i=>i.type==='bills');
   const billsDue = billItems.reduce((n,i)=>n+TYPE_VIEWS.bills.pending(i,30).length, 0);
   const trackers = S.items.filter(i=>i.type==='tracker');
-  const recent = S.items.slice().sort((a,b)=>(b.updated||b.created||'').localeCompare(a.updated||a.created||'')).slice(0,6);
+  const touched = i => S.items.filter(x=>x.parent===i.id).reduce((m,x)=>(x.updated||'')>m?x.updated:m, i.updated||i.created||'');   // a page counts its blocks' edits
+  const recent = S.items.filter(isTop).map(i=>({...i, updated:touched(i)})).sort((a,b)=>b.updated.localeCompare(a.updated)).slice(0,6);
   c.innerHTML = `<div class="wrap">
     <div><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p><h1 class="big">Home</h1></div>
     <div class="stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return `<button class="stat" data-quick="${q.id}" style="--sc:${q.c}" ${!n&&q.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[q.ic]}</i><b>${n}</b></span><span>${q.label}</span></button>`}).join('')}${billItems.length?`<button class="stat" data-open="item:${esc(billItems[0].id)}" style="--sc:#ff9500"><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON.bills}</i><b>${billsDue}</b></span><span>Bills due in 30 days</span></button>`:''}</div>
@@ -485,58 +509,74 @@ function taskRow(t){
   const b = itemById(t.boardId); const d = t.due ? dueLabel(t.due) : null; const col = {upcoming:'To Do',todo:'To Do',doing:'In Progress',done:'Done',backburner:'Backburner'}[t.col];
   return `<button class="lrow" data-open="task:${esc(t.id)}"><span class="t">${bangHTML(t.priority)}${esc(t.title||'Untitled')}${chipHTML(t)}</span><span class="m"><i style="--c:${itemColor(b)}"></i>${esc(b?.name||'')} · <span class="status ${t.col}">${col}</span></span><span class="r ${d?d.cls:''}">${d?esc(d.t):''}</span></button>`;
 }
-function renderTasks(c){
-  const V = S.tasksView;
-  const boards = kanbans().filter(b=>!b.hidden);
-  const shown = boards.filter(b=>V.boards.size===0 || V.boards.has(b.id));
-  const pool = S.tasks.filter(t=>{ const b=itemById(t.boardId); return b && !b.hidden && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)); });
+const doneYear = t => t.doneAt ? new Date(t.doneAt).getFullYear() : CUR_YEAR;
+/* ----- Kanban item: Board / List / Archive of its stacks ----- */
+function renderKanban(k, root){
+  const V = S.tasksView; const mode = V.mode || 'board';
+  const stacks = stacksOf(k.id).filter(b=>!b.hidden);
+  const ids = new Set(stacks.map(b=>b.id));
+  [...V.boards].forEach(id=>{ if(!ids.has(id)) V.boards.delete(id); });
+  const shown = stacks.filter(b=>V.boards.size===0 || V.boards.has(b.id));
+  const pool = S.tasks.filter(t=>ids.has(t.boardId) && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)));
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
-  const modeSeg = `<div class="seg" role="group" aria-label="View">${[['board','Board'],['list','List']].map(([k,l])=>`<button data-mode="${k}" aria-pressed="${(V.mode||'board')===k}">${l}</button>`).join('')}</div>`;
-  const boardChips = `<div class="toolbar chips" role="group" aria-label="Boards"><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${boards.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}" style="--c:${itemColor(b)}"><span class="dot"></span>${esc(b.name)}</button>`).join('')}</div>`;
-  const bbSwitch = `<button class="switch" role="switch" aria-checked="${S.showDone}" data-act="done"><span class="sw-track" aria-hidden="true"></span>Done</button><button class="switch" role="switch" aria-checked="${V.bb}" data-act="bb"><span class="sw-track" aria-hidden="true"></span>Backburner</button>`;
-  if((V.mode||'board')==='board'){
-    const quickChips = `<div class="toolbar chips" role="group" aria-label="Quick filters">${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" style="--c:${x.c}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>`;
-    c.innerHTML = `<div class="wrap wide tasks-board">
-      <div class="tb-head"><div><h1 class="big">All tasks</h1></div>${modeSeg}</div>
-      <div class="tb-filters">${quickChips}${boardChips}${bbSwitch}</div>
-      ${shown.length ? '<div id="lanesRoot"></div>' : `<div class="panel empty-state">No Kanbans to show.</div>`}
-    </div>`;
+  /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
+  const tabs = `<div class="kb-top"><div class="seg" role="group" aria-label="View">${[['board','Board'],['list','List'],['archive','Archive']].map(([m,l])=>`<button data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div><span class="spacer"></span><button class="btn" data-act="add-stack">${ICON.plus} Stack</button></div>`;
+  /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
+  const groups = mode==='archive' ? '' : `<div class="fgroups">
+    <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
+    <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}</div>
+    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone}">Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
+  </div>`;
+  if(mode==='archive'){ root.innerHTML = `<div class="kb">${tabs}<div id="kbArch"></div></div>`; return renderArchive($('#kbArch'), stacksOf(k.id)); }
+  if(!stacks.length){ root.innerHTML = `<div class="kb">${tabs}<div class="panel empty-state"><b>No stacks yet</b>A stack is a set of To Do, In Progress and Done columns, for example Home or Work. <button class="pill" data-act="add-stack" style="margin-top:12px">${ICON.plus} Add a stack</button></div></div>`; return; }
+  if(mode==='board'){
+    root.innerHTML = `<div class="kb tasks-board">${tabs}${groups}${shown.length ? '<div id="lanesRoot"></div>' : `<div class="panel empty-state">Pick a stack above.</div>`}</div>`;
     if(shown.length) TYPE_VIEWS.kanban.lanes(shown, $('#lanesRoot'), {bb:V.bb, done:S.showDone, test: V.quick==='open' ? null : q.test});
     return;
   }
   const list = pool.filter(q.test);
   const tie = (a,b) => byDue(a,b) || (a.updated||'').localeCompare(b.updated||'');
-  let groups;
-  if(V.sort==='priority'){ list.sort((a,b)=>(PRANK[a.priority||'']-PRANK[b.priority||''])||tie(a,b)); groups=['high','med','low',''].map(p=>({title:p?PRIO[p].label+' priority':'No priority', bang:p, items:list.filter(t=>(t.priority||'')===p)})); }
-  else if(V.sort==='board'){ list.sort((a,b)=>(PRANK[a.priority||'']-PRANK[b.priority||''])||tie(a,b)); groups=boards.map(b=>({title:b.name, c:itemColor(b), items:list.filter(t=>t.boardId===b.id)})); }
-  else if(V.sort==='due'){ list.sort((a,b)=>byDue(a,b)||(PRANK[a.priority||'']-PRANK[b.priority||''])); groups=[{title:'By due date', items:list}]; }
-  else { list.sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')); groups=[{title:'Recently updated', items:list}]; }
-  groups = groups.filter(g=>g.items.length);
-  c.innerHTML = `<div class="wrap">
-    <div class="tb-head"><div><h1 class="big">All tasks</h1></div>${modeSeg}</div>
-    <div class="stats" role="group" aria-label="Quick filters">${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="stat" data-quick="${x.id}" aria-pressed="${on}" style="--sc:${x.c}" ${!n&&!on&&x.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[x.ic]}</i><b>${n}</b></span><span>${x.label}</span></button>`}).join('')}</div>
-    <div class="toolbar"><span class="lbl" id="sLbl">Sort</span><div class="seg" role="group" aria-labelledby="sLbl">${[['priority','Priority'],['due','Due date'],['board','Board'],['updated','Recently updated']].map(([k,l])=>`<button data-sort="${k}" aria-pressed="${V.sort===k}">${l}</button>`).join('')}</div>
-      ${boardChips}${bbSwitch}</div>
-    ${groups.length ? groups.map(g=>`<section class="panel"><div class="panel-h"><h2>${g.bang?bangHTML(g.bang):''}${g.c?`<span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${g.c};margin-right:8px"></span>`:''}${esc(g.title)}</h2><span class="caption">${g.items.length}</span></div><div class="list-rows">${g.items.map(taskRow).join('')}</div></section>`).join('')
+  let gs;
+  if(V.sort==='priority'){ list.sort((a,b)=>(PRANK[a.priority||'']-PRANK[b.priority||''])||tie(a,b)); gs=['high','med','low',''].map(p=>({title:p?PRIO[p].label+' priority':'No priority', bang:p, items:list.filter(t=>(t.priority||'')===p)})); }
+  else if(V.sort==='board'){ list.sort((a,b)=>(PRANK[a.priority||'']-PRANK[b.priority||''])||tie(a,b)); gs=stacks.map(b=>({title:b.name, items:list.filter(t=>t.boardId===b.id)})); }
+  else if(V.sort==='due'){ list.sort((a,b)=>byDue(a,b)||(PRANK[a.priority||'']-PRANK[b.priority||''])); gs=[{title:'By due date', items:list}]; }
+  else { list.sort((a,b)=>(b.updated||'').localeCompare(a.updated||'')); gs=[{title:'Recently updated', items:list}]; }
+  gs = gs.filter(g=>g.items.length);
+  root.innerHTML = `<div class="kb">${tabs}${groups}
+    <div class="toolbar"><span class="lbl" id="sLbl">Sort</span><div class="seg" role="group" aria-labelledby="sLbl">${[['priority','Priority'],['due','Due date'],['board','Stack'],['updated','Recently updated']].map(([m,l])=>`<button data-sort="${m}" aria-pressed="${V.sort===m}">${l}</button>`).join('')}</div></div>
+    ${gs.length ? gs.map(g=>`<section class="panel"><div class="panel-h"><h2>${g.bang?bangHTML(g.bang):''}${esc(g.title)}</h2><span class="caption">${g.items.length}</span></div><div class="list-rows">${g.items.map(taskRow).join('')}</div></section>`).join('')
       : `<div class="panel empty-state">${pool.length?'Nothing matches these filters.':'No open tasks. Nice work.'}</div>`}
   </div>`;
 }
+function kanbanClick(e, k){
+  const V = S.tasksView;
+  const md = e.target.closest('[data-mode]'); if(md){ V.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); render(true); restoreFocus(`[data-mode="${md.dataset.mode}"]`); return true; }
+  const so = e.target.closest('[data-sort]'); if(so && !e.target.closest('.tbl')){ V.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return true; }
+  const fb = e.target.closest('[data-fb]'); if(fb){ const id=fb.dataset.fb, B=V.boards; if(!id) B.clear(); else B.has(id)?B.delete(id):B.add(id); render(true); return true; }
+  if(e.target.closest('[data-act="bb"]')){ V.bb=!V.bb; render(true); return true; }
+  if(e.target.closest('[data-act="done"]')){ toggleShowDone(); return true; }
+  if(e.target.closest('[data-act="add-stack"]')){ addStack(k, e.target.closest('[data-act]')); return true; }
+  const sm = e.target.closest('[data-act="stack-menu"]');
+  if(sm){ const st = itemById(sm.dataset.sid); if(st) openMenu(sm, [{label:'Rename…', value:'rename'}, {sep:true}, {label:'Remove stack…', value:'del', danger:true}], async v => {
+      if(v==='rename'){ const n = await promptModal({title:'Rename stack', label:'Name', value:st.name, opener:sm}); if(n){ docPatch('items', st.id, {name:n}); render(true); } }
+      if(v==='del') removeStack(st, sm); }, 'Stack options'); return true; }
+  const yr = e.target.closest('[data-year]'); if(yr){ S.archiveYear=+yr.dataset.year; render(true); return true; }
+  return false;
+}
 
 /* ----- Archive (finished tasks by year) ----- */
-const doneYear = t => t.doneAt ? new Date(t.doneAt).getFullYear() : CUR_YEAR;
-function renderArchive(c){
-  const done = S.tasks.filter(t=>t.col==='done' && itemById(t.boardId));
+function renderArchive(c, stacks){
+  const ids = new Set(stacks.map(s=>s.id));
+  const done = S.tasks.filter(t=>t.col==='done' && ids.has(t.boardId));
   const years = [...new Set([CUR_YEAR, ...done.map(doneYear)])].sort((a,b)=>b-a);
   if(!S.archiveYear || !years.includes(S.archiveYear)) S.archiveYear = years[0];
   const items = done.filter(t=>doneYear(t)===S.archiveYear).sort((a,b)=>(b.doneAt||'').localeCompare(a.doneAt||''));
   const months = [];
   items.forEach(t=>{ const m = t.doneAt ? MONTH[new Date(t.doneAt).getMonth()] : 'Undated'; let g=months.find(x=>x.m===m); if(!g){g={m,items:[]}; months.push(g)} g.items.push(t); });
-  c.innerHTML = `<div class="wrap narrow">
-    <div><p class="eyebrow">Finished tasks from every Kanban</p><h1 class="big">Archive ${S.archiveYear}</h1><p class="sub">${S.archiveYear===CUR_YEAR?`Done tasks stay on their boards until 1 January, then they live here under ${CUR_YEAR}.`:`Open a task and change its column to bring it back to a board.`}</p></div>
-    <div class="seg" role="group" aria-label="Year">${years.map(y=>`<button data-year="${y}" aria-pressed="${y===S.archiveYear}">${y} · ${done.filter(t=>doneYear(t)===y).length}</button>`).join('')}</div>
-    ${months.length ? months.map(g=>`<section class="panel"><div class="panel-h"><h2>${esc(g.m)}</h2><span class="caption">${g.items.length}</span></div><div class="list-rows">${g.items.map(t=>{const b=itemById(t.boardId); return `<button class="lrow" data-open="task:${esc(t.id)}"><span class="t">${esc(t.title)}</span><span class="m"><i style="--c:${itemColor(b)}"></i>${esc(b?.name||'')}</span><span class="r" style="color:var(--up)">${t.doneAt?esc(shortDate(t.doneAt)):''}</span></button>`}).join('')}</div></section>`).join('')
-      : `<div class="panel empty-state">No finished tasks for ${S.archiveYear} yet.</div>`}
-  </div>`;
+  c.innerHTML = `<p class="sub" style="margin:0 0 12px">${S.archiveYear===CUR_YEAR?`Done tasks stay on the board until 1 January, then they live here under ${CUR_YEAR}.`:`Open a task and change its status to bring it back to the board.`}</p>
+    <div class="seg" role="group" aria-label="Year" style="margin-bottom:14px">${years.map(y=>`<button data-year="${y}" aria-pressed="${y===S.archiveYear}">${y} · ${done.filter(t=>doneYear(t)===y).length}</button>`).join('')}</div>
+    ${months.length ? months.map(g=>`<section class="panel"><div class="panel-h"><h2>${esc(g.m)}</h2><span class="caption">${g.items.length}</span></div><div class="list-rows">${g.items.map(t=>{const b=itemById(t.boardId); return `<button class="lrow" data-open="task:${esc(t.id)}"><span class="t">${esc(t.title)}</span><span class="m">${esc(b?.name||'')}</span><span class="r" style="color:var(--up)">${t.doneAt?esc(shortDate(t.doneAt)):''}</span></button>`}).join('')}</div></section>`).join('')
+      : `<div class="panel empty-state">No finished tasks for ${S.archiveYear} yet.</div>`}`;
 }
 
 /* ----- Search across everything ----- */
@@ -545,14 +585,15 @@ function renderSearch(c){
   const q = S.q.trim().toLowerCase();
   const res = [];
   for(const it of S.items){
-    if((it.name||'').toLowerCase().includes(q)) res.push({k:'item', it, t:it.name, m:TYPES[it.type].label});
-    if(it.type==='note' && (it.body||'').toLowerCase().includes(q)) res.push({k:'item', it, t:it.name, m:snippet(it.body,q)});
-    if(it.type==='checklist') (it.entries||[]).filter(e=>e.text.toLowerCase().includes(q)).forEach(e=>res.push({k:'item', it, t:e.text, m:it.name+' · checklist item'}));
+    const top = topOf(it);
+    if((it.name||'').toLowerCase().includes(q) && (isTop(it) || it.type==='stack' || it.type==='collection')) res.push({k:'item', it:top, t:it.name, m:isTop(it) ? TYPES[it.type].label : top.name+' · '+TYPES[it.type].label});
+    if(it.type==='note' && (it.body||'').toLowerCase().includes(q)) res.push({k:'item', it:top, t:top.name, m:snippet(it.body,q)});
+    if(it.type==='checklist') (it.entries||[]).filter(e=>e.text.toLowerCase().includes(q)).forEach(e=>res.push({k:'item', it:top, t:e.text, m:top.name+' · checklist item'}));
     if(it.type==='bills') (it.bills||[]).filter(b=>[b.asset,b.category,b.institution,b.ref,b.notes].join(' ').toLowerCase().includes(q)).forEach(b=>res.push({k:'item', it, t:[b.category,b.asset].filter(Boolean).join(' · '), m:it.name+' · '+(b.institution||'')}));
     if(it.type==='tracker') (it.points||[]).filter(p=>(p.note||'').toLowerCase().includes(q)).forEach(p=>res.push({k:'item', it, t:p.note, m:it.name+' · '+dateLabel(p.date)}));
   }
   for(const t of S.tasks){ const hay=[t.title,t.notes,t.flagWho,...(t.checklist||[]).map(c=>c.text),...(t.log||[]).map(l=>l.text)].join(' ').toLowerCase(); if(hay.includes(q)){ const b=itemById(t.boardId); if(b) res.push({k:'task', t, it:b}); } }
-  for(const r of S.rows){ const it=itemById(r.itemId); if(!it) continue; const vals=Object.values(r.values||{}).map(v=>String(v)); if(vals.join(' ').toLowerCase().includes(q)){ const tf=(it.fields||[]).find(f=>f.type==='text'); res.push({k:'row', it, r, t:(tf&&r.values?.[tf.id])||'Row', m:it.name}); } }
+  for(const r of S.rows){ const it=itemById(r.itemId); if(!it) continue; const vals=Object.values(r.values||{}).map(v=>String(v)); if(vals.join(' ').toLowerCase().includes(q)){ const tf=(it.fields||[]).find(f=>f.type==='text'); res.push({k:'row', it:topOf(it), r, t:(tf&&r.values?.[tf.id])||'Row', m:topOf(it).name}); } }
   const seen = new Set(); const uniq = res.filter(x=>{ const key=x.k+(x.t?.id||'')+(x.it?.id||'')+(x.r?.id||'')+(typeof x.t==='string'?x.t:''); if(seen.has(key)) return false; seen.add(key); return true; });
   c.innerHTML = `<div class="wrap narrow"><div><p class="eyebrow">Search</p><h1 class="big">“${esc(S.q.trim())}”</h1><p class="sub">${plural(uniq.length,'result')} across items, tasks, rows and notes. Press Esc to clear.</p></div>
     ${uniq.length?`<section class="panel"><div class="list-rows">${uniq.slice(0,80).map(x=> x.k==='task'
@@ -568,18 +609,12 @@ content.addEventListener('click', e => {
   const op = e.target.closest('[data-open]');
   if(op){ const [k,id]=op.dataset.open.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, op); else go('i-'+id); return; }
   const qk = e.target.closest('[data-quick]');
-  if(qk){ S.tasksView.quick = (S.route.v==='tasks' && S.tasksView.quick===qk.dataset.quick) ? 'open' : qk.dataset.quick; if(S.route.v!=='tasks') go('tasks'); else render(true); return; }
-  if(S.route.v==='tasks' && !it){
-    const so = e.target.closest('[data-sort]'); if(so){ S.tasksView.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return; }
-    const fb = e.target.closest('[data-fb]'); if(fb){ const id=fb.dataset.fb, B=S.tasksView.boards; if(!id) B.clear(); else B.has(id)?B.delete(id):B.add(id); render(true); return; }
-    if(e.target.closest('[data-act="bb"]')){ S.tasksView.bb=!S.tasksView.bb; render(true); return; }
-    if(e.target.closest('[data-act="done"]')){ toggleShowDone(); return; }
-    const md = e.target.closest('[data-mode]'); if(md){ S.tasksView.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); render(true); return; }
-  }
-  const yr = e.target.closest('[data-year]'); if(yr && S.route.v==='archive'){ S.archiveYear=+yr.dataset.year; render(true); return; }
-  if(V) V.click?.(e, it); else if(S.route.v==='tasks' && S.tasksView.mode!=='list') TYPE_VIEWS.kanban.click(e, null);
+  if(qk){ const onK = it?.type==='kanban'; S.tasksView.quick = (onK && S.tasksView.quick===qk.dataset.quick) ? 'open' : qk.dataset.quick; if(onK && S.tasksView.mode==='archive') S.tasksView.mode='board';
+    if(!onK){ const k=itemsOf(i=>i.type==='kanban')[0]; if(k) go('i-'+k.id); } else render(true); return; }
+  if(it?.type==='kanban' && kanbanClick(e, it)) return;
+  if(V) V.click?.(e, it);
 });
-content.addEventListener('input', e => { const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); else if(S.route.v==='tasks') TYPE_VIEWS.kanban.input(e); });
+content.addEventListener('input', e => { const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
 content.addEventListener('change', e => {
   const it = currentItem(); if(!it) return;
   if(e.target.id==='itemTitle'){ const v=e.target.value.trim()||'Untitled'; if(v!==it.name){ docPatch('items', it.id, {name:v}); renderSide(); renderBar(); } return; }
@@ -588,7 +623,7 @@ content.addEventListener('change', e => {
 content.addEventListener('keydown', e => {
   const it = currentItem();
   if(e.target.id==='itemTitle' && e.key==='Enter'){ e.preventDefault(); e.target.blur(); return; }
-  if(it) TYPE_VIEWS[it.type]?.keydown?.(e, it); else if(S.route.v==='tasks' && S.tasksView.mode!=='list') TYPE_VIEWS.kanban.keydown(e);
+  if(it) TYPE_VIEWS[it.type]?.keydown?.(e, it);
 });
 
 /* ---------- sidebar events ---------- */
@@ -599,6 +634,7 @@ $('#side').addEventListener('click', async e => {
   if(act==='new-item') return openNewItem({opener:a});
   if(act==='new-folder') return newFolder(a);
   if(act==='folder-menu') return folderMenu(a, a.dataset.fid);
+  if(act==='item-menu'){ e.preventDefault(); return itemMenu(a, itemById(a.dataset.iid)); }
   if(act==='app-menu') return appMenu(a);
 });
 $('#q').addEventListener('input', e => { S.q = e.target.value; render(true); });
@@ -651,7 +687,6 @@ setTimeout(resetZoom, 300);
 document.addEventListener('touchmove', e => { if((e.touches.length>1 && !isZoomed()) || S.dragging) e.preventDefault(); }, {passive:false});
 document.addEventListener('wheel', e => { if(e.ctrlKey) e.preventDefault(); }, {passive:false});
 (() => { let m = document.querySelector('meta[name=viewport]'); if(!m){ m=document.createElement('meta'); m.name='viewport'; document.head.appendChild(m); } m.content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover'; })();
-$('#itemMenu').addEventListener('click', e => { const it=currentItem(); if(it) itemMenu(e.currentTarget, it); });
 
 async function newFolder(opener){
   const name = await promptModal({title:'New folder', label:'Name', placeholder:'e.g. Finance, Travel, Health', action:'Create folder', opener});
@@ -701,25 +736,55 @@ function appMenu(anchor){
   }, 'Life Organiser options');
 }
 function setTheme(t){ ls.set('lo.theme', t); if(t==='system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); }
-/* ----- item menu (top bar •••) ----- */
+/* ----- item options (right-click an item in the sidebar, or its ••• on touch) ----- */
 function itemMenu(anchor, it){
+  if(!it) return;
   openMenu(anchor, [
-    {label:'Rename', value:'rename'},
-    ...(it.type==='kanban'?[]:[{label:'Colour…', value:'colour'}]),
-    ...(it.type==='kanban'?[{label:it.hidden?'Show in All tasks and Home':'Hide from All tasks and Home', value:'hide'}, {label:'Status flags…', value:'flags'}]:[]),
-    ...(it.type==='collection'?[{label:'Edit fields…', value:'fields'}]:[]),
+    {label:'Rename…', value:'rename'},
+    ...(it.type==='page'?[{label:'Move to folder…', value:'move'}]:[]),
+    ...(it.type==='kanban'?[{label:'Add stack…', value:'stack'}, {label:'Status flags…', value:'flags'}]:[]),
     ...(it.type==='tracker'?[{label:'Tracker settings…', value:'tsettings'}]:[]),
     {sep:true}, {label:'Delete '+TYPES[it.type].label.toLowerCase()+'…', value:'del', danger:true}
-  ], v => {
-    if(v==='rename'){ const t=$('#itemTitle'); t?.focus(); t?.select(); }
-    if(v==='move') openMenu(anchor, [{label:'Unfiled', value:'', checked:!it.folderId}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:it.folderId===f.id}))], fid => { docPatch('items', it.id, {folderId:fid, order:itemsIn(fid).length}); render(true); toast('Moved to '+(folderById(fid)?.name||'Unfiled')); }, 'Move to folder');
-    if(v==='colour') colourModal(it, anchor);
-    if(v==='hide'){ docPatch('items', it.id, {hidden:!it.hidden}); render(true); toast(it.hidden?'Hidden from All tasks and Home':'Showing in All tasks and Home'); }
+  ], async v => {
+    if(v==='rename'){ const n = await promptModal({title:'Rename', label:'Name', value:it.name||'', opener:anchor}); if(n){ docPatch('items', it.id, {name:n}); render(true); } }
+    if(v==='move') openMenu(anchor, [{label:'No folder', value:'', checked:!it.folderId}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:it.folderId===f.id}))], fid => { docPatch('items', it.id, {folderId:fid, order:itemsOf(i=>i.type==='page' && (i.folderId||'')===fid).length}); render(true); toast('Moved to '+(folderById(fid)?.name||'No folder')); }, 'Move to folder');
+    if(v==='stack') addStack(it, anchor);
     if(v==='flags') TYPE_VIEWS.kanban.openFlagsModal(anchor);
-    if(v==='fields') TYPE_VIEWS.collection.fieldsModal(it, anchor);
     if(v==='tsettings') TYPE_VIEWS.tracker.settingsModal(it, anchor);
     if(v==='del') deleteItem(it, anchor);
   }, 'Item options');
+}
+function folderMenu(anchor, fid){
+  const f = folderById(fid); if(!f) return;
+  openMenu(anchor, [
+    {label:'New page here…', value:'new'}, {label:'Rename…', value:'rename'},
+    {sep:true}, {label:'Delete folder…', value:'del', danger:true}
+  ], async v => {
+    if(v==='new') return openNewItem({folderId:fid, type:'page', opener:anchor});
+    if(v==='rename'){ const n = await promptModal({title:'Rename folder', label:'Name', value:f.name, opener:anchor}); if(n){ docPatch('folders', fid, {name:n}); render(true); } }
+    if(v==='del'){
+      const its = S.items.filter(i=>isTop(i) && i.folderId===fid);
+      const ok = await confirmModal({title:`Delete “${f.name}”?`, body: its.length ? `Its ${plural(its.length,'page')} will move out of the folder. Nothing inside is deleted.` : 'The folder is empty.', action:'Delete folder', opener:anchor});
+      if(!ok) return;
+      const snap = clone(f); const moved = its.map(x=>x.id);
+      its.forEach(x=>docPatch('items', x.id, {folderId:''})); docDel('folders', fid); render(true);
+      toast('Folder deleted', () => { docSet('folders', snap); moved.forEach(id=>docPatch('items', id, {folderId:fid})); });
+    }
+  }, 'Folder options');
+}
+async function addStack(k, opener){
+  const n = await promptModal({title:'Add stack', label:'Name', placeholder:'e.g. Work', action:'Add', opener});
+  if(!n) return;
+  docSet('items', {id:uid(), type:'stack', parent:k.id, name:n, order:stacksOf(k.id).length, created:nowIso(), updated:nowIso()});
+  render(true); toast('Added stack “'+n+'”');
+}
+async function removeStack(st, opener){
+  const kids = S.tasks.filter(t=>t.boardId===st.id);
+  const ok = await confirmModal({title:`Remove “${st.name}”?`, body:`This removes the stack${kids.length?' and its '+plural(kids.length,'task'):''}. You can undo for a few seconds.`, action:'Remove stack', opener});
+  if(!ok) return;
+  const snap = clone(st), ks = clone(kids);
+  kids.forEach(t=>docDel('tasks', t.id)); docDel('items', st.id); render(true);
+  toast('Removed “'+st.name+'”', () => { docSet('items', snap); ks.forEach(t=>docSet('tasks', t)); });
 }
 function colourModal(it, opener){
   let col = it.color || TYPES[it.type].color;
@@ -727,48 +792,61 @@ function colourModal(it, opener){
   m.onclick = e => { const sw=e.target.closest('.sw'); if(sw){ col=sw.dataset.k; $$('.sw',m).forEach(s=>s.setAttribute('aria-pressed', s===sw)); return; } const b=e.target.closest('[data-x]'); if(!b) return; closeModal(); if(b.dataset.x==='yes'){ docPatch('items', it.id, {color:col}); render(true); } };
 }
 async function deleteItem(it, opener){
-  const kids = it.type==='kanban' ? S.tasks.filter(t=>t.boardId===it.id) : it.type==='collection' ? S.rows.filter(r=>r.itemId===it.id) : [];
-  const what = it.type==='kanban' ? plural(kids.length,'task') : it.type==='collection' ? plural(kids.length,'row') : it.type==='tracker' ? plural((it.points||[]).length,'entry').replace('entrys','entries') : it.type==='checklist' ? plural((it.entries||[]).length,'item') : it.type==='bills' ? plural((it.bills||[]).length,'bill') : '';
+  const parts = it.type==='kanban' ? stacksOf(it.id) : it.type==='page' ? blocksOf(it.id) : [];
+  const tasks = it.type==='kanban' ? S.tasks.filter(t=>parts.some(p=>p.id===t.boardId)) : [];
+  const rows = S.rows.filter(r=>r.itemId===it.id || parts.some(p=>p.id===r.itemId));
+  const what = it.type==='kanban' ? plural(parts.length,'stack')+' and '+plural(tasks.length,'task') : it.type==='page' ? plural(parts.length,'block') : it.type==='tracker' ? plural((it.points||[]).length,'entry').replace('entrys','entries') : it.type==='bills' ? plural((it.bills||[]).length,'bill') : '';
   const ok = await confirmModal({title:`Delete “${it.name}”?`, body:`This deletes the ${TYPES[it.type].label.toLowerCase()}${what?' and its '+what:''}. You can undo for a few seconds.`, action:'Delete', opener});
   if(!ok) return;
-  const snap = clone(it), kidSnap = clone(kids), kcol = it.type==='kanban'?'tasks':'rows';
-  kids.forEach(k=>docDel(kcol, k.id)); docDel('items', it.id);
-  go('home');
-  toast('Deleted “'+it.name+'”', () => { docSet('items', snap); kidSnap.forEach(k=>docSet(kcol, k)); });
+  const snap = clone(it), ps = clone(parts), ts = clone(tasks), rs = clone(rows);
+  ts.forEach(t=>docDel('tasks', t.id)); rs.forEach(r=>docDel('rows', r.id)); ps.forEach(p=>docDel('items', p.id)); docDel('items', it.id);
+  if(S.route.id===it.id) go('home'); else render(true);
+  toast('Deleted “'+it.name+'”', () => { docSet('items', snap); ps.forEach(p=>docSet('items', p)); ts.forEach(t=>docSet('tasks', t)); rs.forEach(r=>docSet('rows', r)); });
 }
 
-/* ----- New item ----- */
-const TEMPLATES = {
-  kanban:[{id:'blank', label:'Blank board'}],
-  note:[{id:'blank', label:'Blank page'}, {id:'meeting', label:'Meeting notes'}],
-  collection:[{id:'blank', label:'Blank'}, {id:'accounts', label:'Bank accounts'}, {id:'coupons', label:'Coupons & vouchers'}, {id:'subs', label:'Subscriptions & renewals'}, {id:'warranty', label:'Warranties'}],
-  tracker:[{id:'blank', label:'Blank'}, {id:'rate', label:'Interest rate (%)'}, {id:'balance', label:'Balance ($)'}],
-  checklist:[{id:'blank', label:'Blank'}, {id:'packing', label:'Travel packing'}],
-  bills:[{id:'blank', label:'Blank'}],
-};
-function buildItem(type, tmpl, name, folderId, color){
-  const base = {id:uid(), type, name, folderId:folderId||'', order:S.items.filter(i=>TYPE_GROUP[i.type]===TYPE_GROUP[type]).length, color, created:nowIso(), updated:nowIso()};
-  if(type==='note') base.body = tmpl==='meeting' ? `**Date:** ${dateLabel(today())}\n**People:** \n\n## Agenda\n- \n\n## Notes\n\n## Actions\n- [ ] ` : '';
-  if(type==='collection') Object.assign(base, TYPE_VIEWS.collection.template(tmpl));
-  if(type==='tracker') Object.assign(base, tmpl==='rate' ? {unit:'%', decimals:2, step:true, points:[]} : tmpl==='balance' ? {unit:'$', decimals:0, step:false, points:[]} : {unit:'', decimals:1, step:false, points:[]});
+/* 1.0.0-beta.19, once: old Kanban boards become stacks inside one "Kanban"; every old note, checklist and table
+   becomes a Page holding it as its first block. Edit dates are kept. */
+function migrate19(){
+  S.migrated19 = true;
+  const keep = it => ({updated: it.updated || nowIso()});
+  const boards = S.items.filter(i=>i.type==='kanban' && !i.container);
+  if(boards.length){
+    let k = S.items.find(i=>i.type==='kanban' && i.container);
+    if(!k){ k = {id:uid(), type:'kanban', container:true, name:'Kanban', folderId:'', order:-1, created:nowIso(), updated:nowIso()}; docSet('items', k); }
+    boards.sort((a,b)=>(a.order??0)-(b.order??0)).forEach((b,i)=>docPatch('items', b.id, {type:'stack', parent:k.id, order:i, folderId:'', ...keep(b)}));
+  }
+  S.items.filter(i=>['note','checklist','collection'].includes(i.type) && !i.parent).forEach(it => {
+    const p = {id:uid(), type:'page', name:it.name||'Untitled', folderId:it.folderId||'', order:it.order??0, created:it.created||nowIso(), updated:it.updated||nowIso()};
+    docSet('items', p); docPatch('items', it.id, {parent:p.id, order:0, folderId:'', ...keep(it)});
+  });
+}
+
+/* ----- New item: always starts blank ----- */
+function buildItem(type, name, folderId, parent){
+  const base = {id:uid(), type, name, folderId:parent?'':(folderId||''), order: parent ? blocksOf(parent).length : itemsOf(i=>TYPE_GROUP[i.type]===TYPE_GROUP[type] && (type!=='page' || (i.folderId||'')===(folderId||''))).length, created:nowIso(), updated:nowIso()};
+  if(parent) base.parent = parent;
+  if(type==='kanban') base.container = true;
+  if(type==='note') base.body = '';
+  if(type==='collection') Object.assign(base, TYPE_VIEWS.collection.template('blank'));
+  if(type==='tracker') Object.assign(base, {unit:'', decimals:1, step:false, points:[]});
   if(type==='bills') base.bills = [];
-  if(type==='checklist') base.entries = tmpl==='packing' ? ['Passport','Phone charger','Travel adapter','Medications','Wallet and cards','Headphones','Toiletries','Change of clothes'].map(text=>({id:uid(), text, done:false})) : [];
+  if(type==='checklist') base.entries = [];
   return base;
 }
-function openNewItem({folderId, type='note', opener}={}){
-  let t = type, tm = 'blank', col = null;
-  const fid0 = folderId ?? (currentItem()?.folderId || '');
-  let fid = fid0;
+function openNewItem({folderId, type='page', opener}={}){
+  let t = TYPES[type] && !TYPES[type].part ? type : 'page';
+  let fid = folderId ?? (currentItem()?.type==='page' ? currentItem().folderId||'' : '');
   const draw = () => {
     const nameVal = $('#niName')?.value || '';
+    const tile = ([k,v]) => `<button class="type-opt" data-type="${k}" aria-pressed="${k===t}"><span class="ti" aria-hidden="true">${ICON[k]}</span><b>${v.label}</b><span>${esc(v.desc)}</span></button>`;
     const m = openModal(`<h2 id="mTitle">New item</h2>
-      <label class="field"><span class="lbl">Name</span><input class="txt-in" id="niName" value="${esc(nameVal)}" placeholder="e.g. Home loan rate, Coupons, Japan trip" maxlength="80" autofocus></label>
-      <div class="field"><span class="lbl" id="tyL">Custom</span><div class="type-grid" role="group" aria-labelledby="tyL">${Object.entries(TYPES).filter(([k])=>TYPE_GROUP[k]==='custom').map(([k,v])=>`<button class="type-opt" data-type="${k}" aria-pressed="${k===t}"><span class="ti" style="--c:${colorOf(v.color)}" aria-hidden="true">${ICON[k]}</span><b>${v.label}</b><span>${esc(v.desc)}</span></button>`).join('')}</div></div><div class="field"><span class="lbl" id="tyG">General</span><div class="type-grid" role="group" aria-labelledby="tyG">${Object.entries(TYPES).filter(([k])=>TYPE_GROUP[k]==='general').map(([k,v])=>`<button class="type-opt" data-type="${k}" aria-pressed="${k===t}"><span class="ti" style="--c:${colorOf(v.color)}" aria-hidden="true">${ICON[k]}</span><b>${v.label}</b><span>${esc(v.desc)}</span></button>`).join('')}</div></div>
-      ${TEMPLATES[t].length>1?`<div class="field"><span class="lbl" id="tmL">Start from</span><div class="seg" role="group" aria-labelledby="tmL">${TEMPLATES[t].map(x=>`<button data-tm="${x.id}" aria-pressed="${x.id===tm}">${esc(x.label)}</button>`).join('')}</div></div>`:''}
+      <label class="field"><span class="lbl">Name</span><input class="txt-in" id="niName" value="${esc(nameVal)}" placeholder="e.g. Home Loan Rate, Japan Trip" maxlength="80" autofocus></label>
+      <div class="field"><span class="lbl" id="tyL">Type</span><div class="type-grid" role="group" aria-labelledby="tyL">${Object.entries(TYPES).filter(([k,v])=>!v.part).map(tile).join('')}</div></div>
+      ${t==='page'&&S.folders.length?`<div class="field"><span class="lbl">Folder</span><button class="pop wide" id="niFolder" aria-haspopup="menu" aria-expanded="false"><span class="lbl-t">${esc(folderById(fid)?.name||'No folder')}</span>${ICON.chev}</button></div>`:''}
       <div class="row-end"><button class="btn" data-x="no">Cancel</button><button class="pill" data-x="yes">Create ${TYPES[t].label.toLowerCase()}</button></div>`, {opener, wide:true});
     m.onclick = e => {
-      const ty = e.target.closest('[data-type]'); if(ty){ t=ty.dataset.type; tm='blank'; draw(); requestAnimationFrame(()=>restoreFocus(`[data-type="${t}"]`, m)); return; }
-      const tb = e.target.closest('[data-tm]'); if(tb){ tm=tb.dataset.tm; if(!$('#niName').value.trim() && tm!=='blank') $('#niName').value = TEMPLATES[t].find(x=>x.id===tm).label.replace(' (%)','').replace(' ($)',''); $$('[data-tm]',m).forEach(b=>b.setAttribute('aria-pressed', b===tb)); return; }
+      const ty = e.target.closest('[data-type]'); if(ty){ t=ty.dataset.type; draw(); requestAnimationFrame(()=>restoreFocus(`[data-type="${t}"]`, m)); return; }
+      const fb = e.target.closest('#niFolder'); if(fb){ openMenu(fb, [{label:'No folder', value:'', checked:!fid}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:fid===f.id}))], v=>{ fid=v; fb.querySelector('.lbl-t').textContent = folderById(v)?.name||'No folder'; }, 'Folder'); return; }
       const b = e.target.closest('[data-x]'); if(!b) return;
       if(b.dataset.x==='no') return closeModal();
       create();
@@ -776,11 +854,11 @@ function openNewItem({folderId, type='note', opener}={}){
     m.onkeydown = e => { if(e.key==='Enter' && e.target.id==='niName'){ e.preventDefault(); create(); } };
   };
   const create = () => {
-    const name = $('#niName').value.trim() || (tm!=='blank' ? TEMPLATES[t].find(x=>x.id===tm).label : 'Untitled '+TYPES[t].label.toLowerCase());
-    const it = buildItem(t, tm, name, fid, col);
+    const name = $('#niName').value.trim() || 'Untitled '+TYPES[t].label.toLowerCase();
+    const it = buildItem(t, name, t==='page'?fid:'');
     docSet('items', it);
-    if(t==='collection' && tm!=='blank') {/* starts empty: you add your own rows */}
-    S.pendingFocus = it.id; closeModal(); go('i-'+it.id);
+    if(t==='kanban') docSet('items', {id:uid(), type:'stack', parent:it.id, name:'Tasks', order:0, created:nowIso(), updated:nowIso()});
+    closeModal(); go('i-'+it.id);
   };
   draw();
 }
@@ -889,10 +967,7 @@ async function start(){
       if(col==='items' && window.__typingItem){ const i=docs.findIndex(d=>d.id===window.__typingItem); const local=itemById(window.__typingItem); if(i>-1 && local) docs[i]=local; }
       if(col==='tasks' && window.__typingTask){ const i=docs.findIndex(d=>d.id===window.__typingTask); const local=S.tasks.find(t=>t.id===window.__typingTask); if(i>-1 && local) docs[i]=local; }
       S[col] = docs; S.loaded[col] = true;
-      if((col==='items'||col==='folders') && S.loaded.items && S.loaded.folders && !S.navMigrated && S.items.some(i=>i.folderId)){ S.navMigrated = true;
-        const fo = id => S.folders.find(f=>f.id===id)?.order ?? 999;   // folders retired in 1.0.0-beta.18: keep the order people had
-        S.items.slice().sort((a,b)=>fo(a.folderId)-fo(b.folderId) || (a.order??0)-(b.order??0)).forEach((it,i)=>docPatch('items', it.id, {order:i, folderId:'', updated:it.updated||nowIso()}));
-      }
+      if(col==='items' && !S.migrated19) migrate19();
       if(col==='tasks') docs.filter(t=>t.col==='upcoming').forEach(t=>docPatch('tasks', t.id, {col:'todo'}));   // Upcoming column retired in 1.0.0-beta.13
       render(); refreshOverlays();
       if(col==='tasks' && !S.nudgeSet){ S.nudgeSet=true; setTimeout(bkNudge, 4000); }

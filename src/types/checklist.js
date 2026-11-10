@@ -3,11 +3,13 @@
    item.entries = [{id, text, done}], item.hideDone
    ============================================================ */
 TYPE_VIEWS.checklist = (() => {
-  let sortable = null, timers = {};
+  const R = it => document.querySelector(`[data-root="${CSS.escape(it.id)}"]`) || $('#tv');   // this item's own root (it may be one block of a Page)
+  const Q = (it, sel) => R(it)?.querySelector(sel);
+  const sortables = {}; let timers = {};
   function view(it, root){
     const all = it.entries||[]; const done = all.filter(e=>e.done).length;
     const shown = it.hideDone ? all.filter(e=>!e.done) : all;
-    sortable?.destroy(); sortable = null;
+    root.dataset.root = it.id; sortables[it.id]?.destroy(); delete sortables[it.id];
     root.innerHTML = `
       <section class="panel">
         <div class="toolbar" style="margin-bottom:10px"><span style="font-weight:600;font-size:17px;letter-spacing:-.02em">${done} of ${all.length} done</span><span class="spacer"></span>
@@ -19,23 +21,23 @@ TYPE_VIEWS.checklist = (() => {
         ${all.length && !shown.length?`<div class="empty-state" style="padding:18px">Everything is done. Turn off Hide done to see the list.</div>`:''}
         <div class="inline-add" style="margin-top:12px"><input class="field-in" id="ckNew" placeholder="Add an item, then Enter" aria-label="New checklist item"><button class="btn" data-act="add">Add</button></div>
       </section>`;
-    if(shown.length>1) sortable = Sortable.create($('#ckList'), {handle:'.grip', animation:RM?0:150, onStart(){S.dragging=true}, onEnd(){ S.dragging=false;
-      const order = $$('#ckList .ck').map(x=>x.dataset.id); const c = itemById(it.id); const hidden = (c.entries||[]).filter(e=>!order.includes(e.id));
+    if(shown.length>1) sortables[it.id] = Sortable.create(root.querySelector('#ckList'), {handle:'.grip', animation:RM?0:150, onStart(){S.dragging=true}, onEnd(){ S.dragging=false;
+      const order = $$('#ckList .ck', R(it)).map(x=>x.dataset.id); const c = itemById(it.id); const hidden = (c.entries||[]).filter(e=>!order.includes(e.id));
       docPatch('items', it.id, {entries:[...order.map(id=>c.entries.find(e=>e.id===id)), ...hidden]}); render(true); }});
   }
   const setEntries = (it, list) => { docPatch('items', it.id, {entries:list}); renderSide(); };
-  function add(it){ const el=$('#ckNew'); const v=el.value.trim(); if(!v) return; setEntries(it, [...(it.entries||[]), {id:uid(), text:v, done:false}]); view(it, $('#tv')); $('#ckNew').focus(); }
+  function add(it){ const el=Q(it,'#ckNew'); const v=el.value.trim(); if(!v) return; setEntries(it, [...(it.entries||[]), {id:uid(), text:v, done:false}]); view(it, R(it)); Q(it,'#ckNew').focus(); }
   function click(e, it){
     const a = e.target.closest('[data-act]');
     if(a){ const act=a.dataset.act;
       if(act==='add') return add(it);
-      if(act==='hide'){ docPatch('items', it.id, {hideDone:!it.hideDone}); view(it, $('#tv')); restoreFocus('[data-act="hide"]'); return; }
-      if(act==='untick'){ const before=clone(it.entries); setEntries(it, before.map(x=>({...x, done:false}))); view(it, $('#tv')); toast('Unticked every item', ()=>docPatch('items', it.id, {entries:before})); return; }
-      if(act==='clear'){ const before=clone(it.entries); setEntries(it, before.filter(x=>!x.done)); view(it, $('#tv')); toast('Cleared done items', ()=>docPatch('items', it.id, {entries:before})); return; } }
+      if(act==='hide'){ docPatch('items', it.id, {hideDone:!it.hideDone}); view(it, R(it)); restoreFocus('[data-act="hide"]'); return; }
+      if(act==='untick'){ const before=clone(it.entries); setEntries(it, before.map(x=>({...x, done:false}))); view(it, R(it)); toast('Unticked every item', ()=>docPatch('items', it.id, {entries:before})); return; }
+      if(act==='clear'){ const before=clone(it.entries); setEntries(it, before.filter(x=>!x.done)); view(it, R(it)); toast('Cleared done items', ()=>docPatch('items', it.id, {entries:before})); return; } }
     const cb = e.target.closest('[data-ck]');
-    if(cb){ const id=cb.dataset.ck; setEntries(it, (it.entries||[]).map(x=>x.id===id?{...x, done:!x.done}:x)); view(it, $('#tv')); restoreFocus(`[data-ck="${CSS.escape(id)}"]`) || $('#ckNew').focus(); return; }
+    if(cb){ const id=cb.dataset.ck; setEntries(it, (it.entries||[]).map(x=>x.id===id?{...x, done:!x.done}:x)); view(it, R(it)); restoreFocus(`[data-ck="${CSS.escape(id)}"]`) || Q(it,'#ckNew').focus(); return; }
     const dl = e.target.closest('[data-del]');
-    if(dl){ const before=clone(it.entries); const x=before.find(y=>y.id===dl.dataset.del); setEntries(it, before.filter(y=>y.id!==dl.dataset.del)); view(it, $('#tv')); toast('Removed “'+(x?.text||'item')+'”', ()=>docPatch('items', it.id, {entries:before})); }
+    if(dl){ const before=clone(it.entries); const x=before.find(y=>y.id===dl.dataset.del); setEntries(it, before.filter(y=>y.id!==dl.dataset.del)); view(it, R(it)); toast('Removed “'+(x?.text||'item')+'”', ()=>docPatch('items', it.id, {entries:before})); }
   }
   function input(e, it){
     const id = e.target.dataset.ct; if(!id) return; const v = e.target.value;
@@ -44,7 +46,7 @@ TYPE_VIEWS.checklist = (() => {
   }
   function keydown(e, it){
     if(e.target.id==='ckNew' && e.key==='Enter'){ e.preventDefault(); add(it); }
-    if(e.target.dataset.ct && e.key==='Enter'){ e.preventDefault(); $('#ckNew').focus(); }
+    if(e.target.dataset.ct && e.key==='Enter'){ e.preventDefault(); Q(it,'#ckNew').focus(); }
   }
-  return {narrow:true, render:view, click, input, keydown, newShortcut(){ $('#ckNew')?.focus(); }, focusStart(){ $('#ckNew')?.focus(); }};
+  return {narrow:true, render:view, click, input, keydown, newShortcut(it){ Q(it,'#ckNew')?.focus(); }, focusStart(it){ Q(it,'#ckNew')?.focus(); }};
 })();
