@@ -65,7 +65,7 @@ TYPE_VIEWS.kanban = (() => {
       scroll:true, bubbleScroll:true, scrollSensitivity:44, scrollSpeed:9,
       onStart(){ S.dragging=true; document.body.classList.add('is-dragging'); }, onEnd(evt){ S.dragging=false; document.body.classList.remove('is-dragging'); onDrop(evt); render(true); }
     })));
-    if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); } }
+    if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); a.scrollIntoView({block:'nearest', inline:'nearest'}); } }
   }
 
   function view(it, root){ lanes([it], root, {bb:true, single:true}); }
@@ -86,8 +86,9 @@ TYPE_VIEWS.kanban = (() => {
           const lim = single ? DONE_LIMIT : LANE_DONE; if(c.id==='done' && ts.length>lim){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-lim)+' more'}</button>`; if(!all) ts=ts.slice(0,lim); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
             <div class="lcol-h"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            ${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
-            ${more}${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
+            ${more}
           </div>`;
         }).join('')}</div>
       </section>`;
@@ -118,7 +119,8 @@ TYPE_VIEWS.kanban = (() => {
   }
   function addTask(bid, col, title){
     if(!title.trim()) return;
-    docSet('tasks', {id:uid(), boardId:bid, col, pos:endPos(bid,col), title:title.trim(), notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
+    const l=tasksIn(bid,col); const top=l.length?Math.min(...l.map(x=>x.pos||0))-1024:1024;   // the add box sits at the top, so new tasks go there too
+    docSet('tasks', {id:uid(), boardId:bid, col, pos:top, title:title.trim(), notes:'', due:'', priority:'', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
     touchItem(bid);
   }
   function keyMove(t, key){
@@ -243,6 +245,11 @@ TYPE_VIEWS.kanban = (() => {
     const body = $('.sh-body', sheet); if(body) body.scrollTop = sc;
     if(fk) restoreFocus(fk, sheet);
   }
+  /* phone: drag the grabber or top bar down to close */
+  { let y0=null, dy=0;
+    sheet.addEventListener('touchstart', e => { const h=e.target.closest('.sh-grab,.sh-top'); y0 = h && !e.target.closest('button') ? e.touches[0].clientY : null; dy=0; }, {passive:true});
+    sheet.addEventListener('touchmove', e => { if(y0===null) return; dy=Math.max(0, e.touches[0].clientY-y0); sheet.style.transition='none'; sheet.style.transform=`translateY(${dy}px)`; }, {passive:true});
+    sheet.addEventListener('touchend', () => { if(y0===null) return; sheet.style.transition=''; sheet.style.transform=''; if(dy>80) closeSheet(); y0=null; }, {passive:true}); }
   const patchCl = (t, id, fn) => docPatch('tasks', t.id, {checklist:(t.checklist||[]).map(c=>c.id===id?fn(c):c)});
   sheet.addEventListener('input', e => {
     const t = cur(); if(!t) return; const id = e.target.id;

@@ -643,9 +643,9 @@ button.tl-lab:hover{background:color-mix(in srgb,var(--fg) 4%,var(--panel))}
 .lcol-add:hover{background:var(--fill-2)}
 .lcol .cards{min-height:14px}
 .lcol .drop-hint{display:none}
-body.is-dragging .lcol .drop-hint,.lcol .cards:not(:has(.card)) .drop-hint{display:block}
+.lcol .cards:not(:has(.card)) .drop-hint{display:block}
 .lcol .cards:not(:has(.card)) .drop-hint{border-color:transparent;color:color-mix(in srgb,var(--muted) 70%,transparent);padding:4px 8px 6px;text-align:left}
-body.is-dragging .lcol .drop-hint{border-color:var(--fill);padding:8px;text-align:center}
+
 .lcol.done .lcol-h{color:var(--up)}
 .lcol .cards{padding:2px 7px 7px;gap:6px}
 .lcol .drop-hint{padding:8px;font-size:12px}
@@ -734,5 +734,10 @@ body.side-open .fab .fab-x{display:block}
 }
 @media (max-width:860px){.side{padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}}
 html,body{overflow-x:clip;max-width:100%}
-.card .cl .chip.sub{display:table;width:auto;margin:3px 0 1px}
+.card .cl .chip.sub{display:block;width:fit-content;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:3px 0 1px}
 @media (pointer:coarse){.side .kbd,.side kbd{display:none}}
+/* one column per swipe, even on a fast flick */
+.lcol,.board > .col{scroll-snap-stop:always}
+.lane-open{text-decoration:none}
+.lcol > .add-row{padding:2px 7px 6px}
+@media (max-width:760px){.sh-grab{width:44px;height:5px;margin:8px auto 2px;padding:0}.sh-top{touch-action:none}}

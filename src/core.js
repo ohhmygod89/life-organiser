@@ -6,6 +6,7 @@
    ============================================================ */
 
 /* ---------- constants ---------- */
+const TOUCH = matchMedia('(pointer:coarse)').matches;
 const COLORS = {blue:'#007aff',indigo:'#5856d6',violet:'#af52de',rose:'#ff2d55',red:'#ff3b30',orange:'#ff9500',amber:'#ffb300',green:'#34c759',teal:'#30b0c7',slate:'#8e8e93'};
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -211,6 +212,7 @@ function setBackgroundInert(){
   else { scrim.classList.remove('show'); setTimeout(()=>{ if(!modalOpen() && !window.__sheetOpen) scrim.hidden=true; }, 220); }
 }
 function openModal(html, {opener, wide}={}){
+  document.body.classList.remove('side-open'); $('#fab')?.setAttribute('aria-expanded','false');
   if(!modalOpen()) modalOpener = opener || document.activeElement;
   const m = modal(); m.innerHTML = html; m.classList.toggle('wide', !!wide);
   m.oninput = m.onchange = m.onkeydown = m.onclick = null;
@@ -618,10 +620,10 @@ function folderMenu(anchor, fid){
 function appMenu(anchor){
   const theme = ls.get('lo.theme','system');
   openMenu(anchor, [
-    {label:'New item…', value:'new', kbd:'N'}, {label:'New folder…', value:'folder'},
+    {label:'New item…', value:'new', ...(TOUCH?{}:{kbd:'N'})}, {label:'New folder…', value:'folder'},
     {sep:true}, {head:'Appearance'},
     {label:'Match system', value:'t-system', checked:theme==='system'}, {label:'Light', value:'t-light', checked:theme==='light'}, {label:'Dark', value:'t-dark', checked:theme==='dark'},
-    {sep:true}, {label:'Status flags…', value:'flags'}, {label:'Export…', value:'export'}, {label:'Import…', value:'import'}, ...(ls.get('lo.preImport','')?[{label:'Undo last import…', value:'undoimport'}]:[]), ...(Store.demo?[{label:'Reset demo data', value:'reset'}]:[]), {label:'Keyboard shortcuts', value:'keys', kbd:'?'},
+    {sep:true}, {label:'Status flags…', value:'flags'}, {label:'Export…', value:'export'}, {label:'Import…', value:'import'}, ...(ls.get('lo.preImport','')?[{label:'Undo last import…', value:'undoimport'}]:[]), ...(Store.demo?[{label:'Reset demo data', value:'reset'}]:[]), ...(TOUCH?[]:[{label:'Keyboard shortcuts', value:'keys', kbd:'?'}]),
     {sep:true}, {head:bkLastLabel()}, {head:'Version '+APP_VERSION},
   ], v => {
     if(v==='new') openNewItem({opener:anchor});
