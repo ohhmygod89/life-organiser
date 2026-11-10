@@ -112,7 +112,7 @@ TYPE_VIEWS.kanban = (() => {
   function sortMenu(el, at){ const bid = el.dataset.sortboard, col = el.dataset.sortcol; if(!bid || col==='done') return;
     openMenu(at || el, SORTS.map(s=>({label:s.l, value:s.v})), v => sortColumn(bid, col, v), 'Sort '+colName(col)); }
   const sortTarget = e => { if(e.target.closest('.card, button, input, textarea, .add-row')) return null; const c = e.target.closest('.lcol, .col'); return c?.querySelector('[data-sortcol]') || null; };
-  $('#content').addEventListener('dblclick', e => { if(TOUCH) return; const h = sortTarget(e); if(h){ e.preventDefault(); getSelection()?.removeAllRanges(); sortMenu(h, pointAnchor(e)); } });
+  /* desktop: right-click opens the hidden menus (phone: double-tap) — cards, column sort, stack options */
   function cardMenuItems(t){
     const done = t.col==='done';
     return [...(done?[]:[{label:t.pinned?'Unpin':'Pin to top', value:'pin'}]),
@@ -166,7 +166,12 @@ TYPE_VIEWS.kanban = (() => {
     toast(`Copied to ${itemById(bid)?.name||'stack'} · ${colName(col)}`, ()=>docDel('tasks', id));
     requestAnimationFrame(()=>{ const c=document.querySelector(`.card[data-id="${CSS.escape(id)}"]`); c?.classList.add('flash'); c?.scrollIntoView({block:'nearest', inline:'nearest'}); });
   }
-  $('#content').addEventListener('contextmenu', e => { if(e.target.closest('.kb .card')) cardMenu(e); });
+  $('#content').addEventListener('contextmenu', e => {
+    if(!e.target.closest('.kb') || e.target.closest('input, textarea, [contenteditable]')) return;
+    if(e.target.closest('.card')) return cardMenu(e);
+    const h = sortTarget(e); if(h){ e.preventDefault(); return sortMenu(h, pointAnchor(e)); }
+    const lh = e.target.closest('.lane-h'); if(lh){ e.preventDefault(); lh.querySelector('.lane-more')?.click(); }
+  });
   function addRowHTML(bid, c){
     const isAdding = adding?.board===bid && adding?.col===c.id;
     return isAdding ? `<div class="add-row"><div class="add-wrap"><textarea class="add-input" id="kbAdd" rows="2" placeholder="Task name" aria-label="New task in ${c.name}" enterkeyhint="send">${esc(draft)}</textarea><button class="send-btn" data-send="task" aria-label="Add task" title="Add">${ICON.send}</button></div><div class="add-tip">${TOUCH?'Tap outside to finish':'Enter to add another · Esc to finish'}</div></div>`
@@ -214,7 +219,7 @@ TYPE_VIEWS.kanban = (() => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
           const lim = LANE_DONE; if(c.id==='done' && ts.length>lim){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-lim)+' more'}</button>`; if(!all) ts=ts.slice(0,lim); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
-            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':'Double-tap or double-click to sort'}"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
             ${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
             ${more}
@@ -285,6 +290,10 @@ TYPE_VIEWS.kanban = (() => {
     const ed = !TOUCH && e.isTrusted && e.target.closest('.card:not(.is-done) .tt, .card .ctt');
     if(ed){ if(!ed.isContentEditable) startEdit(ed, e); return true; }
     if(e.target.closest('[contenteditable]')) return true;
+    const lh = TOUCH && !e.target.closest('input, button') ? e.target.closest('.lane-h') : null;
+    if(lh){ const key = 'lane/'+(lh.querySelector('[data-sid]')?.dataset.sid||'');
+      if(colTap && colTap.key===key && Date.now()-colTap.t < 350){ colTap=null; lh.querySelector('.lane-more')?.click(); return true; }
+      colTap = {key, t:Date.now()}; return true; }
     const sh = TOUCH && sortTarget(e);
     if(sh){ const key = sh.dataset.sortboard+'/'+sh.dataset.sortcol;
       if(colTap && colTap.key===key && Date.now()-colTap.t < 350){ colTap=null; sortMenu(sh, pointAnchor(e)); return true; }

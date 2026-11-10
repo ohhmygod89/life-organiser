@@ -2,6 +2,11 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.26] - 2026-11-10
+### Changed
+- Desktop: right-click opens the hidden menus: cards, a column's sort menu (title or empty space) and a stack's options (its header). Phone: double-tap does the same.
+- Phone: View and Filter are round icon buttons in a row beside the menu button, bottom right; Filter shows a count badge when filters are on.
+
 ## [1.0.0-beta.25] - 2026-11-10
 ### Changed
 - Priority is High, Medium or Low (no "none"); new tasks start as Low, and tasks without a priority became Low.

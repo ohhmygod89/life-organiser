@@ -1175,3 +1175,17 @@ body.placing,body.placing *{cursor:copy!important}
 /* card titles only make room for the pin when there is one (phone) */
 @media (pointer:coarse){ .card:not(.pinned) .card-head{padding-right:0} }
 @media (max-width:860px){ .kb-ctl{left:calc((100% - 70px) / 2)} }
+
+/* ===== beta.26 ===== */
+.kb-view > svg:first-child{display:none}
+@media (max-width:860px){
+  /* round icon buttons in a row beside the menu button: [View] [Filter] [☰] */
+  .kb-ctl{left:auto;transform:none;right:calc(max(16px,env(safe-area-inset-right,0px)) + 54px + 10px);bottom:calc(18px + env(safe-area-inset-bottom,0px));flex-direction:row;gap:10px}
+  .kb-ctl .btn{position:relative;width:54px;height:54px;padding:0;border-radius:50%;justify-content:center;gap:0}
+  .kb-ctl .btn svg{width:22px;height:22px;color:var(--fg)}
+  .kb-ctl .kb-lbl,.kb-ctl .kb-view > svg:last-child{display:none}
+  .kb-view > svg:first-child{display:block}
+  .kb-ctl .nf{position:absolute;top:2px;right:2px;min-width:18px;height:18px}
+  .kb-ctl .btn[aria-expanded="true"]{background:var(--fill)}
+  .kb-bar .fgroups.open{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+}

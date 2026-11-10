@@ -51,6 +51,7 @@ const ICON = {
   rtClear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5h12M12 5 9 19M4 4l16 16"/></svg>',
   send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   filter:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M7 12h10M10 17h4"/></svg>',
+  view:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="4" width="7" height="16" rx="1.8"/><rect x="13.5" y="4" width="7" height="9" rx="1.8"/><rect x="13.5" y="16" width="7" height="4" rx="1.5"/></svg>',
   chevD:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 9 5 5 5-5"/></svg>',
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 14 5-5 5 5"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 2.5 21.5 8.5l-2 .9-3.6 3.6.6 4.6-1.6 1.6-4-4-5 5-1.2-1.2 5-5-4-4 1.6-1.6 4.6.6 3.6-3.6z"/></svg>',
@@ -548,8 +549,8 @@ function renderKanban(k, root){
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
   const VIEWS = {board:'Board', list:'List', archive:'Archive'};
   const nf = (V.quick!=='open') + V.boards.size + (V.bb?1:0);   // filters away from the defaults (Done follows the device default, so it isn't counted)
-  const seg = `<div class="kb-ctl">${mode==='archive'?'':`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters">${ICON.filter}Filter${nf?` <b class="nf">${nf}</b>`:''}</button>`}
-    <button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false"><span class="muted">View</span> ${VIEWS[mode]}${ICON.chevD}</button></div>`;
+  const seg = `<div class="kb-ctl">${mode==='archive'?'':`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters" aria-label="Filter${nf?` (${nf} on)`:''}" title="Filter">${ICON.filter}<span class="kb-lbl">Filter</span>${nf?` <b class="nf">${nf}</b>`:''}</button>`}
+    <button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
   const groups = mode==='archive' ? '' : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
