@@ -109,6 +109,13 @@ function dueLabel(s){
   const r = n<0 ? {rel:(-n)+'d overdue', cls:'overdue'} : n===0 ? {rel:'Today', cls:'soon'} : n===1 ? {rel:'Tomorrow', cls:'soon'} : {rel:'In '+n+'d', cls:''};
   return {...r, full, t: full+' · '+r.rel};
 }
+/* a start–due range in the same style, e.g. "12 – 16 Nov 26", "28 Oct – 03 Nov 26"; sep ' to ' for screen readers */
+function dateRange(a, b, sep=' – '){
+  if(!a || !b || a===b) return fullDate(a||b);
+  const [x, y] = [fullDate(a), fullDate(b)].map(v=>v.split(' '));
+  if(x[2]===y[2]) return (x[1]===y[1] && sep===' – ' ? x[0] : x[0]+' '+x[1]) + sep + y.join(' ');
+  return x.join(' ') + sep + y.join(' ');
+}
 const shortDate = iso => { const d=new Date(iso); return d.getDate()+' '+MON[d.getMonth()]+(d.getFullYear()!==CUR_YEAR?' '+d.getFullYear():''); };
 const stamp = iso => { const d=new Date(iso); return shortDate(iso)+', '+d.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}); };
 const plural = (n, w) => n+' '+w+(n===1?'':'s');
@@ -547,7 +554,7 @@ function renderKanban(k, root){
   const pool = S.tasks.filter(t=>ids.has(t.boardId) && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)));
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
-  const VIEWS = {board:'Board', list:'List', archive:'Archive'};
+  const VIEWS = {board:'Board', list:'List', timeline:'Timeline', archive:'Archive'};
   const nf = (V.quick!=='open') + V.boards.size + (V.bb?1:0);   // filters away from the defaults (Done follows the device default, so it isn't counted)
   const seg = `<div class="kb-ctl">${`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters" aria-label="Filter${nf?` (${nf} on)`:''}" title="Filter">${ICON.filter}<span class="kb-lbl">Filter</span>${nf?` <b class="nf">${nf}</b>`:''}</button>`}
     <button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
@@ -567,6 +574,11 @@ function renderKanban(k, root){
     if(shown.length) TYPE_VIEWS.kanban.lanes(shown, $('#lanesRoot'), {bb:V.bb, done:S.showDone, test: V.quick==='open' ? null : q.test});
     return;
   }
+  if(mode==='timeline'){
+    root.innerHTML = `<div class="kb kb-tl">${tabs}${shown.length ? '<div id="tlRoot"></div>' : `<div class="panel empty-state">Pick a stack above.</div>`}</div>`;
+    if(shown.length) TYPE_VIEWS.timeline.render(shown, $('#tlRoot'), {k, bb:V.bb, done:S.showDone, test: V.quick==='open' ? null : q.test});
+    return;
+  }
   const list = pool.filter(q.test);
   const tie = (a,b) => byDue(a,b) || (a.updated||'').localeCompare(b.updated||'');
   let gs;
@@ -584,7 +596,7 @@ function renderKanban(k, root){
 function kanbanClick(e, k){
   const V = S.tasksView;
   const vb = e.target.closest('[data-act="view"]');
-  if(vb){ openMenu(vb, [['board','Board'],['list','List'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
+  if(vb){ openMenu(vb, [['board','Board'],['list','List'],['timeline','Timeline'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
   if(e.target.closest('[data-act="filters"]')){ S.filtersOpen=!S.filtersOpen; render(true); restoreFocus('[data-act="filters"]'); return true; }
   const md = e.target.closest('[data-mode]'); if(md){ V.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); S.filtersOpen=false; render(true); restoreFocus(`[data-mode="${md.dataset.mode}"]`); return true; }
   const so = e.target.closest('[data-sort]'); if(so && !e.target.closest('.tbl')){ V.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return true; }
@@ -966,6 +978,8 @@ function openKeys(opener){
     <dl class="keys"><dt><kbd>/</kbd> or <kbd>⌘</kbd><kbd>K</kbd></dt><dd>Search everything</dd><dt><kbd>N</kbd></dt><dd>New task, row, entry or checklist item, depending on the page</dd><dt><kbd>⇧</kbd><kbd>N</kbd></dt><dd>New item</dd><dt><kbd>H</kbd> · <kbd>T</kbd></dt><dd>Home · All tasks</dd><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd><dt><kbd>Esc</kbd></dt><dd>Close a window or menu, clear search</dd></dl>
     <p class="keys-h">Kanban</p>
     <dl class="keys"><dt><kbd>Enter</kbd></dt><dd>Open the focused card</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the card to the previous or next column</dd><dt><kbd>⌥</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move the card up or down</dd></dl>
+    <p class="keys-h">Timeline</p>
+    <dl class="keys"><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Previous or next task</dd><dt><kbd>Enter</kbd></dt><dd>Open the task</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move its dates one day (a week in Quarter)</dd><dt><kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the due date only</dd></dl>
     <p class="note">On Windows use <kbd>Ctrl</kbd> for <kbd>⌘</kbd> and <kbd>Alt</kbd> for <kbd>⌥</kbd>.</p>
     <div class="row-end"><button class="pill" data-x>Done</button></div>`, {opener});
   m.onclick = e => { if(e.target.closest('[data-x]')) closeModal(); };

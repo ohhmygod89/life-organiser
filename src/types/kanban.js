@@ -24,6 +24,21 @@ TYPE_VIEWS.kanban = (() => {
   const grp = t => t.pinned && t.col!=='done' ? 0 : 1;   // pinned cards stay above the rest; within each, your order
   function groupEnd(bid, col, g, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except && grp(x)===g); return (l.length?Math.max(...l.map(x=>x.pos||0)):0)+1024; }
   function endPos(bid, col, except, t){ const x = t || S.tasks.find(y=>y.id===except) || {}; return groupEnd(bid, col, grp({...x, col}), except); }
+  /* Start and due: a start may not be after the due date. Setting a later start moves the due date to it;
+     setting an earlier due date moves the start to it. Returns the patch (both dates). */
+  function datesPatch(t, p){
+    let start = 'start' in p ? p.start||'' : t.start||'', due = 'due' in p ? p.due||'' : t.due||'';
+    if(start && due && start > due){ if('start' in p) due = start; else start = due; }
+    return {start, due};
+  }
+  function setDates(t, p, {quiet}={}){
+    const before = {start:t.start||'', due:t.due||''}; const np = datesPatch(t, p);
+    if(np.start===before.start && np.due===before.due) return null;
+    docPatch('tasks', t.id, np);
+    if(!quiet && 'start' in p && np.due!==(p.due ?? before.due)) toast('Due moved to '+fullDate(np.due)+' to match the start', ()=>docPatch('tasks', t.id, before));
+    else if(!quiet && 'due' in p && np.start!==(p.start ?? before.start)) toast('Start moved to '+fullDate(np.start)+' to match the due date', ()=>docPatch('tasks', t.id, before));
+    return before;
+  }
   function moveTo(t, col, {silent}={}){
     if(t.col===col) return;
     const snap = {col:t.col, pos:t.pos??1024, doneAt:t.doneAt||'', prevCol:t.prevCol||''};
@@ -45,7 +60,9 @@ TYPE_VIEWS.kanban = (() => {
     const left = [], right = [];
     if(isDone && t.doneAt) left.push(`<span class="okd">${ICON.check}Done ${esc(shortDate(t.doneAt))}</span>`);
     if(t.due && !isDone){ const d=dueLabel(t.due); const near = dayDiff(t.due) <= 7;   // overdue or due within a week: add how far away
-      right.push(`<span class="due ${d.cls}" title="Due ${esc(d.t)}">${esc(d.full)}${near?` · ${esc(d.rel)}`:''}</span>`); }
+      const txt = t.start && t.start!==t.due ? dateRange(t.start, t.due) : d.full;   // with a start date: the range, e.g. 12 – 16 Nov 26
+      right.push(`<span class="due ${d.cls}" title="${t.start?`Starts ${esc(fullDate(t.start))}, due`:'Due'} ${esc(d.t)}">${esc(txt)}${near?` · ${esc(d.rel)}`:''}</span>`); }
+    else if(t.start && !isDone) right.push(`<span class="due" title="Starts ${esc(fullDate(t.start))}">From ${esc(fullDate(t.start))}</span>`);
     const mvBtn = '';   // moving is in the card menu (hold on phone, right-click on desktop)
     const open = cl.filter(c=>!c.done); const lim = compact ? 4 : 8;
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
@@ -101,10 +118,10 @@ TYPE_VIEWS.kanban = (() => {
   }
   /* right-click a card: Duplicate, then click the column (any stack) to drop the copy there */
   let placing = null, tap = null, colTap = null;
-  const SORTS = [{v:'priority', l:'Priority (High first)'}, {v:'due', l:'Due date (soonest first)'}, {v:'title', l:'Title (A–Z)'}, {v:'new', l:'Newest first'}];
+  const SORTS = [{v:'priority', l:'Priority (High first)'}, {v:'due', l:'Due date (soonest first)'}, {v:'start', l:'Start date (soonest first)'}, {v:'title', l:'Title (A–Z)'}, {v:'new', l:'Newest first'}];
   function sortColumn(bid, col, how){
     const l = tasksIn(bid, col); const before = l.map(t=>({id:t.id, pos:t.pos}));
-    const key = {priority:(a,b)=>PRANK[a.priority||'']-PRANK[b.priority||''], due:(a,b)=>(a.due||'9999').localeCompare(b.due||'9999'), title:(a,b)=>(a.title||'').localeCompare(b.title||'', undefined, {sensitivity:'base'}), new:(a,b)=>(b.created||'').localeCompare(a.created||'')}[how];
+    const key = {priority:(a,b)=>PRANK[a.priority||'']-PRANK[b.priority||''], due:(a,b)=>(a.due||'9999').localeCompare(b.due||'9999'), start:(a,b)=>(a.start||'9999').localeCompare(b.start||'9999'), title:(a,b)=>(a.title||'').localeCompare(b.title||'', undefined, {sensitivity:'base'}), new:(a,b)=>(b.created||'').localeCompare(a.created||'')}[how];
     const sorted = l.slice().sort((a,b)=>grp(a)-grp(b) || key(a,b) || (a.pos??0)-(b.pos??0));   // pinned stay on top
     sorted.forEach((t,i)=>{ const pos=(i+1)*1024; if(t.pos!==pos) docPatch('tasks', t.id, {pos}); });
     render(true); toast(`${colName(col)} sorted by ${SORTS.find(s=>s.v===how).l.split(' (')[0].toLowerCase()}`, ()=>before.forEach(x=>docPatch('tasks', x.id, {pos:x.pos})));
@@ -362,7 +379,7 @@ TYPE_VIEWS.kanban = (() => {
     const id = openId; openId = null; window.__sheetOpen = false;
     sheet.classList.remove('show'); setBackgroundInert(); document.body.classList.remove('sheet-open'); render(true);
     if(silent) return;
-    if(!restoreFocus(`.card[data-id="${CSS.escape(id)}"]`) && !restoreFocus(`[data-open="task:${CSS.escape(id)}"]`) && opener?.isConnected) opener.focus({preventScroll:true});
+    if(!restoreFocus(`.card[data-id="${CSS.escape(id)}"]`) && !restoreFocus(`.gt-bar[data-id="${CSS.escape(id)}"]`) && !restoreFocus(`[data-open="task:${CSS.escape(id)}"]`) && opener?.isConnected) opener.focus({preventScroll:true});
   }
   /* Never rebuild the window while you're typing in it: that recreates the box you're in, drops the iPhone keyboard and
      shifts the screen (taps then land in the wrong place). Changes are shown once you've left the box. */
@@ -394,11 +411,13 @@ TYPE_VIEWS.kanban = (() => {
           ${propRow('hBoard','Stack', `<span class="lbl-t">${esc(b?.name||'')}</span>`)}
           ${propRow('pCol','Status', `<span class="sdot st-${t.col}" aria-hidden="true"></span><span class="lbl-t">${colName(t.col)}</span>`)}
           ${propRow('pPri','Priority', `${prioIcon(t.priority)}<span class="lbl-t">${(PRIO[t.priority]||PRIO.low).label}</span>`)}
+          ${propRow('pStart','Start', t.start ? `${ICON.cal}<span class="lbl-t">${esc(fullDate(t.start))}</span>` : `<span class="lbl-t muted">No date</span>`)}
           ${propRow('pDue','Due', d ? `${ICON.cal}<span class="lbl-t ${d.cls}">${esc(d.t)}</span>` : `<span class="lbl-t muted">No date</span>`)}
           ${propRow('pFlag','Flag', f ? `<span class="fdot" style="--fc:${colorOf(f.color)}"></span><span class="lbl-t">${esc(f.label)}</span>` : `<span class="lbl-t muted">None</span>`)}
           ${flagAsk(f)?`<div class="prop"><label class="prop-l" for="fWho">${flagAskLabel(f)}</label><input class="prop-in" id="fWho" type="text" placeholder="${flagAsk(f)}" value="${esc(t.flagWho||'')}"></div>`:''}
           ${(() => { const e=effFlag(t); const ef=e&&e.from&&flagOf(e.flag); return ef ? `<p class="prop-note"><span class="fdot" style="--fc:${colorOf(ef.color)}"></span>Card shows ${esc(ef.label)}${e.who&&flagAsk(ef)?' · '+esc(e.who):''}, from subtask “${esc(e.from.text)}”</p>` : ''; })()}
           <input type="date" id="fDue" class="sr-only" tabindex="-1" aria-hidden="true" value="${esc(t.due||'')}">
+          <input type="date" id="fStart" class="sr-only" tabindex="-1" aria-hidden="true" value="${esc(t.start||'')}">
         </div>
         <section class="sh-sec">
           <textarea class="notes" id="fNotes" rows="2" placeholder="Add notes, links, reference numbers…" aria-label="Notes">${esc(t.notes||'')}</textarea>
@@ -442,7 +461,7 @@ TYPE_VIEWS.kanban = (() => {
     const ct = e.target.dataset.ct; if(ct){ const v=e.target.value; debounced('c'+ct, ()=>{ const x=cur(); if(!x) return; patchCl(x, ct, c=>({...c,text:v})); markSaved(); render(); }); }
     const cw = e.target.dataset.cw; if(cw){ const v=e.target.value; debounced('w'+cw, ()=>{ const x=cur(); if(!x) return; patchCl(x, cw, c=>({...c,flagWho:v})); markSaved(); render(); }); }
   });
-  sheet.addEventListener('change', e => { const t=cur(); if(t && e.target.id==='fDue'){ docPatch('tasks', t.id, {due:e.target.value}); renderSheet(); markSaved(); render(); } });
+  sheet.addEventListener('change', e => { const t=cur(); if(t && (e.target.id==='fDue' || e.target.id==='fStart')){ setDates(t, e.target.id==='fDue' ? {due:e.target.value} : {start:e.target.value}); renderSheet(); markSaved(); render(); } });
   function addCheck(){ const el=$('#fCheckNew'); const v=el.value.trim(); if(!v) return; const t=cur(); docPatch('tasks', t.id, {checklist:[...(t.checklist||[]), {id:uid(), text:v, done:false}]}); renderSheet(); markSaved(); render(); const n=$('#fCheckNew'); n.focus({preventScroll:true}); reveal(n); }
   function addLog(){ const v=$('#fLogNew').value.trim(); if(!v) return; const t=cur(); docPatch('tasks', t.id, {log:[...(t.log||[]), {id:uid(), t:nowIso(), text:v}]}); renderSheet(); markSaved(); const n=$('#fLogNew'); n.focus({preventScroll:true}); reveal(n); }
   /* keep what you just added, or the box you are typing in, in view (also once the keyboard has opened) */
@@ -455,7 +474,7 @@ TYPE_VIEWS.kanban = (() => {
     if(e.target.dataset.ct){ e.preventDefault(); $('#fCheckNew')?.focus(); }
   });
   function flagItems(cur){ return [{label:'None', value:'', checked:!cur}, ...flags().map(fl=>({label:fl.label, value:fl.id, dot:colorOf(fl.color), checked:cur===fl.id}))]; }
-  function pickDate(){ const i=$('#fDue'); if(!i) return; try{ i.showPicker(); }catch(e){ i.classList.remove('sr-only'); i.removeAttribute('aria-hidden'); i.focus(); } }
+  function pickDate(id='fDue'){ const i=$('#'+id); if(!i) return; try{ i.showPicker(); }catch(e){ i.classList.remove('sr-only'); i.removeAttribute('aria-hidden'); i.focus(); } }
   sheet.addEventListener('click', e => {
     const t = cur(); if(!t) return;
     const sb = e.target.closest('[data-send]'); if(sb){ if(sb.dataset.send==='check') addCheck(); else addLog(); return; }
@@ -473,7 +492,11 @@ TYPE_VIEWS.kanban = (() => {
     const pd = e.target.closest('#pDue');
     if(pd) return openMenu(pd, [...quickDates().map(([l,v])=>({label:`${l} · ${dateLabel(v)}`, value:v, checked:t.due===v})), {sep:true}, {label:'Pick a date…', value:'pick'}, ...(t.due?[{label:'No due date', value:'clear'}]:[])], v => {
       if(v==='pick') return pickDate();
-      docPatch('tasks', t.id, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
+      setDates(t, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
+    const ps = e.target.closest('#pStart');
+    if(ps) return openMenu(ps, [...quickDates().map(([l,v])=>({label:`${l} · ${dateLabel(v)}`, value:v, checked:t.start===v})), {sep:true}, {label:'Pick a date…', value:'pick'}, ...(t.start?[{label:'No start date', value:'clear'}]:[])], v => {
+      if(v==='pick') return pickDate('fStart');
+      setDates(t, {start:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Start date');
     const pf = e.target.closest('#pFlag');
     if(pf) return openMenu(pf, flagItems(t.flag), v => { if(v===(t.flag||'')) return; docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); const w=$('#fWho'); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Flag');
     if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
@@ -525,5 +548,5 @@ TYPE_VIEWS.kanban = (() => {
     draw();
   }
 
-  return {wide:true, render:view, lanes, click, input, change, keydown, newShortcut, openSheet, closeSheet, refreshSheet, openFlagsModal, focusStart(){}};
+  return {wide:true, render:view, lanes, cardMenuItems, cardAction, archived, colName, COLS, datesPatch, setDates, click, input, change, keydown, newShortcut, openSheet, closeSheet, refreshSheet, openFlagsModal, focusStart(){}};
 })();

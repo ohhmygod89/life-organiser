@@ -2,6 +2,18 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.28] - 2026-11-10
+### Added
+- Timeline view (View › Timeline; on a phone, in the Filter panel): a Kanban's tasks on a calendar, grouped by stack, with the same filters as the board. A task with a start and due date is a bar; a due date alone is a diamond; a start alone is a bar that fades out. To Do bars are outlined, In Progress filled, Done muted with a tick, and overdue tasks get a red end.
+- Week, Month and Quarter zoom, a Today line and a Today button. Stacks fold away, and tasks with no dates wait in a “No dates” tray.
+- Desktop: drag a bar to move it, drag either end to change that date (Esc cancels), or drag a task from “No dates” onto the timeline to give it a due date. Every change can be undone. Right-click a bar for the card menu.
+- Keyboard: ↑ ↓ move between tasks, Enter opens one, ⌥ ← → moves its dates, ⌥ ⇧ ← → moves only the due date.
+- Phone: tap a bar or its title to open the task, double-tap for the card menu.
+- Tasks have an optional Start date, above Due in the task window. A start can't be after the due date: setting a later start moves the due date with it, and an earlier due date moves the start.
+- Cards show the range, e.g. “12 – 16 Nov 26”, or “From 12 Nov 26” with only a start. Columns can be sorted by start date.
+### Changed
+- The demo's sample data was refreshed to include start dates (the demo resets once).
+
 ## [1.0.0-beta.27] - 2026-11-10
 ### Changed
 - Phone: Board / List / Archive moved into the Filter panel (a View group at the top), leaving one floating Filter button beside the menu button. Picking a view closes the panel.

@@ -4,7 +4,7 @@
    Data is fictional sample data and stays in this browser (localStorage).
    ============================================================ */
 function DemoDB(){
-  const KEY = 'lo.demo.v5';
+  const KEY = 'lo.demo.v6';   // v6: demo tasks gained start dates (beta.28)
   const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); };
   const ahead = n => ago(-n);
   const iso = nowIso();
@@ -64,23 +64,23 @@ Press ? for keyboard shortcuts.`},
         const spec = {
           demokanbanhome1: {
             upcoming:[['Plan spring garden',{priority:'low', due:ahead(40)}], ['Book annual car rego',{due:ahead(25), priority:'med'}], ['Research solar panels',{notes:'Compare 6.6 kW systems, ask about the feed-in tariff.'}]],
-            todo:[['Renew passport',{pinned:true, priority:'high', flag:W, flagWho:'Passport office', due:ahead(6), checklist:[sub('Photos',true), sub('Lodge form'), sub('Collect from post office',false,{flag:W, flagWho:'Post office'})]}],
-                  ['Book car service',{priority:'med', due:ahead(3)}], ['Fix leaking tap',{due:ago(2), priority:'high'}], ['Clear out garage',{checklist:[sub('Sort donations'), sub('Book council pickup',false,{flag:D})]}]],
-            doing:[['Clean gutters',{priority:'med', checklist:[sub('Front',true), sub('Back')]}], ['Switch energy plan',{flag:W, flagWho:'Bright Energy', log:[L(3,'Called, waiting on a quote')], priority:'low'}]],
-            done:[['Pay parking fine',{doneAt:ago(1)}], ['Replace smoke alarm batteries',{doneAt:ago(4)}], ['Order new mattress',{doneAt:ago(9)}]],
+            todo:[['Renew passport',{pinned:true, priority:'high', flag:W, flagWho:'Passport office', start:ago(3), due:ahead(6), checklist:[sub('Photos',true), sub('Lodge form'), sub('Collect from post office',false,{flag:W, flagWho:'Post office'})]}],
+                  ['Book car service',{priority:'med', due:ahead(3)}], ['Fix leaking tap',{start:ago(6), due:ago(2), priority:'high'}], ['Clear out garage',{checklist:[sub('Sort donations'), sub('Book council pickup',false,{flag:D})]}]],
+            doing:[['Clean gutters',{priority:'med', start:ago(2), due:ahead(5), checklist:[sub('Front',true), sub('Back')]}], ['Switch energy plan',{start:ago(10), flag:W, flagWho:'Bright Energy', log:[L(3,'Called, waiting on a quote')], priority:'low'}]],
+            done:[['Pay parking fine',{start:ago(5), due:ago(1), doneAt:ago(1)}], ['Replace smoke alarm batteries',{doneAt:ago(4)}], ['Order new mattress',{doneAt:ago(9)}]],
             backburner:[['Repaint the fence',{flag:H}], ['Build a veggie patch',{priority:'low'}]],
           },
           demokanbanwork1: {
-            upcoming:[['Plan training course',{due:ahead(30)}], ['Quarterly review prep',{priority:'med', due:ahead(21)}]],
+            upcoming:[['Plan training course',{start:ahead(24), due:ahead(30)}], ['Quarterly review prep',{priority:'med', start:ahead(10), due:ahead(21)}]],
             todo:[['Submit timesheet',{priority:'high', due:ahead(1)}], ['Update project risk register',{priority:'med', checklist:[sub('Schedule risks',true), sub('Supplier risks',false,{flag:W, flagWho:'Procurement'}), sub('Review with lead')]}], ['Reply to client email',{due:ago(1), priority:'high'}]],
-            doing:[['Write test procedure',{pinned:true, priority:'high', flag:B, notes:'Needs the updated drawing set.', checklist:[sub('Draft steps',true), sub('Peer review',false,{flag:W, flagWho:'Sam'}), sub('Sign-off')]}], ['Onboard new starter',{checklist:[sub('Laptop',true), sub('Access cards'), sub('Induction')]}], ['Expense claim',{flag:W, flagWho:'Finance', priority:'low'}]],
-            done:[['Book flights for site visit',{doneAt:ago(2)}], ['Safety refresher module',{doneAt:ago(6)}]],
+            doing:[['Write test procedure',{pinned:true, priority:'high', flag:B, start:ago(7), due:ahead(9), notes:'Needs the updated drawing set.', checklist:[sub('Draft steps',true), sub('Peer review',false,{flag:W, flagWho:'Sam'}), sub('Sign-off')]}], ['Onboard new starter',{start:ago(1), due:ahead(12), checklist:[sub('Laptop',true), sub('Access cards'), sub('Induction')]}], ['Expense claim',{flag:W, flagWho:'Finance', priority:'low'}]],
+            done:[['Book flights for site visit',{start:ago(6), due:ago(2), doneAt:ago(2)}], ['Safety refresher module',{doneAt:ago(6)}]],
             backburner:[['Reorganise shared drive',{priority:'low'}], ['Lunch-and-learn talk',{flag:D}]],
           },
           demokanbanside1: {
             upcoming:[['Logo refresh',{priority:'low'}], ['Apply for market stall',{due:ahead(45), flag:D}]],
-            todo:[['Photograph new range',{priority:'med', due:ahead(5), checklist:[sub('Book studio',true), sub('Props'), sub('Model',false,{flag:W, flagWho:'Agency'})]}], ['Update shop prices',{priority:'high', due:ahead(2)}]],
-            doing:[['Website copy',{priority:'med', flag:W, flagWho:'Copywriter', log:[L(5,'Brief sent'), L(1,'First draft received')]}], ['Supplier samples',{flag:B, checklist:[sub('Request',true), sub('Customs clearance',false,{flag:W, flagWho:'Courier'})]}]],
+            todo:[['Photograph new range',{priority:'med', start:ahead(2), due:ahead(5), checklist:[sub('Book studio',true), sub('Props'), sub('Model',false,{flag:W, flagWho:'Agency'})]}], ['Update shop prices',{priority:'high', due:ahead(2)}]],
+            doing:[['Website copy',{priority:'med', start:ago(5), due:ahead(8), flag:W, flagWho:'Copywriter', log:[L(5,'Brief sent'), L(1,'First draft received')]}], ['Supplier samples',{start:ago(14), flag:B, checklist:[sub('Request',true), sub('Customs clearance',false,{flag:W, flagWho:'Courier'})]}]],
             done:[['Register business name',{doneAt:ago(12)}], ['Open business account',{doneAt:ago(20)}]],
             backburner:[['Podcast idea',{}], ['Second product line',{flag:H, priority:'low'}]],
           },
