@@ -119,12 +119,13 @@ TYPE_VIEWS.bills = (() => {
       }
     }
     const months = MON.map((m,i)=>{ const s=pct(`${Y}-${String(i+1).padStart(2,'0')}-01`), e = i<11 ? pct(`${Y}-${String(i+2).padStart(2,'0')}-01`) : 100; return {m, s, mid:(s+e)/2}; });
+    const maxTot = Math.max(1, ...monthTot);   // dot columns in the Total row: 8 dots = the busiest month
     const curM = Y===CUR_YEAR ? new Date().getMonth() : -1;
     return `<section class="tl" aria-label="Bills timeline ${Y}"><div class="tl-in">
       <div class="tl-row tl-head"><div class="tl-lab"><span>${Y}</span></div><div class="tl-track">${months.map((x,i)=>`<span class="tl-m ${i===curM?'cur':''}" style="left:${x.mid}%">${x.m}</span>`).join('')}</div></div>
       <div class="tl-body">${rows}
         <div class="tl-lines" aria-hidden="true">${months.slice(1).map(x=>`<i style="left:${x.s}%"></i>`).join('')}${Y===CUR_YEAR?`<b class="tl-now" style="left:${pct(today())}%"></b>`:''}</div></div>
-      <div class="tl-row tl-tot"><div class="tl-lab"><span>Total</span></div><div class="tl-track">${months.map((x,i)=>monthTot[i]?`<span class="tl-m" style="left:${x.mid}%">${money(Math.round(monthTot[i]))}</span>`:'').join('')}</div></div>
+      <div class="tl-row tl-tot"><div class="tl-lab"><span>Total</span></div><div class="tl-track">${months.map((x,i)=>monthTot[i]?`<span class="tl-col" style="left:${x.mid}%;--n:${Math.max(1, Math.round(monthTot[i]/maxTot*8))}" aria-hidden="true"></span><span class="tl-m" style="left:${x.mid}%">${money(Math.round(monthTot[i]))}</span>`:'').join('')}</div></div>
     </div>
     <div class="tl-legend" aria-hidden="true"><span><i class="tl-dot paid">${ICON.check}</i>Paid</span><span><i class="tl-dot up" style="--c:var(--accent)"></i>Upcoming</span><span><i class="tl-dot soon"></i>Due in 30 days</span><span><i class="tl-dot over">!</i>Overdue</span><span><i class="tl-dot pre"></i>Before tracking</span><span><i class="tl-now-k"></i>Today</span></div></section>`;
   }

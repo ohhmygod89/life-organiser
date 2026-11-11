@@ -332,7 +332,7 @@ window.addEventListener('hashchange', () => {
 let contentPending = false;
 function isEditing(){ const a=document.activeElement; return !!a && $('#content').contains(a) && a.matches('input:not([type=checkbox]):not([type=date]),textarea,[contenteditable="true"],[contenteditable="plaintext-only"]'); }
 function render(force){
-  renderSide(); renderBar();
+  renderSide(); renderBar(); renderDock();
   if(S.dragging){ contentPending=true; return; }
   if(!force && isEditing()){ contentPending=true; return; }
   if(S.rendering){ contentPending=true; return; }
@@ -427,6 +427,21 @@ function renderBar(){
   $('#crumbs').innerHTML = crumbs;
 }
 
+/* ----- phone dock: ☰ always; Filter and + New task only on Kanban pages (CSS shows the dock on phones only) ----- */
+const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', page:'green'};   // item page header palette (see REDESIGN.md)
+function kbFilterCount(){ const V = S.tasksView; return (V.quick!=='open') + V.boards.size + (V.bb?1:0); }   // filters away from the defaults
+function renderDock(){
+  const it = currentItem(), onK = !!it && it.type==='kanban' && !S.q;
+  const f = $('#dkFilter'), n = $('#dkNew'); if(!f || !n) return;
+  f.hidden = n.hidden = !onK;
+  if(!onK) return;
+  const nf = kbFilterCount();
+  f.innerHTML = `${ICON.filter}<span>Filter</span>${nf?`<b class="nf">${nf}</b>`:''}`;
+  f.setAttribute('aria-label', `Filter${nf?` (${nf} on)`:''}`);
+  f.setAttribute('aria-expanded', String(!!S.filtersOpen));
+  if(!n.firstChild) n.innerHTML = `${ICON.plus}<span>New task</span>`;
+}
+
 /* ----- content ----- */
 function renderContent(){
   const c = $('#content');
@@ -448,7 +463,7 @@ function renderContent(){
 }
 function headHTML(it){
   const f = folderById(it.folderId);
-  return `<div class="ihead"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
+  return `<div class="ihead pal-${PALETTE_BY_TYPE[it.type]||'lav'}"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
     <div class="ihead-t"><input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80">
     <p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(shortDate(it.updated)):''}</p></div></div>`;
 }
@@ -497,7 +512,7 @@ function renderHome(c){
   const recent = S.items.filter(isTop).map(i=>({...i, updated:touched(i)})).sort((a,b)=>b.updated.localeCompare(a.updated)).slice(0,6);
   c.innerHTML = `<div class="wrap">
     <div><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p><h1 class="big">Home</h1></div>
-    <div class="stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return `<button class="stat" data-quick="${q.id}" style="--sc:${q.c}" ${!n&&q.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[q.ic]}</i><b>${n}</b></span><span>${q.label}</span></button>`}).join('')}${billItems.length?`<button class="stat" data-open="item:${esc(billItems[0].id)}" style="--sc:#ff9500"><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON.bills}</i><b>${billsDue}</b></span><span>Bills due in 30 days</span></button>`:''}</div>
+    <div class="stats home-stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return `<button class="stat" data-quick="${q.id}" style="--sc:${q.c}" ${!n&&q.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[q.ic]}</i><b>${n}</b></span><span>${q.label}</span></button>`}).join('')}${billItems.length?`<button class="stat" data-open="item:${esc(billItems[0].id)}" style="--sc:#ff9500"><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON.bills}</i><b>${billsDue}</b></span><span>Bills due in 30 days</span></button>`:''}</div>
     <div class="home-grid">
       <section class="panel" aria-labelledby="cuH"><div class="panel-h"><h2 id="cuH">Coming up</h2><span class="caption">Tasks due in ${TASK_DAYS} days · bills and collection dates in ${HOME_DAYS}</span></div>
         ${up.length ? `<div class="list-rows">${up.map(u=>{const dl=dueLabel(u.date); return `<button class="lrow" data-open="${u.kind}:${esc(u.kind==='task'?u.task.id:u.item.id)}"><span class="t">${u.kind==='task'?bangHTML(u.task.priority):''}${esc(u.title)}</span><span class="m"><i style="--c:${itemColor(u.item)}"></i>${esc(u.item.name)}${u.what?' · '+esc(u.what):''}</span><span class="r ${dl.cls}">${esc(dl.t)}</span></button>`}).join('')}</div>`
@@ -555,9 +570,8 @@ function renderKanban(k, root){
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
   const VIEWS = {board:'Board', list:'List', timeline:'Timeline', archive:'Archive'};
-  const nf = (V.quick!=='open') + V.boards.size + (V.bb?1:0);   // filters away from the defaults (Done follows the device default, so it isn't counted)
-  const seg = `<div class="kb-ctl">${`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters" aria-label="Filter${nf?` (${nf} on)`:''}" title="Filter">${ICON.filter}<span class="kb-lbl">Filter</span>${nf?` <b class="nf">${nf}</b>`:''}</button>`}
-    <button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
+  /* the phone Filter button lives in the dock (renderDock); desktop only needs the View menu here */
+  const seg = `<div class="kb-ctl"><button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
   const viewGroup = `<div class="fgroup fg-view" role="group" aria-label="View"><span class="fg-l">View</span>${Object.entries(VIEWS).map(([m,l])=>`<button class="chip-btn" data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div>`;
   const groups = mode==='archive' ? `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}</div>` : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}
@@ -694,6 +708,15 @@ $('#sideToggle').addEventListener('click', () => {
 });
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
 $('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
+/* dock: Filter opens the same Filter panel as before; + New task is the `n` shortcut (on a Kanban page) */
+$('#dock').addEventListener('click', e => {
+  const k = currentItem(); if(!k || k.type!=='kanban') return;
+  if(e.target.closest('#dkFilter')){ S.filtersOpen = !S.filtersOpen; render(true); restoreFocus('#dkFilter'); return; }
+  if(e.target.closest('#dkNew')){
+    const V = S.tasksView; if((V.mode||'board')!=='board'){ V.mode='board'; ls.set('lo.tasksMode','board'); }   // new tasks are added on the board
+    S.filtersOpen = false; TYPE_VIEWS.kanban.newShortcut(k);
+  }
+});
 /* What's new: hover the version on desktop, tap it on a phone */
 (() => {
   const btn = $('#verBtn'); if(!btn) return; let pop = null, t = null;

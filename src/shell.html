@@ -1,6 +1,13 @@
+<!-- FONT: the whole UI uses var(--font-ui), defined once at the top of the REDESIGN layer in styles.css.
+     Default is the system stack (SF Pro on iPhone and Mac), so nothing is downloaded.
+     To switch to Inter: 1) uncomment the two <link> lines below (and move them to the document head in build.py if you like),
+     2) in styles.css set  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+-->
 <div class="shell">
   <aside class="side" id="side" aria-label="Sidebar">
-    <div class="side-top"><p class="brand"><span class="bn">Life Organiser<button class="ver" id="verBtn" aria-haspopup="dialog" aria-expanded="false" title="What's new">Version __VERSION__</button><span class="demo-chip" id="demoChip" hidden title="Sample data. Changes stay in this browser.">Demo · sample data</span></span></p>
+    <div class="side-top"><p class="brand"><span class="bn"><span class="wm">Life <span>Organiser</span></span><button class="ver" id="verBtn" aria-haspopup="dialog" aria-expanded="false" title="What's new">Version __VERSION__</button><span class="demo-chip" id="demoChip" hidden title="Sample data. Changes stay in this browser.">Demo · sample data</span></span></p>
       <button class="icon-btn" data-act="app-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Life Organiser options" title="Options"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></button></div>
     <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="search" placeholder="Search" aria-label="Search everything" aria-keyshortcuts="/ Meta+K Control+K"></label>
@@ -16,7 +23,12 @@
     <main class="content" id="content"></main>
   </div>
 </div>
-<button class="fab" id="fab" aria-label="Menu" aria-expanded="false" title="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path class="fab-m" d="M4 7h16M4 12h16M4 17h16"/><path class="fab-x" d="M6 6l12 12M18 6 6 18"/></svg></button>
+<!-- Phone dock: ☰ menu (always) · Filter and + New task (Kanban pages only; filled in by renderDock in core.js). Hidden on desktop. -->
+<nav class="dock" id="dock" aria-label="Quick actions">
+  <button class="dk-btn dk-menu" id="fab" aria-label="Menu" aria-expanded="false" title="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path class="fab-m" d="M4 7h16M4 12h16M4 17h16"/><path class="fab-x" d="M6 6l12 12M18 6 6 18"/></svg></button>
+  <button class="dk-btn dk-pill dk-kb" id="dkFilter" data-act="filters" aria-expanded="false" aria-controls="kbFilters" aria-label="Filter" title="Filter" hidden></button>
+  <button class="dk-btn dk-pill dk-new dk-kb" id="dkNew" aria-label="New task" title="New task" hidden></button>
+</nav>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="fTitle" inert></aside>
 <section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle" inert></section>
