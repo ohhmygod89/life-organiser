@@ -1,6 +1,6 @@
 /* ============================================================
    Firebase store (GitHub Pages build only: window.LO_MODE === 'firebase').
-   - Sign in with email + password (Firebase Auth). Sign-ups are switched off in the Firebase console.
+   - Sign in with Google (Firebase Auth). The security rules let only your account read or write anything.
    - Everything is encrypted on this device before it is saved: AES-GCM with a key derived from your passphrase
      (PBKDF2-SHA-256, 600,000 rounds). Firestore only ever holds { iv, ct }. Nobody, including Google, can read it.
    - Layout: users/{uid}            { salt, iter, check }   (check = an encrypted known string, to test the passphrase)
@@ -46,23 +46,31 @@ const FireDB = (() => {
   const busy = (form, on) => form.querySelectorAll('button, input').forEach(x => x.disabled = on);
   const fail = (form, msg) => { const e = form.querySelector('.lock-err'); e.textContent = msg; e.hidden = !msg; };
 
-  function signIn(auth){
+  /* Google sign-in. On the app's own Firebase Hosting address a full-page redirect is used (reliable on iPhone and in
+     Home Screen apps); anywhere else a pop-up. */
+  const G_ICON = '<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+  const gErr = err => { const c = err?.code||''; return /popup-closed|cancelled-popup|user-cancelled/.test(c) ? '' : /popup-blocked/.test(c) ? 'Your browser blocked the sign-in window. Allow pop-ups for this site, then try again.' : /network/.test(c) ? 'No connection. Check your internet and try again.' : /admin-restricted|operation-not-allowed|user-disabled/.test(c) ? 'This Google account isn’t allowed to sign in here.' : 'Couldn’t sign in with Google. Try again.'; };
+  function signIn(auth, startErr){
     return new Promise(resolve => {
       const el = screen(`<h1 id="lockT">Sign in</h1>
-        <form class="lock-f" novalidate>
-          <label>Email<input type="email" name="email" autocomplete="username" required></label>
-          <label>Password<input type="password" name="pw" autocomplete="current-password" required></label>
-          <p class="lock-err" role="alert" hidden></p>
-          <button class="pill" type="submit">Sign in</button>
-        </form>`);
-      const f = el.querySelector('form');
-      f.addEventListener('submit', async e => {
-        e.preventDefault(); fail(f, ''); busy(f, true);
-        try{ const c = await auth.signInWithEmailAndPassword(f.email.value.trim(), f.pw.value); resolve(c.user); }
-        catch(err){ busy(f, false); fail(f, /network/i.test(err?.code||'') ? 'No connection. Check your internet and try again.' : /too-many/i.test(err?.code||'') ? 'Too many tries. Wait a few minutes, then try again.' : 'That email and password don’t match.'); f.pw.select(); }
+        <p class="lock-p">Use your Google account to open your organiser.</p>
+        <div class="lock-f">
+          <p class="lock-err" role="alert" ${startErr?'':'hidden'}>${startErr||''}</p>
+          <button class="pill lock-g" type="button">${G_ICON}<span>Continue with Google</span></button>
+        </div>`);
+      const f = el.querySelector('.lock-f'), b = f.querySelector('button');
+      b.addEventListener('click', async () => {
+        fail(f, ''); busy(f, true);
+        const provider = new firebase.auth.GoogleAuthProvider(); provider.setCustomParameters({prompt:'select_account'});
+        try{
+          if(location.hostname === (window.LO_FIREBASE||{}).authDomain) return await auth.signInWithRedirect(provider);   // the page leaves; we come back signed in
+          const c = await auth.signInWithPopup(provider); resolve(c.user);
+        }catch(err){ busy(f, false); fail(f, gErr(err)); }
       });
     });
   }
+  /* a screen that only offers to try again (no connection, or Firebase unreachable) */
+  function retry(msg){ screen(`<h1 id="lockT">Can’t reach your organiser</h1><p class="lock-p">${msg}</p><div class="lock-f"><button class="pill" type="button" onclick="location.reload()">Try again</button></div>`); return new Promise(()=>{}); }
 
   function unlock(uid, keyDoc){
     const creating = !keyDoc;
@@ -115,33 +123,50 @@ const FireDB = (() => {
     const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(cfg);
     const auth = firebase.auth(), fs = firebase.firestore();
     try{ await fs.enablePersistence({synchronizeTabs:true}); }catch(e){ /* another tab or private mode: works online only */ }
-    const user = await new Promise(res => { const off = auth.onAuthStateChanged(u => { off(); res(u); }); }) || await signIn(auth);
+    let startErr = '';
+    try{ await auth.getRedirectResult(); }catch(err){ startErr = gErr(err); }   // back from Google's page
+    const user = await new Promise(res => { const off = auth.onAuthStateChanged(u => { off(); res(u); }); }) || await signIn(auth, startErr);
     const uid = user.uid, root = fs.collection('users').doc(uid);
-    let key = await keyGet(uid);
+    /* The passphrase record is only ever read from the server, never from the offline copy: if it can't be read we stop,
+       rather than mistaking "couldn't check" for "there isn't one" and creating a second passphrase over your data. */
+    const keyDocFromServer = async () => {
+      try{ const snap = await root.get({source:'server'}); return {ok:true, doc: snap.exists ? snap.data() : null}; }
+      catch(err){ return {ok:false, err}; }
+    };
+    let key = await keyGet(uid), kd = null;
     if(key){
-      const kd = (await root.get().catch(()=>null))?.data();   // the passphrase may have been changed elsewhere: check the remembered key still opens it
-      if(kd){ let ok=false; try{ ok = (await open(key, kd.check)) === CHECK; }catch(_){} if(!ok){ await keyDel(uid); key = null; } }
+      const r = await keyDocFromServer();
+      if(r.ok && r.doc){ kd = r.doc; let ok=false; try{ ok = (await open(key, kd.check)) === CHECK; }catch(_){} if(!ok){ await keyDel(uid); key = null; } }
+      /* offline with a remembered key: carry on; the offline copy opens with it */
     }
-    if(!key){
-      const snap = await root.get();
-      const r = await unlock(uid, snap.exists ? snap.data() : null);
-      if(r.newDoc) await root.set(r.newDoc);
-      key = r.key; if(r.rem) await keyPut(uid, key); else await keyDel(uid);
+    while(!key){
+      const r = await keyDocFromServer();
+      if(!r.ok) await retry(/permission/i.test(r.err?.code||'') ? 'This account doesn’t have access. Check the security rules in your Firebase console.' : 'Check your internet connection, then try again. Your data is safe.');
+      const u = await unlock(uid, r.doc);
+      if(u.newDoc){
+        /* create the passphrase record only if there still isn't one */
+        const made = await fs.runTransaction(async t => { const cur = await t.get(root); if(cur.exists) return false; t.set(root, u.newDoc); return true; }).catch(() => null);
+        if(made !== true){ continue; }   // one appeared meanwhile (another device) or the write failed: ask again with the real record
+      }
+      key = u.key; if(u.rem) await keyPut(uid, key); else await keyDel(uid);
     }
     closeScreen();
 
     const cache = {};          // path -> last decrypted body, so update() can merge before re-encrypting
     const boxes = {};          // path -> ciphertext last opened, to skip re-decrypting unchanged docs
+    const bad = new Map();     // path -> ref of records that don't open with this passphrase (saved under an earlier one)
     const decode = async (col, d) => {
       const path = col+'/'+d.id, box = d.data();
       if(!box || !box.ct) return null;
       if(boxes[path] === box.ct && cache[path] !== undefined) return {id:d.id, body:cache[path]};
       try{ const body = await open(key, box); cache[path] = body; boxes[path] = box.ct; return {id:d.id, body}; }
-      catch(e){ console.warn('could not decrypt', path); return null; }
+      catch(e){ bad.set(path, d.ref || root.collection(col).doc(d.id)); return null; }
     };
     return {
       user, firebase:true,
       signOut: async () => { await keyDel(uid); await auth.signOut(); location.reload(); },
+      unreadable: () => bad.size,
+      purgeUnreadable: async () => { const refs=[...bad.values()]; bad.clear(); for(const r of refs) await r.delete().catch(()=>{}); return refs.length; },
       lock: async () => { await keyDel(uid); location.reload(); },
       collection(c){ return { onSnapshot(cb, onErr){
         return root.collection(c).onSnapshot({includeMetadataChanges:false}, async s => {

@@ -36,15 +36,20 @@ body = head + '<style>\n' + css + '</style>\n' + shell + sortable + '\n<script>\
 # GitHub Pages needs a full document
 doc = ('<!doctype html><html lang="en-AU"><head><meta charset="utf-8">'
        '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"></head><body>' + body + '</body></html>\n')
-# GitHub Pages: the real app (your encrypted Firebase) at /, and the demo with sample data at /demo/
-FIREBASE = {"apiKey":"AIzaSyAoOMq_oTa8WAy8TvIjmGhItv1BHQpZO8A","authDomain":"life-organiser-7fc5f.firebaseapp.com","projectId":"life-organiser-7fc5f",
+# Your real app lives on Firebase Hosting (dist/firebase/ -> life-organiser-7fc5f.web.app): Google sign-in + your encrypted data.
+# GitHub Pages shows the public demo with sample data (at / and /demo/).
+SITE = 'life-organiser-7fc5f.web.app'
+FIREBASE = {"apiKey":"AIzaSyAoOMq_oTa8WAy8TvIjmGhItv1BHQpZO8A","authDomain":SITE,"projectId":"life-organiser-7fc5f",
             "storageBucket":"life-organiser-7fc5f.firebasestorage.app","messagingSenderId":"1018557951375","appId":"1:1018557951375:web:4c4a7e6cea44e744b0affa"}
 FB = 'https://www.gstatic.com/firebasejs/10.14.1/'
 fb_scripts = ''.join(f'<script src="{FB}firebase-{m}-compat.js"></script>' for m in ('app','auth','firestore'))
 mode = lambda m, extra='': f'<script>window.LO_MODE="{m}";{extra}</script>'
-(R/'dist'/'index.html').write_text(doc.replace(sortable, fb_scripts + mode('firebase', 'window.LO_FIREBASE='+json.dumps(FIREBASE)+';') + sortable, 1))
+demo_doc = doc.replace(sortable, mode('demo') + sortable, 1)
+(R/'dist'/'index.html').write_text(demo_doc)
 (R/'dist'/'demo').mkdir(exist_ok=True)
-(R/'dist'/'demo'/'index.html').write_text(doc.replace(sortable, mode('demo') + sortable, 1))
+(R/'dist'/'demo'/'index.html').write_text(demo_doc)
+(R/'dist'/'firebase').mkdir(exist_ok=True)
+(R/'dist'/'firebase'/'index.html').write_text(doc.replace(sortable, fb_scripts + mode('firebase', 'window.LO_FIREBASE='+json.dumps(FIREBASE)+';') + sortable, 1))
 if '--local' in sys.argv:
     lib = (R/'node_modules'/'sortablejs'/'Sortable.min.js')
     if not lib.exists(): lib = R.parent/'node_modules'/'sortablejs'/'Sortable.min.js'

@@ -2,6 +2,14 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.6] - 2026-11-11
+### Changed
+- Sign in with Google instead of an email and password. Your passphrase still encrypts everything, and "Remember on this device" means you type it once per device.
+- Your organiser now lives on Firebase Hosting (life-organiser-7fc5f.web.app) and updates there automatically with each release. GitHub Pages shows the public demo again.
+### Fixed
+- If the app can't reach your data it now says so and offers to try again, instead of asking you to create a new passphrase (which hid everything saved under the first one).
+- Records saved under an earlier passphrase are counted, and the app menu offers to remove them.
+
 ## [1.0.1-beta.5] - 2026-11-11
 ### Added
 - The GitHub Pages site is now your own organiser: sign in with your email and password, then unlock with your passphrase. Everything is encrypted on your device before it is saved to your Firebase database, so only you can read it. It syncs between your devices and works offline.

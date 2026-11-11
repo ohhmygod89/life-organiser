@@ -919,12 +919,13 @@ function appMenu(anchor){
     {sep:true}, {head:'Appearance'},
     {label:'Match system', value:'t-system', checked:theme==='system'}, {label:'Light', value:'t-light', checked:theme==='light'}, {label:'Dark', value:'t-dark', checked:theme==='dark'},
     {sep:true}, {label:'Status flags…', value:'flags'}, {label:'Export…', value:'export'}, {label:'Import…', value:'import'}, ...(ls.get('lo.preImport','')?[{label:'Undo last import…', value:'undoimport'}]:[]), ...(Store.demo?[{label:'Reset demo data', value:'reset'}]:[]), ...(TOUCH?[]:[{label:'Keyboard shortcuts', value:'keys', kbd:'?'}]),
-    ...(Store.fire ? [{sep:true}, {label:(Store.db.user?.email||'Signed in'), value:'acct', disabled:true}, {label:'Lock', value:'lock'}, {label:'Sign out', value:'signout'}] : []),
+    ...(Store.fire ? [{sep:true}, {label:(Store.db.user?.email||'Signed in'), value:'acct'}, {label:'Lock', value:'lock'}, {label:'Sign out', value:'signout'}, ...(Store.db.unreadable()?[{label:`Remove ${plural(Store.db.unreadable(),'unreadable record')}…`, value:'purge', danger:true}]:[])] : []),
     {sep:true}, {head:bkLastLabel()}, {head:'Version '+APP_VERSION},
   ], v => {
     if(v==='new') openNewItem({opener:anchor});
     if(v==='lock') Store.db.lock();
     if(v==='signout') Store.db.signOut();
+    if(v==='purge') confirmModal({title:'Remove unreadable records?', body:`${plural(Store.db.unreadable(),'record')} were saved with an earlier passphrase, so they can’t be opened with this one. Removing them can’t be undone. Everything you can see stays as it is.`, action:'Remove', opener:anchor}).then(async ok => { if(ok){ const n = await Store.db.purgeUnreadable(); toast(`Removed ${plural(n,'unreadable record')}`); } });
     if(v==='folder') newFolder(anchor);
     if(v.startsWith('t-')){ setTheme(v.slice(2)); }
     if(v==='flags') TYPE_VIEWS.kanban.openFlagsModal(anchor);
@@ -1175,6 +1176,7 @@ async function start(){
     renderSide(); return;
   }
   if(Store.demo){ const c=$('#demoChip'); if(c) c.hidden=false; }
+  if(Store.fire) setTimeout(() => { const n = Store.db.unreadable(); if(n) toast(`${plural(n,'record')} saved with an earlier passphrase can’t be opened. You can remove them from the app menu.`); }, 4000);
   const slow = setTimeout(()=>toast('Still connecting… your items will appear when the connection comes through.'), 10000);
   const onErr = e => { clearTimeout(slow); toast(e?.code==='revoked' ? 'Access to this organiser was removed.' : 'Lost the connection. Reload the page to reconnect.', null, true); };
   const hold = {}; // keep local copies of docs being typed into so incoming snapshots don't overwrite them
