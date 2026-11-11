@@ -2415,3 +2415,6 @@ body.nav-dragging .nav-folder .nav-list > .nav-empty:only-child{height:auto;min-
 @media (pointer:coarse){.tbl .row-x{width:40px;height:40px}}
 .bill-cards .tbl-foot .add-btn{width:auto;flex:none;white-space:nowrap}
 .bill-cards .tbl-foot .add-btn span{white-space:nowrap}
+
+/* toast: size to its text (left:50% would otherwise cap it at half the screen and wrap short messages) */
+.toast{width:max-content}

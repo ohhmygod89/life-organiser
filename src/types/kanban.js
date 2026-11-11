@@ -581,7 +581,10 @@ TYPE_VIEWS.kanban = (() => {
     const opener = c.opener; closeNewTask(true);
     const V = S.tasksView; if((V.mode||'board')!=='board'){ V.mode='board'; ls.set('lo.tasksMode','board'); }
     render(true);
-    requestAnimationFrame(() => { const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`); if(card){ card.classList.add('flash'); card.scrollIntoView({block:'center', behavior:RM?'auto':'smooth'}); } });
+    requestAnimationFrame(() => { const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`); if(card){ card.classList.add('flash');
+      const sc = card.closest('.lane-cols'), col = card.closest('.lcol');   // phone: show the column the task went into (a render restores the old sideways position)
+      if(sc && col){ const pad = parseFloat(getComputedStyle(sc).scrollPaddingLeft)||0; sc.scrollLeft += col.getBoundingClientRect().left - sc.getBoundingClientRect().left - pad; }
+      card.scrollIntoView({block:'center', behavior:RM?'auto':'smooth'}); } });
     toast(`Added to ${st?.name||'stack'} · ${colName(c.col)}`, () => { docDel('tasks', id); }, false, {label:'Open', fn:() => openSheet(id, document.querySelector(`.card[data-id="${CSS.escape(id)}"]`))});
     if(opener?.isConnected) opener.focus({preventScroll:true});
   }
