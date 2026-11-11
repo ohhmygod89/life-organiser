@@ -46,17 +46,18 @@ jobs:
             git tag -a "$V" -m "$V"
             git push origin "$V"
           fi
-      - name: Deploy the real app to Firebase Hosting
-        if: ${{ env.FIREBASE_SA != '' }}
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
-          projectId: life-organiser-7fc5f
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Deploy the real app to Firebase Hosting
+        if: ${{ env.FIREBASE_SA != '' }}
+        continue-on-error: true   # a Firebase problem never blocks the demo deploy
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: life-organiser-7fc5f
