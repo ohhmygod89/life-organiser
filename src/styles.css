@@ -2422,23 +2422,15 @@ body.nav-dragging .nav-folder .nav-list > .nav-empty:only-child{height:auto;min-
 /* item title: sized to its text by fitTitle() in core.js, never wider than the header */
 .ihead .title-in{width:auto;max-width:100%;flex:none}
 
-/* ===== Stack header: palette gradient card, white text (like the hero cards) ===== */
-.lane-hi{background:var(--pal,var(--pal-lav));color:#fff;align-items:center}
+/* ===== Stack header: no card, just the name, counts and ⋯ on the page background ===== */
+.lane-hi{background:none;box-shadow:none;color:var(--fg);align-items:center;padding-left:4px}
 .lane-hi::before{display:none}
 .lane-hi h2{display:flex;align-items:center;margin:0;line-height:1.25}
-.lane-hi .lane-name,.lane-hi .lane-name:hover{color:#fff;line-height:1.25;min-height:0;text-shadow:0 1px 2px rgba(0,0,0,.14)}
-.lane-hi .lane-name:hover{background:rgba(255,255,255,.16)}
-.lane-hi .lane-name:focus,.lane-hi .lane-name:focus-visible{background:rgba(255,255,255,.2);box-shadow:0 0 0 2px #fff!important}
-.lane-hi .count{color:rgba(255,255,255,.94);line-height:1.25;font-weight:500;text-shadow:0 1px 2px rgba(0,0,0,.14)}
-.lane-hi .icon-btn{background:rgba(255,255,255,.22);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
-.lane-hi .icon-btn:hover{background:rgba(255,255,255,.32)}
-/* Option B (preview only, body.lane-plain): no card, just the text and ⋯ on the page background */
-body.lane-plain .lane-hi{background:none;box-shadow:none;color:var(--fg);padding-left:4px}
-body.lane-plain .lane-hi .lane-name{color:var(--fg);text-shadow:none}
-body.lane-plain .lane-hi .lane-name:hover{background:var(--fill-2)}
-body.lane-plain .lane-hi .count{color:var(--muted);text-shadow:none}
-body.lane-plain .lane-hi .icon-btn{background:transparent;color:var(--fg);box-shadow:none}
-body.lane-plain .lane-hi .icon-btn:hover{background:var(--fill-2)}
+.lane-hi .lane-name{color:var(--fg);line-height:1.25;min-height:0;text-shadow:none}
+.lane-hi .lane-name:hover{background:var(--fill-2)}
+.lane-hi .count{color:var(--muted);line-height:1.25;font-weight:400}
+.lane-hi .icon-btn{background:transparent;color:var(--fg);box-shadow:none}
+.lane-hi .icon-btn:hover{background:var(--fill-2)}
 
 /* ===== Lighter page grey; cards use the same grey so the page and cards read as one surface ===== */
 :root{--bg:#f4f4f5;--item:#f4f4f5;--nav:rgba(244,244,245,.82)}
@@ -2454,3 +2446,21 @@ body.lane-plain .lane-hi .icon-btn:hover{background:var(--fill-2)}
 
 /* column header: the + stays at the right edge now the To Do / In Progress counts are gone */
 .lcol-h .lcol-add{margin-left:auto}
+
+/* ===== Sidebar show/hide lives in the sidebar header; no top bar on desktop, so the page starts at the top ===== */
+@media (min-width:861px){
+  .main > .bar{display:none}
+  .side-top{gap:6px}
+  .side-top #sideToggle{flex:none;margin-left:-6px}
+  .side-top .brand{flex:1;min-width:0}
+  .side-show{display:none;position:fixed;z-index:20;top:calc(26px + env(safe-area-inset-top,0px));left:max(14px,env(safe-area-inset-left,0px));background:var(--panel);box-shadow:var(--shadow-card)}
+  body.side-collapsed .side-show{display:inline-flex}
+  body.side-collapsed .content{padding-left:max(72px,env(safe-area-inset-left,0px))}
+  .content{padding-top:24px}
+}
+@media (max-width:860px){ .side-show{display:none} .side-top #sideToggle{display:none} }
+.side-card{gap:10px}
+/* Item name while editing: a soft field, no hard border */
+.ihead .title-in:focus,.ihead .title-in:focus-visible{outline:none!important;box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.06)!important;background:var(--panel)!important}
+@media (max-width:860px){.ihead .title-in:focus,.ihead .title-in:focus-visible{background:rgba(255,255,255,.22)!important;box-shadow:none!important}}
+@media (max-width:760px){.lane-hi{row-gap:0;padding-top:2px;padding-bottom:4px;min-height:0}.lane-hi .count{margin-top:-2px}}

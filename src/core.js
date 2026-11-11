@@ -788,8 +788,10 @@ $('#sideRes').addEventListener('click', e => { if(e.target.closest('a.sr-row')){
 $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagation(); e.target.value=''; S.q=''; render(true); e.target.blur(); } if(e.key==='Enter') document.body.classList.remove('side-open'); });
 $('#sideToggle').addEventListener('click', () => {
   if(matchMedia('(max-width:860px)').matches) document.body.classList.toggle('side-open');
-  else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0'); }
+  else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0');
+    if(document.activeElement?.closest?.('#sideToggle, #sideShow')) (document.body.classList.contains('side-collapsed') ? $('#sideShow') : $('#sideToggle')).focus(); }
 });
+$('#sideShow').addEventListener('click', () => $('#sideToggle').click());
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
 $('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
 /* dock: Filter opens the same Filter panel as before; + New task opens the new-task sheet (on a Kanban page) */

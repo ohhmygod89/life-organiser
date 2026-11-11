@@ -22,6 +22,9 @@ TYPE_VIEWS.kanban = (() => {
   /* Columns always sort: pinned first, then High → Medium → Low → none. You can drag to reorder within a group;
      anything new, newly pinned, re-prioritised or brought back from Done goes to the bottom of its group. */
   const grp = t => t.pinned && t.col!=='done' ? 0 : 1;   // pinned cards stay above the rest; within each, your order
+  function groupStart(bid, col, g, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except && grp(x)===g); return (l.length?Math.min(...l.map(x=>x.pos||0)):0)-1024; }
+  /* pinning puts a card at the end of the pinned group; unpinning puts it at the top of the unpinned cards */
+  const pinPos = (t, now) => now ? groupEnd(t.boardId, t.col, grp({...t, pinned:true}), t.id) : groupStart(t.boardId, t.col, grp({...t, pinned:false}), t.id);
   function groupEnd(bid, col, g, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except && grp(x)===g); return (l.length?Math.max(...l.map(x=>x.pos||0)):0)+1024; }
   function endPos(bid, col, except, t){ const x = t || S.tasks.find(y=>y.id===except) || {}; return groupEnd(bid, col, grp({...x, col}), except); }
   /* Start and due: a start may not be after the due date. Setting a later start moves the due date to it;
@@ -141,7 +144,7 @@ TYPE_VIEWS.kanban = (() => {
   function cardAction(v, t, card, e){
     if(v==='open') return openSheet(t.id, card);
     if(v==='dup') return startPlacing(t, card, e);
-    if(v==='pin'){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); render(true);
+    if(v==='pin'){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:pinPos(t, now)}); render(true);
       return toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now, pos:t.pos})); }
     if(v.startsWith('col:')){ moveTo(t, v.slice(4)); render(true); }
     if(v==='del'){ const snap = clone(t); docDel('tasks', t.id); render(true); toast('Deleted “'+snap.title+'”', ()=>docSet('tasks', snap)); }
@@ -312,7 +315,7 @@ TYPE_VIEWS.kanban = (() => {
       return true; }
     if(e.target.closest('[data-act="done"]')){ toggleShowDone(); return true; }
     const pinB = e.target.closest('[data-pin]');
-    if(pinB){ e.stopPropagation(); const t=cardOf(pinB); if(t){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-pin]`); toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now})); } return true; }
+    if(pinB){ e.stopPropagation(); const t=cardOf(pinB); if(t){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:pinPos(t, now)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-pin]`); toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now})); } return true; }
     const tick = e.target.closest('[data-tick]');
     if(tick){ e.stopPropagation(); const t=cardOf(tick); if(t){ toggleDone(t); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-tick]`); } return true; }
     const mv = e.target.closest('[data-mv]');
@@ -522,7 +525,7 @@ TYPE_VIEWS.kanban = (() => {
       setDates(t, {start:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Start date');
     const pf = e.target.closest('#pFlag');
     if(pf) return openMenu(pf, flagItems(t.flag), v => { if(v===(t.flag||'')) return; docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); const w=$('#fWho'); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Flag');
-    if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
+    if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now, pos:pinPos(t, now)}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
     const cd = e.target.closest('[data-cdel]');
     if(cd){ const id=cd.dataset.cdel; const c=(t.checklist||[]).find(x=>x.id===id); const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c?.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
     const cfb = e.target.closest('[data-cf]');
