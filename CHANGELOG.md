@@ -2,6 +2,16 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.0-beta.29] - 2026-11-10
+### Added
+- Timeline: drag tasks up and down to put them in your own order (desktop: by the title; phone: press and hold a row). ⌥↑ / ⌥↓ does the same from the keyboard. The order is kept per stack.
+### Changed
+- Timeline bars all look the same: one solid bar from the first date to the last; a task with a single date is a one-day bar. No fading, no outlines.
+- Phone: each task's bar and title sit on one line, with no background behind the title.
+- Pinning isn't shown or offered in the Timeline (it belongs to the board).
+### Fixed
+- The Today line no longer shows through folded stacks.
+
 ## [1.0.0-beta.28] - 2026-11-10
 ### Added
 - Timeline view (View › Timeline; on a phone, in the Filter panel): a Kanban's tasks on a calendar, grouped by stack, with the same filters as the board. A task with a start and due date is a bar; a due date alone is a diamond; a start alone is a bar that fades out. To Do bars are outlined, In Progress filled, Done muted with a tick, and overdue tasks get a red end.

@@ -1341,3 +1341,33 @@ body.placing,body.placing *{cursor:copy!important}
 /* desktop: the left column already names each task, so bars only carry a label when it fits inside */
 @media (min-width:861px){ .gt-ol{display:none} }
 @media (pointer:coarse){ .gt-zoom button{min-height:44px} }
+
+/* ===== beta.29: Timeline — one bar style, titles on the bar's line, rows reorderable ===== */
+.gt-bar,.gt-bar.st-doing,.gt-bar.st-done,.gt-bar.od{border:0;background:var(--gt-fill);color:var(--panel)}
+.gt-bar::after{display:none}
+.gt-bar .gt-bl .pbars,.gt-bar .gt-bl .gt-tick{color:var(--panel)}
+.gt-bar .gt-bl .gt-fd{box-shadow:0 0 0 1.5px var(--panel)}
+.gt-bar.is-done{opacity:.55}
+.gt-ol{background:none;color:var(--fg);font-weight:500}
+.gt-legend{font-size:12px}
+/* group bands are opaque, so the Today line never shows through them */
+.gt-grp{background:linear-gradient(var(--gt-grp),var(--gt-grp)),var(--panel)}
+/* desktop: grip in the title column */
+.gt-grip{display:none;color:var(--muted);margin-left:-10px;width:12px;flex:none}
+.gt-grip svg{width:12px;height:12px}
+@media (hover:hover){ .gt-row[data-row]:hover .gt-grip{display:inline-grid;place-items:center} .gt-lab{cursor:grab} }
+.gt-ghostrow{opacity:.35}
+.gt-chosen .gt-lab{background:color-mix(in srgb,var(--fg) 5%,var(--panel))}
+@media (max-width:860px){
+  /* phone: the bar and its title on one line */
+
+  .gt.ph .gt-bar{top:50%;bottom:auto;transform:translateY(-50%);height:20px;border-radius:6px}
+  .gt.ph .gt-ol,.gt.ph .gt-bl{font-size:13.5px}
+  .gt.ph .gt-ol{max-width:calc(100vw - 60px)}
+  .gt.ph .gt-arr.l{width:auto;max-width:calc(100vw - 90px);height:28px;margin-top:-14px;padding:0 11px 0 8px;border-radius:14px;display:flex;align-items:center;gap:6px}
+  .gt.ph .gt-arr.l .gt-at{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:500;color:var(--fg)}
+  .gt.ph .gt-arr.l::before{flex:none;margin:0 0 0 2px}
+  .gt-chosen{background:color-mix(in srgb,var(--fg) 5%,var(--panel))}
+}
+@media (forced-colors:active){ .gt-bar{forced-color-adjust:none;background:ButtonText;color:ButtonFace} }
+.gt-grip{position:absolute;left:3px;top:50%;transform:translateY(-50%);margin:0}
