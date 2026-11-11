@@ -2447,20 +2447,32 @@ body.nav-dragging .nav-folder .nav-list > .nav-empty:only-child{height:auto;min-
 /* column header: the + stays at the right edge now the To Do / In Progress counts are gone */
 .lcol-h .lcol-add{margin-left:auto}
 
-/* ===== Sidebar show/hide lives in the sidebar header; no top bar on desktop, so the page starts at the top ===== */
+/* ===== Desktop sidebar: no top bar; auto-hides to a strip of icons (body.side-rail) unless pinned ===== */
 @media (min-width:861px){
   .main > .bar{display:none}
+  .content{padding-top:24px}
   .side-top{gap:6px}
   .side-top #sideToggle{flex:none;margin-left:-6px}
+  .side-top #sideToggle[aria-pressed="true"]{background:var(--fill-2)}
   .side-top .brand{flex:1;min-width:0}
-  .side-show{display:none;position:fixed;z-index:20;top:calc(26px + env(safe-area-inset-top,0px));left:max(14px,env(safe-area-inset-left,0px));background:var(--panel);box-shadow:var(--shadow-card)}
-  body.side-collapsed .side-show{display:inline-flex}
-  body.side-collapsed .content{padding-left:max(72px,env(safe-area-inset-left,0px))}
-  .content{padding-top:24px}
+  body.side-rail .shell{grid-template-columns:64px minmax(0,1fr)}
+  body.side-rail .main{grid-column:2}
+  body.side-rail .side{position:fixed;left:0;top:0;bottom:0;height:100vh;width:64px;z-index:45;white-space:nowrap;
+    transition:width .2s cubic-bezier(.32,.72,0,1) .15s,box-shadow .2s ease .15s}
+  body.side-rail .side:hover,body.side-rail .side:has(:focus-visible),body.side-rail .side.peek,body.nav-dragging.side-rail .side{width:var(--side-w);box-shadow:var(--pop-shadow);transition-delay:.05s}
+  /* collapsed: only the icons show */
+  body.side-rail .side:not(:hover):not(:has(:focus-visible)):not(.peek) :is(.nm,.ct,.nav-lbl,.nav-h,.nav-empty,kbd,.brand,.side-top [data-act="app-menu"],.search input,.side-card){opacity:0;pointer-events:none}
+  body.side-rail .side :is(.nm,.ct,.nav-lbl,.nav-h,.brand,.side-card,.search input){transition:opacity .12s}
+  body.side-rail .side:not(:hover):not(:has(:focus-visible)):not(.peek) .nav-item[aria-current="page"]{width:44px}
 }
-@media (max-width:860px){ .side-show{display:none} .side-top #sideToggle{display:none} }
+@media (min-width:861px) and (prefers-reduced-motion:reduce){ body.side-rail .side{transition:none} }
+@media (max-width:860px){ .side-top #sideToggle{display:none} }
 .side-card{gap:10px}
 /* Item name while editing: a soft field, no hard border */
 .ihead .title-in:focus,.ihead .title-in:focus-visible{outline:none!important;box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.06)!important;background:var(--panel)!important}
 @media (max-width:860px){.ihead .title-in:focus,.ihead .title-in:focus-visible{background:rgba(255,255,255,.22)!important;box-shadow:none!important}}
 @media (max-width:760px){.lane-hi{row-gap:0;padding-top:2px;padding-bottom:4px;min-height:0}.lane-hi .count{margin-top:-2px}}
+
+/* Stack names: larger, so each stack stands out */
+.lane-hi .lane-name{font-size:var(--fs-xl)!important;font-weight:600;letter-spacing:-.025em}
+.lane-hi .count{font-size:var(--fs-s)}

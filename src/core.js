@@ -16,7 +16,16 @@ if(window.Sortable){ const make = Sortable.create.bind(Sortable);
   const off = () => document.body.classList.remove('no-select');
   Sortable.create = (el, o={}) => make(el, {forceFallback:true, fallbackOnBody:true, ...o,
     onChoose(e){ on(); o.onChoose?.(e); }, onUnchoose(e){ off(); o.onUnchoose?.(e); },
-    onStart(e){ on(); o.onStart?.(e); }, onEnd(e){ off(); o.onEnd?.(e); }}); }
+    onStart(e){ on(); active = true; o.onStart?.(e); }, onEnd(e){ off(); active = false; o.onEnd?.(e); }});
+  /* If the mouse is released outside the page (e.g. over the window around the app), the page never hears it and the
+     card would stay "held". The next move with no button down, or the window losing focus, finishes the drop there. */
+  let active = false, last = {x:0, y:0};
+  const release = () => { if(!active) return; active = false;
+    for(const [T, type] of [[window.PointerEvent||MouseEvent, 'pointerup'], [MouseEvent, 'mouseup']])
+      document.dispatchEvent(new T(type, {bubbles:true, cancelable:true, clientX:last.x, clientY:last.y, pointerType:'mouse', isPrimary:true, button:0})); };
+  document.addEventListener('pointermove', e => { if(!active || e.pointerType!=='mouse') return; last = {x:e.clientX, y:e.clientY}; if(e.buttons===0) release(); }, true);
+  document.addEventListener('mousemove', e => { if(active && e.buttons===0) release(); }, true);
+  window.addEventListener('blur', release); }
 /* Right-click does nothing unless a feature offers its own menu there (menu items, cards). Text fields keep the
    browser's menu for copy, paste and spelling. */
 document.addEventListener('contextmenu', e => { if(e.defaultPrevented || e.target.closest?.('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]')) return; e.preventDefault(); });
@@ -210,7 +219,7 @@ function restoreFocus(key, root=document){ if(!key) return false; try{ const el=
 /* ---------- overlays: menus, dialogs ---------- */
 let menuEl=null, menuAnchor=null;
 function closeMenu(refocus){
-  if(!menuEl) return; menuEl.remove(); menuEl=null;
+  if(!menuEl) return; menuEl.remove(); menuEl=null; $('#side').classList.remove('peek');
   document.removeEventListener('pointerdown', outsideMenu, true);
   menuAnchor?.setAttribute('aria-expanded','false');
   if(refocus && menuAnchor?.isConnected) menuAnchor.focus({preventScroll:true});
@@ -228,7 +237,7 @@ function openMenu(anchor, items, onPick, label, cls=''){
   m.innerHTML = items.map((it,i)=> it.sep ? '<div class="menu-sep" role="separator"></div>' : it.head ? `<div class="menu-h" role="presentation">${esc(it.head)}</div>` :
     `<button role="${it.checked!==undefined?'menuitemradio':'menuitem'}" ${it.checked!==undefined?`aria-checked="${!!it.checked}"`:''} data-i="${i}" tabindex="-1" class="${it.danger?'danger':''}">`+
     `${it.checked!==undefined?`<span class="mk" aria-hidden="true">${it.checked?ICON.check:''}</span>`:''}${it.dot?`<span class="dot" style="--oc:${it.dot}"></span>`:''}${it.html ? `<span class="mi" ${it.label?`aria-label="${esc(it.label)}" title="${esc(it.label)}"`:''}>${it.html}</span>` : `<span>${esc(it.label)}</span>`}${it.kbd?`<span class="kbd" aria-hidden="true">${esc(it.kbd)}</span>`:''}</button>`).join('');
-  document.body.appendChild(m); menuEl=m; menuAnchor=anchor; anchor.setAttribute('aria-expanded','true');
+  document.body.appendChild(m); menuEl=m; menuAnchor=anchor; if(anchor.closest?.('#side')) $('#side').classList.add('peek'); anchor.setAttribute('aria-expanded','true');
   const w=m.offsetWidth, h=m.offsetHeight;
   const pt = ctxPt && performance.now()-ctxPt.t < 1000 ? ctxPt : null; ctxPt = null;
   const r = pt ? {left:pt.x, right:pt.x, top:pt.y, bottom:pt.y-6} : anchor.getBoundingClientRect();
@@ -439,8 +448,14 @@ function navContextMenu(e){
   e.preventDefault();
   const at = pointAnchor(e);
   if(a) itemMenu(at, itemById(a.dataset.id)); else folderMenu(at, h.dataset.folder);
+  if(menuEl) $('#side').classList.add('peek');   // the auto-hiding sidebar stays open while its menu is up
 }
 $('#side').addEventListener('contextmenu', navContextMenu);
+/* Delete (or ⌘⌫ on a Mac) on a focused menu item deletes it, after the usual confirmation and with Undo */
+$('#side').addEventListener('keydown', e => {
+  const a = e.target.closest?.('.nav-item[data-id]'); if(!a) return;
+  if(e.key==='Delete' || (e.key==='Backspace' && (e.metaKey || e.ctrlKey))){ const it = itemById(a.dataset.id); if(it){ e.preventDefault(); deleteItem(it, a); } }
+});
 
 /* ----- top bar ----- */
 function renderBar(){
@@ -786,12 +801,19 @@ $('#side').addEventListener('click', async e => {
 $('#q').addEventListener('input', e => { S.q = e.target.value; render(true); });
 $('#sideRes').addEventListener('click', e => { if(e.target.closest('a.sr-row')){ S.q=''; $('#q').value=''; document.body.classList.remove('side-open'); requestAnimationFrame(()=>render(true)); } });
 $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagation(); e.target.value=''; S.q=''; render(true); e.target.blur(); } if(e.key==='Enter') document.body.classList.remove('side-open'); });
+/* Desktop sidebar: by default it auto-hides to a thin strip of icons and opens while the pointer or keyboard focus is in it.
+   The button at its top keeps it open (pinned); [ does the same. On a phone the sidebar is the ☰ drawer. */
+function syncSidePin(){
+  const pinned = ls.get('lo.sidePinned')==='1', desk = !matchMedia('(max-width:860px)').matches;
+  document.body.classList.toggle('side-rail', desk && !pinned);
+  const b = $('#sideToggle'); b.setAttribute('aria-pressed', pinned); b.setAttribute('aria-label', pinned ? 'Auto-hide the sidebar' : 'Keep the sidebar open'); b.title = (pinned ? 'Auto-hide sidebar' : 'Keep sidebar open') + ' ( [ )';
+}
 $('#sideToggle').addEventListener('click', () => {
-  if(matchMedia('(max-width:860px)').matches) document.body.classList.toggle('side-open');
-  else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0');
-    if(document.activeElement?.closest?.('#sideToggle, #sideShow')) (document.body.classList.contains('side-collapsed') ? $('#sideShow') : $('#sideToggle')).focus(); }
+  if(matchMedia('(max-width:860px)').matches){ document.body.classList.toggle('side-open'); return; }
+  ls.set('lo.sidePinned', ls.get('lo.sidePinned')==='1' ? '0' : '1'); syncSidePin();
+  if(document.body.classList.contains('side-rail')){ $('#side').classList.remove('peek'); document.activeElement?.blur?.(); }
 });
-$('#sideShow').addEventListener('click', () => $('#sideToggle').click());
+matchMedia('(max-width:860px)').addEventListener('change', syncSidePin);
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
 $('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
 /* dock: Filter opens the same Filter panel as before; + New task opens the new-task sheet (on a Kanban page) */
@@ -1122,7 +1144,7 @@ $('#scrim').addEventListener('click', () => { if(modalOpen()) closeModal(); else
 /* ---------- boot ---------- */
 async function start(){
   setTheme(ls.get('lo.theme','system'));
-  if(ls.get('lo.sideCollapsed')==='1' && !matchMedia('(max-width:860px)').matches) document.body.classList.add('side-collapsed');
+  syncSidePin();
   S.route = parseHash();
   setBackgroundInert();
   render(true);

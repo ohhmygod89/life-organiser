@@ -2,6 +2,17 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.2] - 2026-11-11
+### Changed
+- Desktop sidebar hides itself to a thin strip of icons and opens when you point at it (or tab into it). The button at its top keeps it open; [ does the same.
+- Stack names are larger.
+- Opening a task no longer puts the cursor in its title.
+### Added
+- Press Delete (or ⌘⌫) on a highlighted menu item to delete it, with the usual confirmation and Undo.
+### Fixed
+- A card could stay stuck mid-drag if the mouse was released outside the app; the drop now finishes.
+- Hiding the sidebar no longer leaves a stray button over the page.
+
 ## [1.0.1-beta.1] - 2026-11-11
 ### Changed
 - New look, inspired by the Pulse design: light and dark themes, soft gradient cards with white text, black pill controls, dot-matrix charts and the iPhone system font.

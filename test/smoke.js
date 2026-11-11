@@ -6,7 +6,7 @@ const {chromium} = require('playwright');
   for (const [w, h, cs] of [[1440, 900, 'light'], [1440, 900, 'dark'], [390, 844, 'light']]) {
     const p = await b.newPage({viewport: {width: w, height: h}, colorScheme: cs});
     p.on('pageerror', e => errs.push(`${w}/${cs}: ${e.message}`));
-    await p.goto('file://' + __dirname + '/local.html'); await p.waitForTimeout(500);
+    await p.goto('file://' + __dirname + '/local.html'); await p.evaluate(()=>localStorage.setItem('lo.sidePinned','1')); await p.reload(); await p.waitForTimeout(500);   // sidebar kept open so it never covers what the test clicks
     const ids = await p.evaluate(() => [...window.__demoData.items.keys()]);
     for (const h2 of ['home', 'tasks', 'archive', ...ids.map(i => 'i-' + i)]) {
       await p.evaluate(x => location.hash = x, h2); await p.waitForTimeout(150);

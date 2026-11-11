@@ -397,7 +397,7 @@ TYPE_VIEWS.kanban = (() => {
     if(!S.tasks.find(x=>x.id===id)) return;
     openId = id; opener = op || null; window.__sheetOpen = true; renderSheet();
     sheet.classList.add('show'); setBackgroundInert(); document.body.classList.add('sheet-open');
-    requestAnimationFrame(()=>{ grow($('#fTitle')); grow($('#fNotes')); (TOUCH ? sheet : $('#fTitle'))?.focus({preventScroll:true}); });
+    requestAnimationFrame(()=>{ grow($('#fTitle')); grow($('#fNotes')); sheet.focus({preventScroll:true});   /* focus the panel, not the title: nothing is selected or edited until you click a field */ });
   }
   function closeSheet(silent){
     if(creating) return closeNewTask(silent);
