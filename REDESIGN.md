@@ -1,6 +1,6 @@
 # Redesign (Pulse) — design system notes
 
-Branch `redesign`, version `1.0.0-beta.29.redesign.2`. Front end only: no feature, data, storage or behaviour changes.
+Branch `redesign`, version `1.0.0-beta.29.redesign.3`. Front end only: no feature, data, storage or behaviour changes.
 All new CSS is one block at the end of `src/styles.css` (`/* ===== REDESIGN (Pulse) ===== */`); it overrides the older layers instead of deleting them.
 
 ## Look
@@ -59,3 +59,8 @@ Charts: **Tracker** chart is a dot matrix (SVG, one path for filled dots and one
 - **Controls**: segmented = white (or light-grey inside cards) track, solid black active pill (white in dark).
 - **Dot charts**: Tracker = discrete columns 14 to 16px apart, one dot per 8px row, a faint single baseline row, top two dots stronger. Bills = one faint dot row per bill, one coloured dot row per term, Total = single dot columns with a yellow-orange-red gradient (CSS mask). No filled areas, no background grid.
 - **Rows**: Home rows have a round gradient icon, 600 title, grey subtitle, due text right (under the subtitle on phones). Kanban column headers use a small status dot and sentence case. Timeline bars are lavender gradient pills.
+
+## Round 2 (redesign.3)
+- **Rule: dots appear only in quantity charts, never as lines or connectors.** Bills rows are thin solid lines (2px faint grey before the start, 4px rounded bar in the bill colour where a term runs); only the Bills Total row is a dot chart (9px pitch, gradient mask).
+- **Tracker** is a true dot matrix: square grid (pitch 9px phone, 10px desktop), equal 4.4px dots in every column, six colour levels by height (`.dots.l0`..`.l5`, light `--dot-lite` at the bottom to saturated `--dot-blue` at the top), no baseline, no emphasised top row.
+- Home heading: small grey date (14.5px) over a 28-32px medium title. Tile labels keep 8px+ clear of the arrow circle (2 lines then ellipsis). Bills stat cards are white versions of the Home tiles (icon + label, value 500, caption). Item-header circle matches the tile circle (32px, same inset, slightly darkened backdrop so it shows on the light bloom).

@@ -35,28 +35,25 @@ TYPE_VIEWS.tracker = (() => {
     const X = t => m.l + (t1===t0 ? 0.5 : (t-t0)/(t1-t0))*(W-m.l-m.r);
     const Y = v => m.t + (1-(v-y0)/(y1-y0||1))*(H-m.t-m.b);
     const xy = P.map(p=>[X(new Date(p.date).getTime()), Y(+p.value)]);
-    /* dot-matrix (Pulse): discrete columns well apart, each a single vertical stack of dots as tall as the value at that date
-       (a step holds its value; otherwise the line between entries), over one faint row of baseline dots. No filled area, no background grid. */
-    const pw = W-m.l-m.r, ph = H-m.t-m.b, rp = 8, cw0 = TOUCH || W < 420 ? 14 : 16;
-    const nc = Math.max(6, Math.floor(pw/cw0)), cw = pw/nc, nr = Math.max(6, Math.floor(ph/rp)), rh = ph/nr;
+    /* dot-matrix (Pulse): a square grid of equal dots (column pitch = row pitch); each column is filled up to the value at that date
+       (a step holds its value; otherwise the line between entries). Colour runs light at the bottom to saturated at the top. No lines, no area. */
+    const pw = W-m.l-m.r, ph = H-m.t-m.b, pitch = W < 420 ? 9 : 10, LV = 6;
+    const nc = Math.max(8, Math.floor(pw/pitch)), cw = pw/nc, nr = Math.max(8, Math.floor(ph/pitch)), rh = ph/nr;
     const valueAt = t => { let i = -1; for(let k=0;k<P.length;k++){ if(new Date(P[k].date).getTime() <= t) i = k; else break; } if(i<0) return null;
       if(it.step || i===P.length-1) return +P[i].value;
       const a = new Date(P[i].date).getTime(), b = new Date(P[i+1].date).getTime(); return +P[i].value + (+P[i+1].value - +P[i].value) * (t-a) / ((b-a)||1); };
-    let base = '', mid = '', top = '';
-    const yb = m.t + ph - rh/2;
-    for(let k=0;k<2*nc-1;k++) if(k%2) base += `M${(m.l + cw/2 + k*cw/2).toFixed(1)},${yb.toFixed(1)}h.01`;   // baseline dots between the columns
+    const lv = Array(LV).fill('');
     for(let c=0;c<nc;c++){
-      const x = m.l + (c+.5)*cw, v = valueAt(t0 + (c+.5)/nc*(t1-t0));
-      if(v===null){ base += `M${x.toFixed(1)},${yb.toFixed(1)}h.01`; continue; }
+      const x = m.l + (c+.5)*cw, v = valueAt(t0 + (c+.5)/nc*(t1-t0)); if(v===null) continue;
       const h = Math.max(1, Math.min(nr, Math.round((v-y0)/((y1-y0)||1)*nr)));
-      for(let r=0;r<h;r++){ const d = `M${x.toFixed(1)},${(m.t + ph - (r+.5)*rh).toFixed(1)}h.01`; if(r >= h-2) top += d; else mid += d; }
+      for(let r=0;r<h;r++) lv[Math.min(LV-1, Math.floor(r/nr*LV))] += `M${x.toFixed(1)},${(m.t + ph - (r+.5)*rh).toFixed(1)}h.01`;
     }
     // x ticks: up to 6 evenly spaced dates
     const nx = Math.min(6, Math.max(2, Math.floor((W-m.l-m.r)/110)));
     const xt = Array.from({length:nx}, (_,i)=> t0 + (t1-t0)*i/(nx-1));
     const span = t1-t0; const lab = t => { const dd=new Date(t); return span > 400*864e5 ? MON[dd.getMonth()]+' '+String(dd.getFullYear()).slice(2) : dd.getDate()+' '+MON[dd.getMonth()]; };
     box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(it.name)}: ${P.length} entries from ${esc(dateLabel(P[0].date))} to ${esc(dateLabel(P[P.length-1].date))}, latest ${esc(withUnit(it, vals[vals.length-1]))}">
-      <path class="dots off" d="${base}"/><path class="dots mid" d="${mid}"/><path class="dots on" d="${top}"/>
+      ${lv.map((d,i)=>d?`<path class="dots l${i}" d="${d}"/>`:'').join('')}
       <g class="axis">${ticks.map(v=>`<text x="${m.l-8}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${esc(fmtNum(v, Math.min(it.decimals??2, 2)))}</text>`).join('')}
         ${xt.map((t,i)=>`<text x="${X(t).toFixed(1)}" y="${H-8}" text-anchor="${i===0?'start':i===xt.length-1?'end':'middle'}">${lab(t)}</text>`).join('')}</g>
       <g id="trHover" style="display:none"><line class="xh" y1="${m.t}" y2="${H-m.b}"/><circle class="hpt" r="5"/></g>

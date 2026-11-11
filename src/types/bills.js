@@ -70,7 +70,7 @@ TYPE_VIEWS.bills = (() => {
   }
 
   /* ---------- views ---------- */
-  function statTile(n, label, c, ic){ return `<div class="stat" style="--sc:${c}"><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><b>${n}</b></span><span>${label}</span></div>`; }
+  function statTile(n, label, cap, ic){ return `<div class="stat"><span class="s-lab"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><span>${label}</span></span><b>${n}</b><small class="s-cap">${cap}</small></div>`; }
   function view(it, root){
     const s = st(it); if(!s.mode) s.mode = bills(it).some(b=>b.start) ? 'timeline' : 'list';
     const pend = pending(it, 30); const over = pend.filter(x=>x.s==='over'), soon = pend.filter(x=>x.s!=='over');
@@ -78,10 +78,10 @@ TYPE_VIEWS.bills = (() => {
     const yr = CUR_YEAR, yTot = bills(it).reduce((t,b)=>t+dues(b, yr+'-01-01', yr+'-12-31').reduce((u,d)=>u+(+(b.paid?.[d.date]?.amount ?? d.amount)||0),0),0);
     root.innerHTML = `
       <div class="stats">
-        ${statTile(bills(it).filter(b=>b.active).length, 'Active bills', '#0071e3', 'list')}
-        ${statTile(soon.length, 'Due in 30 days'+(sum(soon)?' · '+money(sum(soon)):''), '#ff9500', 'cal')}
-        ${statTile(over.length, 'Overdue'+(sum(over)?' · '+money(sum(over)):''), over.length?'#ff3b30':'#8e8e93', 'bang')}
-        ${statTile(money(yTot)||'$0', yr+' total', '#34c759', 'tracker')}
+        ${statTile(bills(it).filter(b=>b.active).length, 'Active bills', 'recurring and renewals', 'list')}
+        ${statTile(soon.length, 'Due in 30 days', sum(soon)?money(sum(soon))+' to pay':'nothing due', 'cal')}
+        ${statTile(over.length, 'Overdue', sum(over)?money(sum(over))+' to pay':'all clear', 'bang')}
+        ${statTile(money(yTot)||'$0', yr+' total', 'paid and scheduled', 'tracker')}
       </div>
       <div class="toolbar">
         <div class="seg" role="group" aria-label="View"><button data-seg="timeline" aria-pressed="${s.mode==='timeline'}">Timeline</button><button data-seg="list" aria-pressed="${s.mode==='list'}">List</button></div>
