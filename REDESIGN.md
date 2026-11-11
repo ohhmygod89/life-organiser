@@ -1,6 +1,6 @@
 # Redesign (Pulse) — design system notes
 
-Branch `redesign`, version `1.0.0-beta.29.redesign.3`. Front end only: no feature, data, storage or behaviour changes.
+Branch `redesign`, version `1.0.0-beta.29.redesign.4`. Front end only: no feature, data, storage or behaviour changes.
 All new CSS is one block at the end of `src/styles.css` (`/* ===== REDESIGN (Pulse) ===== */`); it overrides the older layers instead of deleting them.
 
 ## Look
@@ -64,3 +64,12 @@ Charts: **Tracker** chart is a dot matrix (SVG, one path for filled dots and one
 - **Rule: dots appear only in quantity charts, never as lines or connectors.** Bills rows are thin solid lines (2px faint grey before the start, 4px rounded bar in the bill colour where a term runs); only the Bills Total row is a dot chart (9px pitch, gradient mask).
 - **Tracker** is a true dot matrix: square grid (pitch 9px phone, 10px desktop), equal 4.4px dots in every column, six colour levels by height (`.dots.l0`..`.l5`, light `--dot-lite` at the bottom to saturated `--dot-blue` at the top), no baseline, no emphasised top row.
 - Home heading: small grey date (14.5px) over a 28-32px medium title. Tile labels keep 8px+ clear of the arrow circle (2 lines then ellipsis). Bills stat cards are white versions of the Home tiles (icon + label, value 500, caption). Item-header circle matches the tile circle (32px, same inset, slightly darkened backdrop so it shows on the light bloom).
+
+## Round 3 (redesign.4): Pulse layout and spacing
+Layout and spacing may change; features and behaviour do not. Everything below is the last CSS block in `styles.css` ("round 3"), plus small markup changes in `shell.html` and `renderSide`/`renderHome` in `core.js`.
+- **Sidebar** is a white panel (dark `#141416`) beside the grey canvas: logo mark + "Life Organiser" wordmark with the app "..." menu, a 32px search, tiny uppercase section labels ("Main", folder names with a faint collapse chevron, "Create"), 34px rows with a soft grey active pill, black circular count badges (white in dark mode), compact New item / New folder rows. "Drag items here" only shows while dragging (`body.nav-dragging`); empty folders stay droppable.
+- **Bottom card** (`.side-card`) is pinned to the panel bottom: app icon, name, version (still the What's new popover, which now opens upwards) and "Demo · sample data" in demo mode. Tapping the card opens the same app menu as the top "..." (`data-act="app-menu"`). On a phone the card sits at the bottom of the menu card.
+- **Page header** on desktop is one compact row: gradient icon circle, title (still editable), grey sub-line; the page's own actions (Bills Timeline/List, year nav, Add bill; Kanban View menu) sit at its right edge via a CSS grid on `.wrap` (`#tv` and `.kb`/`.kb-bar` use `display:contents`, so the controls and their handlers are unchanged). Below 1040px they drop to their own row. Phones keep the gradient hero.
+- **Top bar** has a black "New item" pill (same action as the sidebar New item and the N key); hidden on phones.
+- **Density**: card titles 15px, rows 13px, captions 11.5px, cards 16-20px padding, radius 20-22, gaps 12-14, hairline separators; Kanban chips/cards/columns tightened; tables get small uppercase headers. Desktop (mouse) body type is 13.5px; touch keeps roomier sizes, 16px inputs and 40px tap targets.
+- **Home**: title then grey date; on phones the "Coming up" date sits under the title so titles keep the whole row.

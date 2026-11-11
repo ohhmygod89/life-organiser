@@ -378,13 +378,13 @@ function renderSide(){
   const navable = i => !!TYPE_GROUP[i.type];
   const inFolder = fid => itemsOf(i=>navable(i) && (i.folderId||'')===fid);
   const root = itemsOf(i=>navable(i) && (!i.folderId || !folderById(i.folderId)));
-  let html = `<div class="nav-group">${navLink('home','Home',ICON.home)}</div>`;
+  let html = `<div class="nav-group"><div class="nav-lbl" id="navMain">Main</div>${navLink('home','Home',ICON.home)}</div>`;
   /* items without a folder first, then the folders; drag anything anywhere */
   html += `<div class="nav-group nav-root"><div class="nav-list" data-list="items" data-fid="">${root.map(navItemHTML).join('')}${root.length?'':'<div class="nav-empty nav-drop-root">Drop here for no folder</div>'}</div></div>`;
   html += `<div class="nav-folders">${sortedFolders().map(f=>{ const open=!S.collapsed.has(f.id); const its=inFolder(f.id);
     return `<div class="nav-group nav-folder" data-fid="${esc(f.id)}" data-key="f-${esc(f.id)}"><div class="nav-h" data-folder="${esc(f.id)}"><button class="fold" data-act="fold" data-fid="${esc(f.id)}" aria-expanded="${open}">${ICON.chevD}<span>${esc(f.name)}</span></button>${TOUCH?`<button class="icon-btn mini" data-act="folder-menu" data-fid="${esc(f.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(f.name)} options">${ICON.more}</button>`:''}</div>
       <div class="nav-list" data-list="items" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}${its.length?'':`<div class="nav-empty">Drag items here</div>`}</div></div>`; }).join('')}</div>`;
-  html += `<div class="side-foot"><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
+  html += `<div class="side-foot"><div class="nav-lbl">Create</div><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
   const fk = el.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   navSortables.forEach(s=>s.destroy()); navSortables=[];
   el.innerHTML = html;
@@ -530,7 +530,7 @@ function renderHome(c){
   const recent = S.items.filter(isTop).map(i=>({...i, updated:touched(i)})).sort((a,b)=>b.updated.localeCompare(a.updated)).slice(0,6);
   const tile = (id, attrs, ic, n, label, cap, off) => `<button class="stat pal-${tilePal(id)}" data-tile="${id}" ${attrs} ${off?'aria-disabled="true"':''} aria-keyshortcuts="Shift+F10" title="${TOUCH?'Double-tap':'Right-click'} to change colour"><span class="s-lab"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><span>${label}</span></span><i class="s-go" aria-hidden="true">${ICON.arrow}</i><b>${n}</b><small class="s-cap">${cap}</small></button>`;
   c.innerHTML = `<div class="wrap">
-    <div class="hd2"><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p><h1 class="big">Home</h1></div>
+    <div class="hd2"><h1 class="big">Home</h1><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p></div>
     <div class="stats home-stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return tile(q.id, `data-quick="${q.id}"`, q.ic, n, q.label, q.cap, !n&&q.id!=='open')}).join('')}${billItems.length?tile('bills', `data-open="item:${esc(billItems[0].id)}"`, 'bills', billsDue, 'Bills due in 30 days', 'bills and renewals', false):''}</div>
     <div class="home-grid">
       <section class="panel" aria-labelledby="cuH"><div class="panel-h"><h2 id="cuH">Coming up</h2><span class="caption">Tasks due in ${TASK_DAYS} days · bills and collection dates in ${HOME_DAYS}</span></div>
@@ -740,6 +740,7 @@ $('#side').addEventListener('click', async e => {
 });
 $('#q').addEventListener('input', e => { S.q = e.target.value; render(true); });
 $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagation(); e.target.value=''; S.q=''; render(true); e.target.blur(); } if(e.key==='Enter') document.body.classList.remove('side-open'); });
+$('#barNew').addEventListener('click', () => openNewItem({opener:$('#barNew')}));
 $('#sideToggle').addEventListener('click', () => {
   if(matchMedia('(max-width:860px)').matches) document.body.classList.toggle('side-open');
   else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0'); }
@@ -764,7 +765,8 @@ $('#dock').addEventListener('click', e => {
     pop = document.createElement('div'); pop.className = 'chlog'; pop.setAttribute('role','dialog'); pop.setAttribute('aria-label','What\'s new');
     pop.innerHTML = `<h3>What's new</h3>` + list.slice(0,3).map(v => `<section><h4>${esc(v.v)} <span>${esc(v.d)}</span></h4><ul>${v.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></section>`).join('');
     document.body.appendChild(pop); const r = btn.getBoundingClientRect();
-    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+    pop.style.top = Math.max(8, (r.bottom + 6 + pop.offsetHeight > innerHeight - 8) ? r.top - pop.offsetHeight - 6 : r.bottom + 6) + 'px';   // the version now lives at the bottom of the sidebar, so the card opens upwards
     btn.setAttribute('aria-expanded','true');
     pop.addEventListener('mouseenter', () => clearTimeout(t)); pop.addEventListener('mouseleave', () => { t = setTimeout(close, 250); });
   };
