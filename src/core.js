@@ -820,6 +820,7 @@ $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagati
 function syncSidePin(){
   const pinned = ls.get('lo.sidePinned')==='1', desk = !matchMedia('(max-width:860px)').matches;
   document.body.classList.toggle('side-rail', desk && !pinned);
+  document.body.classList.toggle('side-pinned', desk && pinned);
   const b = $('#sideToggle'); b.setAttribute('aria-pressed', pinned); b.setAttribute('aria-label', pinned ? 'Auto-hide the sidebar' : 'Keep the sidebar open'); b.title = (pinned ? 'Auto-hide sidebar' : 'Keep sidebar open') + ' ( [ )';
 }
 $('#sideToggle').addEventListener('click', () => {

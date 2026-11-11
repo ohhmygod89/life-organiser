@@ -2455,20 +2455,25 @@ body.nav-dragging .nav-folder .nav-list > .nav-empty:only-child{height:auto;min-
   .side-top #sideToggle{flex:none;margin-left:-6px}
   .side-top #sideToggle[aria-pressed="true"]{background:var(--fill-2)}
   .side-top .brand{flex:1;min-width:0}
+  /* The panel is always fixed and full width, so nothing reflows. Hidden, it is clipped to the icon column; it slides
+     open by unclipping. Pinned, the page column widens to match (animated), so the content never jumps. */
+  body.side-rail .side,body.side-pinned .side{position:fixed;left:0;top:0;bottom:0;height:100vh;width:var(--side-w);z-index:45;white-space:nowrap}
+  body.side-rail .main,body.side-pinned .main{grid-column:2}
+  .shell{transition:grid-template-columns .26s cubic-bezier(.4,0,.2,1)}
   body.side-rail .shell{grid-template-columns:56px minmax(0,1fr)}
-  body.side-rail .main{grid-column:2}
-  body.side-rail .side{position:fixed;left:0;top:0;bottom:0;height:100vh;width:56px;z-index:45;white-space:nowrap;
-    transition:width .2s cubic-bezier(.32,.72,0,1) .15s,box-shadow .2s ease .15s}
-  body.side-rail .side:hover,body.side-rail .side:has(:focus-visible),body.side-rail .side.peek,body.nav-dragging.side-rail .side{width:var(--side-w);box-shadow:var(--pop-shadow);transition-delay:.05s}
-  /* collapsed: only the icons show */
-  body.side-rail .side:not(:hover):not(:has(:focus-visible)):not(.peek) :is(.nm,.ct,.nav-lbl,.nav-h,.nav-empty,kbd,.brand,.side-top [data-act="app-menu"],.search input,.side-card){opacity:0;pointer-events:none}
-  body.side-rail .side :is(.nm,.ct,.nav-lbl,.nav-h,.brand,.side-card,.search input){transition:opacity .12s}
-  /* hidden: just the show/hide icon, no strip */
-  body.side-rail .side:not(:hover):not(:has(:focus-visible)):not(.peek){background:transparent;border-right-color:transparent;box-shadow:none}
-  body.side-rail .side:not(:hover):not(:has(:focus-visible)):not(.peek) > :not(.side-top){opacity:0;pointer-events:none}
-  body.side-rail .side > :not(.side-top){transition:opacity .12s}
+  body.side-pinned .shell{grid-template-columns:var(--side-w) minmax(0,1fr)}
+  body.side-rail .side{clip-path:inset(0 calc(100% - 56px) 0 0);background-color:transparent;border-right-color:transparent;box-shadow:none;
+    transition:clip-path .26s cubic-bezier(.4,0,.2,1) .18s,background-color .2s ease .18s,border-color .2s ease .18s,box-shadow .26s ease .18s}
+  body.side-rail .side:is(:hover,:has(:focus-visible),.peek),body.nav-dragging.side-rail .side{
+    clip-path:inset(0 -40px 0 0);background-color:var(--panel);border-right-color:var(--sep);box-shadow:var(--pop-shadow);transition-delay:.1s}
+  /* contents: fade out quickly when closing, fade in once the panel is moving */
+  body.side-rail .side:not(:hover):not(:has(:focus-visible)):not(.peek) > :not(.side-top),
+  body.side-rail .side:not(:hover):not(:has(:focus-visible)):not(.peek) :is(.brand,.side-top [data-act="app-menu"]){opacity:0;pointer-events:none}
+  body.side-rail .side > :not(.side-top),body.side-rail .side :is(.brand,.side-top [data-act="app-menu"]){transition:opacity .14s ease .18s}   /* closing: fade with the slide, not before it */
+  body.side-rail .side:is(:hover,:has(:focus-visible),.peek) > :not(.side-top),
+  body.side-rail .side:is(:hover,:has(:focus-visible),.peek) :is(.brand,.side-top [data-act="app-menu"]){transition:opacity .18s ease .14s}
 }
-@media (min-width:861px) and (prefers-reduced-motion:reduce){ body.side-rail .side{transition:none} }
+@media (min-width:861px) and (prefers-reduced-motion:reduce){ body.side-rail .side,body.side-rail .side *,.shell{transition:none!important} }
 @media (max-width:860px){ .side-top #sideToggle{display:none} }
 .side-card{gap:10px}
 /* Item name while editing: a soft field, no hard border */

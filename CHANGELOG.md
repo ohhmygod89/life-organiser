@@ -2,6 +2,10 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.4] - 2026-11-11
+### Fixed
+- Desktop sidebar opens and closes smoothly: it slides out and back instead of popping in, labels no longer squeeze while it moves, and nothing is left hanging over the page when it closes. Keeping it open (or letting it auto-hide) now slides the page across instead of jumping.
+
 ## [1.0.1-beta.3] - 2026-11-11
 ### Changed
 - Desktop: when the sidebar is hidden, only its show/hide icon shows. Point at it to open the sidebar; click it to keep the sidebar open.
