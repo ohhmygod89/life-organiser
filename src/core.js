@@ -66,6 +66,7 @@ const ICON = {
   flag:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h1.8v18H5zM7.5 4h11l-2.5 4.5 2.5 4.5h-11z"/></svg>',
   link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
   sort:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m8 10 4-4 4 4M8 14l4 4 4-4"/></svg>',
+  arrow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 16.5 16.5 7.5M8.5 7.5h8v8"/></svg>',
 };
 /* Item types. Kanban, Bills, Tracker and Page are created from New item; a Kanban holds stacks, a Page holds
    blocks (Text, Checklist, Table), and those live as items with a `parent`. */
@@ -185,12 +186,13 @@ const touchItem = id => { const it=itemById(id); if(it) docPatch('items', id, {u
 
 /* ---------- toast with optional Undo ---------- */
 let toastT;
-function toast(msg, undo, bad){
+function toast(msg, undo, bad, act){
   const t = $('#toast'); t.innerHTML = '';
   const s = document.createElement('span'); s.textContent = msg; t.appendChild(s);
+  if(act){ const b=document.createElement('button'); b.type='button'; b.textContent=act.label; b.onclick=()=>{ t.classList.remove('show'); clearTimeout(toastT); act.fn(); }; t.appendChild(b); }   // optional second action, e.g. Open
   if(undo){ const b=document.createElement('button'); b.type='button'; b.textContent='Undo'; b.onclick=()=>{ undo(); t.classList.remove('show'); clearTimeout(toastT); render(true); refreshOverlays(); }; t.appendChild(b); }
-  t.classList.toggle('has-action', !!undo); t.classList.toggle('bad', !!bad); t.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), undo ? 6000 : 2800);
+  t.classList.toggle('has-action', !!(undo||act)); t.classList.toggle('bad', !!bad); t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), (undo||act) ? 6000 : 2800);
 }
 
 /* ---------- focus helpers: survive re-renders ---------- */
@@ -216,6 +218,9 @@ function closeMenu(refocus){
 }
 function outsideMenu(e){ if(menuEl && !menuEl.contains(e.target) && e.target.closest('[aria-haspopup]')!==menuAnchor) closeMenu(false); }
 /* items: {label, value, checked?, dot?, kbd?, danger?} | {sep:true} | {head:'text'} */
+/* A right-click menu opens at the cursor; ⋯ buttons, double-tap and keyboard menus stay anchored to their element */
+let ctxPt = null;
+document.addEventListener('pointerdown', e => { if(e.button===2 && e.pointerType==='mouse') ctxPt = {x:e.clientX, y:e.clientY, t:performance.now()}; }, true);
 function openMenu(anchor, items, onPick, label, cls=''){
   if(menuEl && menuAnchor===anchor){ closeMenu(true); return; }
   closeMenu(false);
@@ -224,7 +229,9 @@ function openMenu(anchor, items, onPick, label, cls=''){
     `<button role="${it.checked!==undefined?'menuitemradio':'menuitem'}" ${it.checked!==undefined?`aria-checked="${!!it.checked}"`:''} data-i="${i}" tabindex="-1" class="${it.danger?'danger':''}">`+
     `${it.checked!==undefined?`<span class="mk" aria-hidden="true">${it.checked?ICON.check:''}</span>`:''}${it.dot?`<span class="dot" style="--oc:${it.dot}"></span>`:''}${it.html ? `<span class="mi" ${it.label?`aria-label="${esc(it.label)}" title="${esc(it.label)}"`:''}>${it.html}</span>` : `<span>${esc(it.label)}</span>`}${it.kbd?`<span class="kbd" aria-hidden="true">${esc(it.kbd)}</span>`:''}</button>`).join('');
   document.body.appendChild(m); menuEl=m; menuAnchor=anchor; anchor.setAttribute('aria-expanded','true');
-  const r = anchor.getBoundingClientRect(); const w=m.offsetWidth, h=m.offsetHeight;
+  const w=m.offsetWidth, h=m.offsetHeight;
+  const pt = ctxPt && performance.now()-ctxPt.t < 1000 ? ctxPt : null; ctxPt = null;
+  const r = pt ? {left:pt.x, right:pt.x, top:pt.y, bottom:pt.y-6} : anchor.getBoundingClientRect();
   m.style.left = Math.max(8, Math.min(r.left, innerWidth-w-8))+'px';
   m.style.top = (r.bottom+6+h > innerHeight-8 ? Math.max(8, r.top-h-6) : r.bottom+6)+'px';
   const btns = $$('button', m);
@@ -256,6 +263,11 @@ function lockPage(on){
 (() => { const vv = window.visualViewport; if(!vv) return; let lastFocusOut = 0;
   document.addEventListener('focusout', () => { lastFocusOut = Date.now(); });
   const fit = () => {
+    /* new-task sheet: stays bottom-anchored, lifted by the keyboard's height (visual viewport), never above the top of what is visible */
+    const ns = $('#nsheet');
+    if(ns){ if(ns.classList.contains('show') && vv.scale <= 1.01){ let k = Math.max(0, innerHeight - vv.height - vv.offsetTop); if(k < 80) k = 0;
+        ns.style.bottom = k ? `${k + 8}px` : ''; ns.style.maxHeight = k ? `${vv.height - 16}px` : ''; }
+      else { ns.style.bottom = ns.style.maxHeight = ''; } }
     const sh = $('#sheet'); if(!sh || !matchMedia('(max-width:760px)').matches) return;
     if(!sh.classList.contains('show')){ sh.style.top = sh.style.maxHeight = ''; return; }
     if(vv.scale > 1.01) return;                                         // pinch zoom, not a keyboard
@@ -269,9 +281,12 @@ function lockPage(on){
   window.__recentFocusOut = () => Date.now() - lastFocusOut < 700;
 })();
 function setBackgroundInert(){
-  const sheetOpen = $('#sheet').classList.contains('show') || !!window.__sheetOpen;
+  const newShown = $('#nsheet').classList.contains('show');
+  const taskShown = $('#sheet').classList.contains('show') || (!!window.__sheetOpen && !newShown);
+  const sheetOpen = taskShown || newShown;
   $('.shell').inert = sheetOpen || modalOpen();
-  $('#sheet').inert = !sheetOpen || modalOpen();
+  $('#sheet').inert = !taskShown || modalOpen();
+  $('#nsheet').inert = !newShown || modalOpen();
   modal().inert = !modalOpen();
   lockPage(sheetOpen || modalOpen());
   const scrim = $('#scrim');
@@ -287,6 +302,15 @@ function openModal(html, {opener, wide}={}){
   requestAnimationFrame(()=>{ if(!m.contains(document.activeElement)) (m.querySelector('[autofocus]') || m.querySelector('input,button'))?.focus(); });
   return m;
 }
+/* Tab stays inside an open dialog (first <-> last) */
+modal().addEventListener('keydown', e => {
+  if(e.key!=='Tab' || !modalOpen()) return;
+  const f = $$('button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])', modal()).filter(x => x.offsetParent !== null);
+  if(!f.length) return;
+  const first = f[0], last = f[f.length-1];
+  if(e.shiftKey && (document.activeElement===first || !modal().contains(document.activeElement))){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && (document.activeElement===last || !modal().contains(document.activeElement))){ e.preventDefault(); first.focus(); }
+});
 function closeModal(){
   if(!modalOpen()) return;
   modal().classList.remove('show'); setBackgroundInert();
@@ -332,7 +356,7 @@ window.addEventListener('hashchange', () => {
 let contentPending = false;
 function isEditing(){ const a=document.activeElement; return !!a && $('#content').contains(a) && a.matches('input:not([type=checkbox]):not([type=date]),textarea,[contenteditable="true"],[contenteditable="plaintext-only"]'); }
 function render(force){
-  renderSide(); renderBar();
+  renderSide(); renderBar(); renderDock(); syncSideRes();
   if(S.dragging){ contentPending=true; return; }
   if(!force && isEditing()){ contentPending=true; return; }
   if(S.rendering){ contentPending=true; return; }
@@ -340,6 +364,7 @@ function render(force){
   const fk = (!modalOpen() && !window.__sheetOpen && !menuEl) ? focusKey(document.activeElement) : null;
   const c = $('#content'); const hs = $$('[data-hs]', c).map(el=>[el.dataset.hs, el.scrollLeft]); const wy = window.scrollY, cy = c.scrollTop;
   S.rendering = true; try{ renderContent(); } finally { S.rendering = false; }
+  fitTitle();
   for(const [k,x] of hs){ const el = c.querySelector(`[data-hs="${CSS.escape(k)}"]`); if(el && x) el.scrollLeft = x; }
   if(c.scrollTop!==cy) c.scrollTop = cy; if(window.scrollY!==wy) window.scrollTo(0, wy);
   if(fk && $('#content').contains(document.activeElement)===false) restoreFocus(fk, $('#content'));
@@ -377,13 +402,13 @@ function renderSide(){
   const navable = i => !!TYPE_GROUP[i.type];
   const inFolder = fid => itemsOf(i=>navable(i) && (i.folderId||'')===fid);
   const root = itemsOf(i=>navable(i) && (!i.folderId || !folderById(i.folderId)));
-  let html = `<div class="nav-group">${navLink('home','Home',ICON.home)}</div>`;
+  let html = `<div class="nav-group"><div class="nav-lbl" id="navMain">Main</div>${navLink('home','Home',ICON.home)}</div>`;
   /* items without a folder first, then the folders; drag anything anywhere */
   html += `<div class="nav-group nav-root"><div class="nav-list" data-list="items" data-fid="">${root.map(navItemHTML).join('')}${root.length?'':'<div class="nav-empty nav-drop-root">Drop here for no folder</div>'}</div></div>`;
   html += `<div class="nav-folders">${sortedFolders().map(f=>{ const open=!S.collapsed.has(f.id); const its=inFolder(f.id);
     return `<div class="nav-group nav-folder" data-fid="${esc(f.id)}" data-key="f-${esc(f.id)}"><div class="nav-h" data-folder="${esc(f.id)}"><button class="fold" data-act="fold" data-fid="${esc(f.id)}" aria-expanded="${open}">${ICON.chevD}<span>${esc(f.name)}</span></button>${TOUCH?`<button class="icon-btn mini" data-act="folder-menu" data-fid="${esc(f.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(f.name)} options">${ICON.more}</button>`:''}</div>
       <div class="nav-list" data-list="items" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}${its.length?'':`<div class="nav-empty">Drag items here</div>`}</div></div>`; }).join('')}</div>`;
-  html += `<div class="side-foot"><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
+  html += `<div class="side-foot"><div class="nav-lbl">Create</div><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
   const fk = el.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   navSortables.forEach(s=>s.destroy()); navSortables=[];
   el.innerHTML = html;
@@ -420,11 +445,38 @@ $('#side').addEventListener('contextmenu', navContextMenu);
 /* ----- top bar ----- */
 function renderBar(){
   const it = currentItem(); const f = it && folderById(it.folderId);
-  let crumbs;
-  if(S.q) crumbs = `<b>Search</b>`;
-  else if(it) crumbs = `${f?`<span>${esc(f.name)}</span><span class="sep" aria-hidden="true">›</span>`:''}<b>${esc(it.name||'Untitled')}</b>`;
-  else crumbs = `<b>${{home:'Home',tasks:'All tasks',archive:'Archive'}[S.route.v]||'Home'}</b>`;
-  $('#crumbs').innerHTML = crumbs;
+}
+
+/* ----- phone dock: ☰ always; Filter and + New task only on Kanban pages (CSS shows the dock on phones only) ----- */
+const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', page:'green'};   // item page header palette (see REDESIGN.md)
+/* Home tile colours: a per-device preference kept in localStorage ("lo.tileColors", like theme and sort), chosen from a hidden menu
+   (right-click, double-tap on a phone, Menu key / Shift+F10 on a focused tile). Absent = the default below. */
+const TILE_PALS = [['lav','Lavender'],['blue','Sky'],['coral','Coral'],['pink','Rose'],['peach','Peach'],['green','Mint']];
+const TILE_DEFAULT = {open:'lav', overdue:'coral', week:'blue', waiting:'peach', bills:'green'};
+const tilePrefs = () => { try{ const o = JSON.parse(ls.get('lo.tileColors','{}')); return o && typeof o==='object' ? o : {}; }catch(e){ return {}; } };
+const tilePal = id => { const p = tilePrefs()[id]; return TILE_PALS.some(x=>x[0]===p) ? p : (TILE_DEFAULT[id]||'lav'); };
+function tileMenu(tile, at){
+  const id = tile.dataset.tile, cur = tilePrefs()[id] && TILE_PALS.some(x=>x[0]===tilePrefs()[id]) ? tilePrefs()[id] : '';
+  const sw = (k, name) => `<i class="sw pal-${k}" aria-hidden="true"></i><span>${esc(name)}</span>`;
+  openMenu(at, [{head:'Tile colour'}, {html:sw(TILE_DEFAULT[id]||'lav','Default'), label:'Default', value:'', checked:!cur}, {sep:true}, ...TILE_PALS.map(([k,n])=>({html:sw(k,n), label:n, value:k, checked:cur===k}))], v => {
+    const o = tilePrefs(); if(v) o[id] = v; else delete o[id];
+    ls.set('lo.tileColors', JSON.stringify(o)); render(true); restoreFocus(`[data-tile="${id}"]`);
+  }, 'Tile colour', 'menu-pal');
+}
+const tileAnchor = (tile, e) => { const r = tile.getBoundingClientRect(); const x = e && e.clientX ? Math.min(Math.max(e.clientX, r.left+12), r.right-12) : r.left+16;
+  return {getBoundingClientRect:()=>({left:x, right:x, top:r.top+r.height*.55, bottom:r.top+r.height*.55, width:0, height:0}), setAttribute(){}, focus(){}}; };
+let tileTap = null;
+function kbFilterCount(){ const V = S.tasksView; return (V.quick!=='open') + V.boards.size + (V.bb?1:0); }   // filters away from the defaults
+function renderDock(){
+  const it = currentItem(), onK = !!it && it.type==='kanban' && !S.q;
+  const f = $('#dkFilter'), n = $('#dkNew'); if(!f || !n) return;
+  f.hidden = n.hidden = !onK;
+  if(!onK) return;
+  const nf = kbFilterCount();
+  f.innerHTML = `${ICON.filter}<span class="sr-only">Filter</span>${nf?`<b class="nf" aria-hidden="true">${nf}</b>`:''}`;
+  f.setAttribute('aria-label', `Filter${nf?` (${nf} on)`:''}`);
+  f.setAttribute('aria-expanded', String(!!S.filtersOpen));
+  if(!n.firstChild) n.innerHTML = `<i class="orb" aria-hidden="true">${ICON.plus}</i><span>New task</span>`;
 }
 
 /* ----- content ----- */
@@ -446,9 +498,18 @@ function renderContent(){
   document.documentElement.style.setProperty('--board', '#0071e3');
   renderHome(c);
 }
+/* The item title field is only as wide as its text (plus room to type), not the full width */
+function fitTitle(el = $('#itemTitle')){
+  if(!el) return;
+  const m = fitTitle.m || (fitTitle.m = document.createElement('canvas').getContext('2d')); const cs = getComputedStyle(el);
+  m.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const ls = parseFloat(cs.letterSpacing)||0, txt = el.value || el.placeholder;
+  const w = m.measureText(txt).width + ls*txt.length + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 18;
+  el.style.width = Math.ceil(w) + 'px';
+}
 function headHTML(it){
   const f = folderById(it.folderId);
-  return `<div class="ihead"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
+  return `<div class="ihead pal-${PALETTE_BY_TYPE[it.type]||'lav'}"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
     <div class="ihead-t"><input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80">
     <p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(shortDate(it.updated)):''}</p></div></div>`;
 }
@@ -456,11 +517,12 @@ function headHTML(it){
 /* ----- Home ----- */
 function openTasks(){ return S.tasks.filter(t => { const b=itemById(t.boardId); return b && !b.hidden && t.col!=='done' && t.col!=='backburner'; }); }
 const QUICK = [
-  {id:'open', label:'Open tasks', test:()=>true, c:'#007aff', ic:'list'},
-  {id:'overdue', label:'Overdue', test:t=>t.due && dayDiff(t.due)<0, c:'#ff3b30', ic:'bang'},
-  {id:'week', label:'Due in 7 days', test:t=>t.due && dayDiff(t.due)>=0 && dayDiff(t.due)<=7, c:'#30b0c7', ic:'cal'},
-  {id:'waiting', label:'Flagged', test:t=>!!effFlag(t), c:'#ff9500', ic:'flag'},
+  {id:'open', label:'Open tasks', cap:'across all stacks', test:()=>true, c:'#007aff', ic:'list'},
+  {id:'overdue', label:'Overdue', cap:'past their due date', test:t=>t.due && dayDiff(t.due)<0, c:'#ff3b30', ic:'bang'},
+  {id:'week', label:'Due in 7 days', cap:'coming this week', test:t=>t.due && dayDiff(t.due)>=0 && dayDiff(t.due)<=7, c:'#30b0c7', ic:'cal'},
+  {id:'waiting', label:'Flagged', cap:'waiting or blocked', test:t=>!!effFlag(t), c:'#ff9500', ic:'flag'},
 ];
+const NB_DOT = '\u00a0·\u00a0';   // "Internet · House": the dot stays with both words, so a title never ends a line on a lone dot
 function comingUp(){
   const out = [];
   for(const t of openTasks()) if(t.due && dayDiff(t.due)<=TASK_DAYS) out.push({kind:'task', date:t.due, title:t.title, item:itemById(t.boardId), task:t});
@@ -475,7 +537,7 @@ function comingUp(){
     }
   }
   for(const it of S.items.filter(i=>i.type==='bills'))
-    for(const p of TYPE_VIEWS.bills.pending(it, HOME_DAYS)) out.push({kind:'bill', date:p.d.date, title:[p.b.category,p.b.asset].filter(Boolean).join(' · ')||'Bill', what:(p.d.inst||p.b.institution||'')+(p.d.amount!==''&&p.d.amount!==undefined?' · $'+fmtNum(p.d.amount,2):''), item:it});
+    for(const p of TYPE_VIEWS.bills.pending(it, HOME_DAYS)) out.push({kind:'bill', date:p.d.date, title:[p.b.category,p.b.asset].filter(Boolean).join(NB_DOT)||'Bill', what:(p.d.inst||p.b.institution||'')+(p.d.amount!==''&&p.d.amount!==undefined?' · $'+fmtNum(p.d.amount,2):''), item:it});
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
 function sparkPath(points, w, h, step){
@@ -495,18 +557,19 @@ function renderHome(c){
   const trackers = S.items.filter(i=>i.type==='tracker');
   const touched = i => S.items.filter(x=>x.parent===i.id).reduce((m,x)=>(x.updated||'')>m?x.updated:m, i.updated||i.created||'');   // a page counts its blocks' edits
   const recent = S.items.filter(isTop).map(i=>({...i, updated:touched(i)})).sort((a,b)=>b.updated.localeCompare(a.updated)).slice(0,6);
+  const tile = (id, attrs, ic, n, label, cap, off) => `<button class="stat pal-${tilePal(id)}" data-tile="${id}" ${attrs} ${off?'aria-disabled="true"':''} aria-keyshortcuts="Shift+F10" title="${TOUCH?'Double-tap':'Right-click'} to change colour"><span class="s-lab"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><span>${label}</span></span><i class="s-go" aria-hidden="true">${ICON.arrow}</i><b>${n}</b><small class="s-cap">${cap}</small></button>`;
   c.innerHTML = `<div class="wrap">
-    <div><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p><h1 class="big">Home</h1></div>
-    <div class="stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return `<button class="stat" data-quick="${q.id}" style="--sc:${q.c}" ${!n&&q.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[q.ic]}</i><b>${n}</b></span><span>${q.label}</span></button>`}).join('')}${billItems.length?`<button class="stat" data-open="item:${esc(billItems[0].id)}" style="--sc:#ff9500"><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON.bills}</i><b>${billsDue}</b></span><span>Bills due in 30 days</span></button>`:''}</div>
+    <div class="hd2"><h1 class="big">Home</h1><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p></div>
+    <div class="stats home-stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return tile(q.id, `data-quick="${q.id}"`, q.ic, n, q.label, q.cap, !n&&q.id!=='open')}).join('')}${billItems.length?tile('bills', `data-open="item:${esc(billItems[0].id)}"`, 'bills', billsDue, 'Bills due in 30 days', 'bills and renewals', false):''}</div>
     <div class="home-grid">
       <section class="panel" aria-labelledby="cuH"><div class="panel-h"><h2 id="cuH">Coming up</h2><span class="caption">Tasks due in ${TASK_DAYS} days · bills and collection dates in ${HOME_DAYS}</span></div>
-        ${up.length ? `<div class="list-rows">${up.map(u=>{const dl=dueLabel(u.date); return `<button class="lrow" data-open="${u.kind}:${esc(u.kind==='task'?u.task.id:u.item.id)}"><span class="t">${u.kind==='task'?bangHTML(u.task.priority):''}${esc(u.title)}</span><span class="m"><i style="--c:${itemColor(u.item)}"></i>${esc(u.item.name)}${u.what?' · '+esc(u.what):''}</span><span class="r ${dl.cls}">${esc(dl.t)}</span></button>`}).join('')}</div>`
+        ${up.length ? `<div class="list-rows">${up.map(u=>{const dl=dueLabel(u.date); return `<button class="lrow has-ri" data-open="${u.kind}:${esc(u.kind==='task'?u.task.id:u.item.id)}"><i class="ri pal-${u.kind==='task'?'lav':u.kind==='bill'?'coral':'peach'}" aria-hidden="true">${u.kind==='task'?ICON.list:u.kind==='bill'?ICON.bills:ICON.collection}</i><span class="t">${u.kind==='task'?bangHTML(u.task.priority):''}${esc(u.title)}</span><span class="m"><i style="--c:${itemColor(u.item)}"></i>${esc(u.item.name)}${u.what?' · '+esc(u.what):''}</span><span class="r ${dl.cls}">${esc(dl.t)}</span></button>`}).join('')}</div>`
           : `<div class="empty-state">Nothing due soon. Give tasks a due date, or tick “Show on Home” on a date field in a collection.</div>`}
       </section>
       <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
         ${trackers.length?`<section aria-labelledby="trH"><div class="panel-h"><h2 id="trH">Trackers</h2></div><div class="tr-cards">${trackers.map(t=>{const pts=(t.points||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)); const last=pts[pts.length-1]; return `<a class="tr-card" href="#i-${esc(t.id)}" style="text-decoration:none;color:inherit"><span class="caption">${esc(t.name)}</span><span class="v">${last?(t.unit==='$'?'$'+fmtNum(last.value,t.decimals):fmtNum(last.value,t.decimals)+`<small>${esc(t.unit||'')}</small>`):'—'}</span><span class="caption">${last?'Since '+esc(dateLabel(last.date)):'No entries yet'}</span>${pts.length>1?`<svg viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true"><path d="${sparkPath(pts.slice(-24),200,36,t.step)}" fill="none" stroke="${itemColor(t)}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`:''}</a>`}).join('')}</div></section>`:''}
         <section class="panel" aria-labelledby="reH"><div class="panel-h"><h2 id="reH">Recently edited</h2></div>
-          <div class="list-rows">${recent.map(i=>`<a class="lrow" href="#i-${esc(i.id)}" style="text-decoration:none;color:inherit"><span class="t">${esc(i.name||'Untitled')}</span><span class="m"><i style="--c:${itemColor(i)}"></i>${TYPES[i.type].label}${folderById(i.folderId)?' · '+esc(folderById(i.folderId).name):''}</span><span class="r">${i.updated?esc(shortDate(i.updated)):''}</span></a>`).join('')}</div></section>
+          <div class="list-rows">${recent.map(i=>`<a class="lrow has-ri" href="#i-${esc(i.id)}" style="text-decoration:none;color:inherit"><i class="ri pal-${PALETTE_BY_TYPE[i.type]||'lav'}" aria-hidden="true">${ICON[i.type]}</i><span class="t">${esc(i.name||'Untitled')}</span><span class="m"><i style="--c:${itemColor(i)}"></i>${TYPES[i.type].label}${folderById(i.folderId)?' · '+esc(folderById(i.folderId).name):''}</span><span class="r">${i.updated?esc(shortDate(i.updated)):''}</span></a>`).join('')}</div></section>
       </div>
     </div></div>`;
 }
@@ -554,16 +617,15 @@ function renderKanban(k, root){
   const pool = S.tasks.filter(t=>ids.has(t.boardId) && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)));
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
-  const VIEWS = {board:'Board', list:'List', timeline:'Timeline', archive:'Archive'};
-  const nf = (V.quick!=='open') + V.boards.size + (V.bb?1:0);   // filters away from the defaults (Done follows the device default, so it isn't counted)
-  const seg = `<div class="kb-ctl">${`<button class="btn kb-filter" data-act="filters" aria-expanded="${!!S.filtersOpen}" aria-controls="kbFilters" aria-label="Filter${nf?` (${nf} on)`:''}" title="Filter">${ICON.filter}<span class="kb-lbl">Filter</span>${nf?` <b class="nf">${nf}</b>`:''}</button>`}
-    <button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
+  const VIEWS = {board:'Kanban', timeline:'Gantt', list:'List', archive:'Archive'};
+  /* the phone Filter button lives in the dock (renderDock); desktop only needs the View menu here */
+  const seg = `<div class="kb-ctl"><button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
   const viewGroup = `<div class="fgroup fg-view" role="group" aria-label="View"><span class="fg-l">View</span>${Object.entries(VIEWS).map(([m,l])=>`<button class="chip-btn" data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div>`;
   const groups = mode==='archive' ? `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}</div>` : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
     <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}<button class="chip-btn add-stack" data-act="add-stack" title="Add a stack">${ICON.plus}Stack</button></div>
-    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
+    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
   </div>`;
   /* one row: the filter groups, then Board · List · Archive at the right end (they never move between views) */
   const tabs = `<div class="kb-bar">${groups}${seg}</div>`;
@@ -596,7 +658,7 @@ function renderKanban(k, root){
 function kanbanClick(e, k){
   const V = S.tasksView;
   const vb = e.target.closest('[data-act="view"]');
-  if(vb){ openMenu(vb, [['board','Board'],['list','List'],['timeline','Timeline'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
+  if(vb){ openMenu(vb, [['board','Kanban'],['timeline','Gantt'],['list','List'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
   if(e.target.closest('[data-act="filters"]')){ S.filtersOpen=!S.filtersOpen; render(true); restoreFocus('[data-act="filters"]'); return true; }
   const md = e.target.closest('[data-mode]'); if(md){ V.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); S.filtersOpen=false; render(true); restoreFocus(`[data-mode="${md.dataset.mode}"]`); return true; }
   const so = e.target.closest('[data-sort]'); if(so && !e.target.closest('.tbl')){ V.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return true; }
@@ -629,7 +691,7 @@ function renderArchive(c, stacks){
 
 /* ----- Search across everything ----- */
 function snippet(text, q){ const i=text.toLowerCase().indexOf(q); if(i<0) return ''; const s=Math.max(0,i-40); return (s?'…':'')+text.slice(s, i+q.length+60).replace(/\s+/g,' ')+(i+q.length+60<text.length?'…':''); }
-function renderSearch(c){
+function searchHits(){
   const q = S.q.trim().toLowerCase();
   const res = [];
   for(const it of S.items){
@@ -637,13 +699,29 @@ function renderSearch(c){
     if((it.name||'').toLowerCase().includes(q)) res.push({k:'item', it:top, t:it.name, m:isTop(it) ? TYPES[it.type].label : top.name+' · '+TYPES[it.type].label});
     if(it.type==='note' && (it.body||'').toLowerCase().includes(q)) res.push({k:'item', it:top, t:top.name, m:snippet(it.body,q)});
     if(it.type==='checklist') (it.entries||[]).filter(e=>e.text.toLowerCase().includes(q)).forEach(e=>res.push({k:'item', it:top, t:e.text, m:top.name+' · checklist item'}));
-    if(it.type==='bills') (it.bills||[]).filter(b=>[b.asset,b.category,b.institution,b.ref,b.notes].join(' ').toLowerCase().includes(q)).forEach(b=>res.push({k:'item', it, t:[b.category,b.asset].filter(Boolean).join(' · '), m:it.name+' · '+(b.institution||'')}));
+    if(it.type==='bills') (it.bills||[]).filter(b=>[b.asset,b.category,b.institution,b.ref,b.notes].join(' ').toLowerCase().includes(q)).forEach(b=>res.push({k:'item', it, t:[b.category,b.asset].filter(Boolean).join(NB_DOT), m:it.name+' · '+(b.institution||'')}));
     if(it.type==='tracker') (it.points||[]).filter(p=>(p.note||'').toLowerCase().includes(q)).forEach(p=>res.push({k:'item', it, t:p.note, m:it.name+' · '+dateLabel(p.date)}));
   }
   for(const t of S.tasks){ const hay=[t.title,t.notes,t.flagWho,...(t.checklist||[]).map(c=>c.text),...(t.log||[]).map(l=>l.text)].join(' ').toLowerCase(); if(hay.includes(q)){ const b=itemById(t.boardId); if(b) res.push({k:'task', t, it:b}); } }
   for(const r of S.rows){ const it=itemById(r.itemId); if(!it) continue; const vals=Object.values(r.values||{}).map(v=>String(v)); if(vals.join(' ').toLowerCase().includes(q)){ const tf=(it.fields||[]).find(f=>f.type==='text'); res.push({k:'row', it:topOf(it), r, t:(tf&&r.values?.[tf.id])||'Row', m:topOf(it).name}); } }
   const seen = new Set(); const uniq = res.filter(x=>{ const key=x.k+(x.t?.id||'')+(x.it?.id||'')+(x.r?.id||'')+(typeof x.t==='string'?x.t:''); if(seen.has(key)) return false; seen.add(key); return true; });
-  c.innerHTML = `<div class="wrap narrow"><div><p class="eyebrow">Search</p><h1 class="big">“${esc(S.q.trim())}”</h1><p class="sub">${plural(uniq.length,'result')} across items, tasks, rows and notes. Press Esc to clear.</p></div>
+  return uniq;
+}
+/* phone: while the menu is open the page behind it is hidden, so show the matches inside the menu too */
+function syncSideRes(){
+  const box = $('#sideRes'); if(!box) return;
+  const on = !!S.q.trim() && matchMedia('(max-width:860px)').matches && document.body.classList.contains('side-open');
+  document.body.classList.toggle('side-searching', on);
+  if(!on){ box.hidden = true; box.innerHTML = ''; return; }
+  const hits = searchHits();
+  box.hidden = false;
+  box.innerHTML = `<p class="sr-h" role="status">${plural(hits.length,'result')}</p>` + hits.slice(0,30).map(x => {
+    const it = x.it, t = x.k==='task' ? x.t.title : (x.t||'Untitled'), m = x.k==='task' ? it.name+' · Task' : (x.m||it.name);
+    return `<a class="sr-row" href="#i-${esc(it.id)}"><span class="sr-t">${esc(t||'Untitled')}</span><span class="sr-m">${esc(m)}</span></a>`; }).join('');
+}
+function renderSearch(c){
+  const uniq = searchHits();
+  c.innerHTML = `<div class="wrap narrow"><div><p class="eyebrow">Search</p><h1 class="big">“${esc(S.q.trim())}”</h1><p class="sub">${plural(uniq.length,'result')} across items, tasks, rows and notes. ${TOUCH ? 'Tap ✕ in the search box to clear.' : 'Press Esc to clear.'}</p></div>
     ${uniq.length?`<section class="panel"><div class="list-rows">${uniq.slice(0,80).map(x=> x.k==='task'
       ? `<button class="lrow" data-open="task:${esc(x.t.id)}"><span class="t">${esc(x.t.title)}${chipHTML(x.t)}</span><span class="m"><i style="--c:${itemColor(x.it)}"></i>${esc(x.it.name)} · Task</span></button>`
       : `<a class="lrow" href="#i-${esc(x.it.id)}" style="text-decoration:none;color:inherit"><span class="t">${esc(x.t||'Untitled')}</span><span class="m"><i style="--c:${itemColor(x.it)}"></i>${esc(x.m||'')}</span></a>`).join('')}</div></section>`
@@ -655,6 +733,16 @@ const content = $('#content');
 content.addEventListener('click', e => {
   if(S.q && e.target.closest('a.lrow')){ S.q=''; $('#q').value=''; requestAnimationFrame(()=>render(true)); return; }   // a search result: leave search (even for the page already open)
   const it = currentItem(); const V = it && TYPE_VIEWS[it.type];
+  const st = e.target.closest('.home-stats .stat');
+  if(st){
+    const go_ = () => { if(!st.isConnected || st.getAttribute('aria-disabled')==='true') return; const d = st.dataset.open;
+      if(d){ const [k,id] = d.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, st); else go('i-'+id); return; }
+      const k = itemsOf(i=>i.type==='kanban')[0]; S.tasksView.quick = st.dataset.quick; if(k) go('i-'+k.id); };
+    if(TOUCH){   // phone: a double-tap opens the colour menu; a single tap goes on after a beat (same timing as cards)
+      if(tileTap && tileTap.id===st.dataset.tile){ clearTimeout(tileTap.timer); tileTap=null; tileMenu(st, tileAnchor(st, e)); return; }
+      clearTimeout(tileTap?.timer); tileTap = {id:st.dataset.tile, timer:setTimeout(() => { tileTap=null; go_(); }, 260)}; return; }
+    go_(); return;
+  }
   const op = e.target.closest('[data-open]');
   if(op){ const [k,id]=op.dataset.open.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, op); else go('i-'+id); return; }
   const qk = e.target.closest('[data-quick]');
@@ -663,7 +751,16 @@ content.addEventListener('click', e => {
   if(it?.type==='kanban' && kanbanClick(e, it)) return;
   if(V) V.click?.(e, it);
 });
-content.addEventListener('input', e => { const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
+content.addEventListener('contextmenu', e => {
+  const st = e.target.closest('.home-stats .stat'); if(!st) return;
+  e.preventDefault(); if(TOUCH) return;    // phone: the double-tap opens it (a long-press must not raise the system menu)
+  tileMenu(st, pointAnchor(e));
+});
+content.addEventListener('keydown', e => {
+  const st = e.target.closest?.('.home-stats .stat'); if(!st) return;
+  if(e.key==='ContextMenu' || (e.shiftKey && e.key==='F10')){ e.preventDefault(); e.stopPropagation(); tileMenu(st, st); }
+});
+content.addEventListener('input', e => { if(e.target.id==='itemTitle') fitTitle(e.target); const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
 content.addEventListener('change', e => {
   const it = currentItem(); if(!it) return;
   if(e.target.id==='itemTitle'){ const v=e.target.value.trim()||'Untitled'; if(v!==it.name){ docPatch('items', it.id, {name:v}); renderSide(); renderBar(); } return; }
@@ -687,13 +784,25 @@ $('#side').addEventListener('click', async e => {
   if(act==='app-menu') return appMenu(a);
 });
 $('#q').addEventListener('input', e => { S.q = e.target.value; render(true); });
+$('#sideRes').addEventListener('click', e => { if(e.target.closest('a.sr-row')){ S.q=''; $('#q').value=''; document.body.classList.remove('side-open'); requestAnimationFrame(()=>render(true)); } });
 $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagation(); e.target.value=''; S.q=''; render(true); e.target.blur(); } if(e.key==='Enter') document.body.classList.remove('side-open'); });
 $('#sideToggle').addEventListener('click', () => {
   if(matchMedia('(max-width:860px)').matches) document.body.classList.toggle('side-open');
-  else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0'); }
+  else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0');
+    if(document.activeElement?.closest?.('#sideToggle, #sideShow')) (document.body.classList.contains('side-collapsed') ? $('#sideShow') : $('#sideToggle')).focus(); }
 });
+$('#sideShow').addEventListener('click', () => $('#sideToggle').click());
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
 $('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
+/* dock: Filter opens the same Filter panel as before; + New task opens the new-task sheet (on a Kanban page) */
+$('#dock').addEventListener('click', e => {
+  const k = currentItem(); if(!k || k.type!=='kanban') return;
+  if(e.target.closest('#dkFilter')){ S.filtersOpen = !S.filtersOpen; render(true); restoreFocus('#dkFilter'); return; }
+  if(e.target.closest('#dkNew')){
+    const V = S.tasksView; if((V.mode||'board')!=='board'){ V.mode='board'; ls.set('lo.tasksMode','board'); }   // new tasks are added on the board
+    S.filtersOpen = false; TYPE_VIEWS.kanban.openNewTask(k, e.target.closest('#dkNew'));   // phone: a small bottom sheet (stack, status, name); the N key and the column + buttons are unchanged
+  }
+});
 /* What's new: hover the version on desktop, tap it on a phone */
 (() => {
   const btn = $('#verBtn'); if(!btn) return; let pop = null, t = null;
@@ -703,7 +812,8 @@ $('#fab').addEventListener('click', () => document.body.classList.toggle('side-o
     pop = document.createElement('div'); pop.className = 'chlog'; pop.setAttribute('role','dialog'); pop.setAttribute('aria-label','What\'s new');
     pop.innerHTML = `<h3>What's new</h3>` + list.slice(0,3).map(v => `<section><h4>${esc(v.v)} <span>${esc(v.d)}</span></h4><ul>${v.items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul></section>`).join('');
     document.body.appendChild(pop); const r = btn.getBoundingClientRect();
-    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+    pop.style.top = Math.max(8, (r.bottom + 6 + pop.offsetHeight > innerHeight - 8) ? r.top - pop.offsetHeight - 6 : r.bottom + 6) + 'px';   // the version now lives at the bottom of the sidebar, so the card opens upwards
     btn.setAttribute('aria-expanded','true');
     pop.addEventListener('mouseenter', () => clearTimeout(t)); pop.addEventListener('mouseleave', () => { t = setTimeout(close, 250); });
   };
@@ -929,7 +1039,7 @@ function openNewItem({folderId, type='page', opener}={}){
   const side = $('#side');
   let g = null;
   const hScroller = el => { for(let n=el; n && n!==document.body; n=n.parentElement){ if(n.scrollWidth>n.clientWidth+2 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return n; } return null; };
-  const boardScroller = () => $('#content [data-hs]');
+  const boardScroller = () => matchMedia('(max-width:760px)').matches && $('#content .lane-cols') ? null : $('#content [data-hs]');   // phone Kanban: each stack's row of columns scrolls natively
   function snapPoints(sc){ const r=sc.getBoundingClientRect(); const first=sc.querySelector('.col'); if(!first) return [0]; const row=first.parentElement; return $$(':scope > .col', row).map(el=>Math.max(0, Math.min(el.getBoundingClientRect().left - r.left + sc.scrollLeft - (parseFloat(getComputedStyle(sc).paddingLeft)||0), sc.scrollWidth-sc.clientWidth))); }
   document.addEventListener('touchstart', e => {
     g = null;
@@ -971,6 +1081,9 @@ function openNewItem({folderId, type='page', opener}={}){
   document.addEventListener('touchcancel', end, {passive:true});
 })();
 
+/* the Bills list is stacked rows on a phone and a table on a wider screen: redraw if the window crosses that line (rotation, split view) */
+matchMedia('(max-width:760px)').addEventListener?.('change', () => { if(currentItem()?.type==='bills' && !modalOpen() && !window.__sheetOpen) render(true); });
+
 /* ----- shortcuts ----- */
 function openKeys(opener){
   const m = openModal(`<h2 id="mTitle">Keyboard shortcuts</h2>
@@ -978,7 +1091,7 @@ function openKeys(opener){
     <dl class="keys"><dt><kbd>/</kbd> or <kbd>⌘</kbd><kbd>K</kbd></dt><dd>Search everything</dd><dt><kbd>N</kbd></dt><dd>New task, row, entry or checklist item, depending on the page</dd><dt><kbd>⇧</kbd><kbd>N</kbd></dt><dd>New item</dd><dt><kbd>H</kbd> · <kbd>T</kbd></dt><dd>Home · All tasks</dd><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd><dt><kbd>Esc</kbd></dt><dd>Close a window or menu, clear search</dd></dl>
     <p class="keys-h">Kanban</p>
     <dl class="keys"><dt><kbd>Enter</kbd></dt><dd>Open the focused card</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the card to the previous or next column</dd><dt><kbd>⌥</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move the card up or down</dd></dl>
-    <p class="keys-h">Timeline</p>
+    <p class="keys-h">Gantt</p>
     <dl class="keys"><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Previous or next task</dd><dt><kbd>Enter</kbd></dt><dd>Open the task</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move its dates one day (a week in Quarter)</dd><dt><kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the due date only</dd></dl>
     <p class="note">On Windows use <kbd>Ctrl</kbd> for <kbd>⌘</kbd> and <kbd>Alt</kbd> for <kbd>⌥</kbd>.</p>
     <div class="row-end"><button class="pill" data-x>Done</button></div>`, {opener});

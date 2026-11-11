@@ -28,8 +28,7 @@ sortable = '<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/
 head = f'''<title>Life Organiser</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="generator" content="Life Organiser {VERSION}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<!-- Font: system stack by default (see --font-ui in styles.css and the commented Inter link in shell.html) -->
 '''
 body = head + '<style>\n' + css + '</style>\n' + shell + sortable + '\n<script>\n(() => {\n' + js + '\nstart();\n})();\n</script>\n'
 (R/'dist').mkdir(exist_ok=True)

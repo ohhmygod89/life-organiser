@@ -22,6 +22,9 @@ TYPE_VIEWS.kanban = (() => {
   /* Columns always sort: pinned first, then High → Medium → Low → none. You can drag to reorder within a group;
      anything new, newly pinned, re-prioritised or brought back from Done goes to the bottom of its group. */
   const grp = t => t.pinned && t.col!=='done' ? 0 : 1;   // pinned cards stay above the rest; within each, your order
+  function groupStart(bid, col, g, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except && grp(x)===g); return (l.length?Math.min(...l.map(x=>x.pos||0)):0)-1024; }
+  /* pinning puts a card at the end of the pinned group; unpinning puts it at the top of the unpinned cards */
+  const pinPos = (t, now) => now ? groupEnd(t.boardId, t.col, grp({...t, pinned:true}), t.id) : groupStart(t.boardId, t.col, grp({...t, pinned:false}), t.id);
   function groupEnd(bid, col, g, except){ const l=tasksIn(bid,col).filter(x=>x.id!==except && grp(x)===g); return (l.length?Math.max(...l.map(x=>x.pos||0)):0)+1024; }
   function endPos(bid, col, except, t){ const x = t || S.tasks.find(y=>y.id===except) || {}; return groupEnd(bid, col, grp({...x, col}), except); }
   /* Start and due: a start may not be after the due date. Setting a later start moves the due date to it;
@@ -68,7 +71,7 @@ TYPE_VIEWS.kanban = (() => {
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
     const pinned = !!t.pinned && !isDone;
     const mvTop = mvBtn && !left.length && !right.length;   // no footer: ⇄ sits beside the pin rather than adding an empty row
-    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
+    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} pr-${PLEVEL[t.priority]?t.priority:'low'} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       ${isDone || (TOUCH && !pinned) ? '' : TOUCH ? `<span class="pin" aria-hidden="true">${ICON.pin}</span>` : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${ICON.pin}</button>`}
       ${mvBtn && !left.length && !right.length ? mvBtn : ''}
       <div class="card-head"><div class="title">${!isDone?prioBtn(t):''}<span class="tt">${esc(t.title||'Untitled')}</span></div>
@@ -79,7 +82,9 @@ TYPE_VIEWS.kanban = (() => {
     </article>`;
   }
   /* the priority bars are a button: a small menu of the four levels (icons only) */
-  const prioBtn = t => { const l = (PRIO[t.priority]||PRIO.low).label; return `<button class="prio-btn" data-prio="" aria-haspopup="menu" aria-expanded="false" aria-label="Priority: ${l}" title="Priority: ${l}">${prioIcon(t.priority)}</button>`; };
+  const prioBtn = t => { const l = (PRIO[t.priority]||PRIO.low).label;
+    if(TOUCH) return `<span class="prio-btn ro" role="img" aria-label="Priority: ${l}">${prioIcon(t.priority)}</span>`;   // touch: a plain indicator, so a tap anywhere on the card opens it; change priority in the task window
+    return `<button class="prio-btn" data-prio="" aria-haspopup="menu" aria-expanded="false" aria-label="Priority: ${l}" title="Priority: ${l}">${prioIcon(t.priority)}</button>`; };
   function prioMenu(btn, t){
     openMenu(btn, ['high','med','low'].map(p=>({html:prioIcon(p), label:PRIO[p].label, value:p, checked:(t.priority||'low')===p})), v => {
       if(v===(t.priority||'low')) return; const before = {priority:t.priority||'', pos:t.pos};
@@ -139,7 +144,7 @@ TYPE_VIEWS.kanban = (() => {
   function cardAction(v, t, card, e){
     if(v==='open') return openSheet(t.id, card);
     if(v==='dup') return startPlacing(t, card, e);
-    if(v==='pin'){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); render(true);
+    if(v==='pin'){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:pinPos(t, now)}); render(true);
       return toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now, pos:t.pos})); }
     if(v.startsWith('col:')){ moveTo(t, v.slice(4)); render(true); }
     if(v==='del'){ const snap = clone(t); docDel('tasks', t.id); render(true); toast('Deleted “'+snap.title+'”', ()=>docSet('tasks', snap)); }
@@ -200,9 +205,10 @@ TYPE_VIEWS.kanban = (() => {
       group:'cards', animation:RM?0:180, easing:'cubic-bezier(.2,.8,.2,1)', draggable:'.card', filter:'.pin,.cbox,.mv,.prio-btn,[contenteditable]', preventOnFilter:false,
       delay:200, delayOnTouchOnly:true, touchStartThreshold:6, forceFallback:true, fallbackOnBody:true, fallbackClass:'dragging', fallbackTolerance:3,
       emptyInsertThreshold:60, swapThreshold:1, invertSwap:false,   /* cards make room as soon as you reach them */ direction:'vertical', ghostClass:'ghost-card',
-      scroll:true, bubbleScroll:true, scrollSensitivity:44, scrollSpeed:9,
-      /* touch: only scroll up/down near the top or bottom edge; never slide the board sideways under a picked-up card */
-      scrollFn: TOUCH ? (dx, dy) => { if(dy) window.scrollBy(0, dy); } : undefined,
+      scroll:true, bubbleScroll:true, scrollSensitivity:TOUCH?56:44, scrollSpeed:9,
+      /* touch: the page scrolls up/down near the top or bottom edge; on a phone the stack's own row of columns scrolls
+         sideways near the left or right edge (the old two-column board never slid sideways under a picked-up card) */
+      scrollFn: TOUCH ? (dx, dy, ev, te, el) => { if(dy) window.scrollBy(0, dy); if(dx && el && el.classList?.contains('lane-cols') && matchMedia('(max-width:760px)').matches) el.scrollLeft += dx; } : undefined,
       /* pinned cards stay among pinned cards, unpinned among unpinned: the drop slot never offers a place that wouldn't stick */
       onMove(evt){
         if(evt.to.dataset.col==='done') return true;     // Done is ordered by date
@@ -223,6 +229,9 @@ TYPE_VIEWS.kanban = (() => {
 
   /* Stacked view: one band per Kanban, all sharing one sideways scroller so the columns line up. */
   const LANE_DONE = 3;
+  /* a stack's dot colour comes from its id, not its position, so it stays the same when other stacks are filtered out */
+  const STACK_PALS = ['lav','blue','coral','green','peach'];
+  const stackPal = id => { let h = 0; for(const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return STACK_PALS[h % STACK_PALS.length]; };
   function lanes(boards, root, {bb=false, test=null, done=true}={}){
     const cols = COLS.filter(c => (bb || c.id!=='backburner') && (done && !test || c.id!=='done'));
     if(adding && !boards.some(b=>b.id===adding.board)) adding = null;
@@ -230,13 +239,14 @@ TYPE_VIEWS.kanban = (() => {
     root.innerHTML = `<div class="lanes" data-hs="lanes" style="--n:${cols.length}"><div class="lanes-in">` + boards.map(b => {
       const open = S.tasks.filter(t=>t.boardId===b.id && !['done','backburner'].includes(t.col) && keep(t)).length;
       return `<section class="lane" style="--board:${itemColor(b)}" aria-label="${esc(b.name)}" data-key="lane-${esc(b.id)}">
-        <div class="lane-h"><div class="lane-hi"><h2><input class="lane-name" data-sname="${esc(b.id)}" value="${esc(b.name)}" size="${Math.max(3,(b.name||'').length+1)}" maxlength="60" aria-label="Stack name" title="Rename stack"></h2><span class="count">${plural(open,'open task')} · ${S.tasks.filter(t=>t.boardId===b.id && (t.col==='todo'||t.col==='upcoming') && keep(t)).length} to do · ${S.tasks.filter(t=>t.boardId===b.id && t.col==='doing' && keep(t)).length} in progress</span>
+        <div class="lane-h"><div class="lane-hi" style="--pal:var(--pal-${stackPal(b.id)})"><h2><input class="lane-name" data-sname="${esc(b.id)}" value="${esc(b.name)}" size="${Math.max(3,(b.name||'').length+1)}" maxlength="60" aria-label="Stack name" title="Rename stack"></h2><span class="count">${plural(open,'open task')} · ${S.tasks.filter(t=>t.boardId===b.id && (t.col==='todo'||t.col==='upcoming') && keep(t)).length} to do · ${S.tasks.filter(t=>t.boardId===b.id && t.col==='doing' && keep(t)).length} in progress</span>
           <button class="icon-btn mini lane-more" data-act="stack-menu" data-sid="${esc(b.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(b.name)} stack options" title="Stack options">${ICON.more}</button></div></div>
-        <div class="lane-cols">${cols.map(c => {
+        <div class="lane-tabs" role="group" aria-label="Columns of ${esc(b.name)}">${cols.map((c,i) => `<button type="button" class="lane-tab" data-lanetab="${c.id}" aria-pressed="${i===0}">${c.name}<b>${tasksIn(b.id, c.id).filter(keep).length}</b></button>`).join('')}</div>
+        <div class="lane-cols" data-hs="lc-${esc(b.id)}">${cols.map(c => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
           const lim = LANE_DONE; if(c.id==='done' && ts.length>lim){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-lim)+' more'}</button>`; if(!all) ts=ts.slice(0,lim); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
-            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span>${c.id==='done' ? `<span class="count">${total||''}</span>` : ''}${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
             ${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
             ${more}
@@ -245,7 +255,17 @@ TYPE_VIEWS.kanban = (() => {
       </section>`;
     }).join('') + `</div></div>`;
     bindSortables(root);
+    $$('.lane-cols', root).forEach(syncLaneTabs);
   }
+  /* phone: each stack is a row of columns, one at a time; the small tabs above it say which one you are on and jump to another */
+  function syncLaneTabs(sc){
+    const lane = sc.closest('.lane'); if(!lane) return; const cols = $$(':scope > .lcol', sc); if(!cols.length) return;
+    const r = sc.getBoundingClientRect(); let best = 0, bd = 1e9;
+    cols.forEach((c,i) => { const d = Math.abs(c.getBoundingClientRect().left - r.left - (parseFloat(getComputedStyle(sc).scrollPaddingLeft)||0)); if(d < bd){ bd = d; best = i; } });
+    if(sc.scrollLeft + sc.clientWidth >= sc.scrollWidth - 2) best = cols.length - 1;
+    $$('.lane-tab', lane).forEach((b,i) => b.setAttribute('aria-pressed', String(i===best)));
+  }
+  { let raf = 0; document.addEventListener('scroll', e => { const sc = e.target; if(!(sc instanceof Element) || !sc.matches('.lane-cols')) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(() => syncLaneTabs(sc)); }, true); }
 
   /* where a dropped card goes: between its neighbours (same group: pinned or not) — any column, any stack */
   function dropPos(evt, t, col){
@@ -278,6 +298,7 @@ TYPE_VIEWS.kanban = (() => {
     const id = uid();
     docSet('tasks', {id, boardId:bid, col, pos, title:title.trim(), notes:'', due:'', priority:'low', flag:'', flagWho:'', checklist:[], log:[], created:nowIso(), updated:nowIso()});
     touchItem(bid);
+    return id;
   }
   function keyMove(t, key){
     const ci = COLS.findIndex(c=>c.id===t.col);
@@ -288,9 +309,13 @@ TYPE_VIEWS.kanban = (() => {
 
   function click(e){
     const cardOf = el => S.tasks.find(x=>x.id===el.closest('.card').dataset.id);
+    const lt = e.target.closest('[data-lanetab]');
+    if(lt){ const lane = lt.closest('.lane'); const sc = $('.lane-cols', lane); const col = $(`.lcol.${CSS.escape(lt.dataset.lanetab)}`, sc);
+      if(sc && col){ const pad = parseFloat(getComputedStyle(sc).scrollPaddingLeft)||0; sc.scrollTo({left: sc.scrollLeft + col.getBoundingClientRect().left - sc.getBoundingClientRect().left - pad, behavior: RM ? 'auto' : 'smooth'}); }
+      return true; }
     if(e.target.closest('[data-act="done"]')){ toggleShowDone(); return true; }
     const pinB = e.target.closest('[data-pin]');
-    if(pinB){ e.stopPropagation(); const t=cardOf(pinB); if(t){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-pin]`); toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now})); } return true; }
+    if(pinB){ e.stopPropagation(); const t=cardOf(pinB); if(t){ const now=!t.pinned; docPatch('tasks', t.id, {pinned:now, pos:pinPos(t, now)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-pin]`); toast(now?'Pinned to the top of '+colName(t.col):'Unpinned', ()=>docPatch('tasks', t.id, {pinned:!now})); } return true; }
     const tick = e.target.closest('[data-tick]');
     if(tick){ e.stopPropagation(); const t=cardOf(tick); if(t){ toggleDone(t); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-tick]`); } return true; }
     const mv = e.target.closest('[data-mv]');
@@ -375,6 +400,7 @@ TYPE_VIEWS.kanban = (() => {
     requestAnimationFrame(()=>{ grow($('#fTitle')); grow($('#fNotes')); (TOUCH ? sheet : $('#fTitle'))?.focus({preventScroll:true}); });
   }
   function closeSheet(silent){
+    if(creating) return closeNewTask(silent);
     if(!openId) return; flushAll(); closeMenu(false);
     const id = openId; openId = null; window.__sheetOpen = false;
     sheet.classList.remove('show'); setBackgroundInert(); document.body.classList.remove('sheet-open'); render(true);
@@ -499,7 +525,7 @@ TYPE_VIEWS.kanban = (() => {
       setDates(t, {start:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Start date');
     const pf = e.target.closest('#pFlag');
     if(pf) return openMenu(pf, flagItems(t.flag), v => { if(v===(t.flag||'')) return; docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); const w=$('#fWho'); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Flag');
-    if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now, pos:groupEnd(t.boardId, t.col, grp({...t, pinned:now}), t.id)}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
+    if(e.target.closest('#fPin')){ const now = !t.pinned; docPatch('tasks', t.id, {pinned:now, pos:pinPos(t, now)}); renderSheet(); markSaved(); render(); toast(now ? 'Pinned to the top of '+colName(t.col) : 'Unpinned'); return; }
     const cd = e.target.closest('[data-cdel]');
     if(cd){ const id=cd.dataset.cdel; const c=(t.checklist||[]).find(x=>x.id===id); const before=clone(t.checklist||[]); docPatch('tasks', t.id, {checklist:before.filter(x=>x.id!==id)}); renderSheet(); markSaved(); render(); toast('Removed “'+(c?.text||'subtask')+'”', ()=>docPatch('tasks', t.id, {checklist:before})); return; }
     const cfb = e.target.closest('[data-cf]');
@@ -521,6 +547,75 @@ TYPE_VIEWS.kanban = (() => {
       toast('Deleted “'+snap.title+'”', ()=>docSet('tasks', snap));
     }
   });
+
+  /* ---------- new-task sheet (phone dock "+ New task") ----------
+     A small bottom sheet: name (autofocused), stack (defaults to the one the filter shows, else the first) and status
+     (defaults to To Do). Uses the same addTask() as the inline column composers, so the task is created identically. */
+  const nsheet = $('#nsheet'); nsheet.tabIndex = -1;
+  let creating = null;
+  const NEW_COLS = COLS.filter(c => c.id!=='done');   // the columns that have a + button today
+  function openNewTask(k, op){
+    const stacks = stacksOf(k.id); if(!stacks.length){ toast('Add a stack first'); return; }
+    closeMenu(false);
+    const B = S.tasksView.boards; const first = stacks.find(b => B.has(b.id)) || stacks[0];
+    creating = {kid:k.id, board:first.id, col:'todo', opener:op||null, stacks};
+    nsheet.innerHTML = `<div class="sh-grab" aria-hidden="true"></div>
+      <div class="sh-top"><h2 class="ns-h" id="nTitle">New task</h2><button class="icon-btn" id="nClose" aria-label="Cancel" title="Cancel (Esc)">${ICON.x}</button></div>
+      <div class="sh-body">
+        <input class="txt-in ns-in" id="nName" type="text" placeholder="Task name" aria-label="Task name" enterkeyhint="done" maxlength="200" autocomplete="off">
+        <div class="props" role="group" aria-label="New task details">
+          ${propRow('nBoard','Stack', `<span class="lbl-t">${esc(first.name||'')}</span>`)}
+          ${propRow('nCol','Status', `<span class="sdot st-todo" aria-hidden="true"></span><span class="lbl-t">To Do</span>`)}
+        </div>
+        <div class="row-end"><button class="btn" id="nCancel">Cancel</button><button class="pill" id="nAdd">Add task</button></div>
+      </div>`;
+    window.__sheetOpen = true; nsheet.classList.add('show'); setBackgroundInert(); document.body.classList.add('sheet-open');
+    $('#nName').focus({preventScroll:true});   // in the tap itself, so the iPhone keyboard opens with the sheet
+  }
+  function closeNewTask(silent){
+    if(!creating) return; const c = creating; creating = null; closeMenu(false);
+    nsheet.classList.remove('show'); nsheet.style.bottom = nsheet.style.maxHeight = ''; window.__sheetOpen = false; setBackgroundInert(); document.body.classList.remove('sheet-open');
+    if(!silent && c.opener?.isConnected) c.opener.focus({preventScroll:true});
+  }
+  function submitNewTask(){
+    if(!creating) return; const el = $('#nName'); const v = el.value.trim();
+    if(!v){ el.setAttribute('aria-invalid','true'); el.focus({preventScroll:true}); return; }
+    const c = creating; const id = addTask(c.board, c.col, v); const st = itemById(c.board);
+    const opener = c.opener; closeNewTask(true);
+    const V = S.tasksView; if((V.mode||'board')!=='board'){ V.mode='board'; ls.set('lo.tasksMode','board'); }
+    render(true);
+    requestAnimationFrame(() => { const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`); if(card){ card.classList.add('flash');
+      const sc = card.closest('.lane-cols'), col = card.closest('.lcol');   // phone: show the column the task went into (a render restores the old sideways position)
+      if(sc && col){ const pad = parseFloat(getComputedStyle(sc).scrollPaddingLeft)||0; sc.scrollLeft += col.getBoundingClientRect().left - sc.getBoundingClientRect().left - pad; }
+      card.scrollIntoView({block:'center', behavior:RM?'auto':'smooth'}); } });
+    toast(`Added to ${st?.name||'stack'} · ${colName(c.col)}`, () => { docDel('tasks', id); }, false, {label:'Open', fn:() => openSheet(id, document.querySelector(`.card[data-id="${CSS.escape(id)}"]`))});
+    if(opener?.isConnected) opener.focus({preventScroll:true});
+  }
+  nsheet.addEventListener('input', e => { if(e.target.id==='nName') e.target.removeAttribute('aria-invalid'); });
+  nsheet.addEventListener('keydown', e => {
+    if(e.key==='Enter' && e.target.id==='nName'){ e.preventDefault(); submitNewTask(); }
+    if(e.key==='Escape' && creating){ e.preventDefault(); e.stopPropagation(); closeNewTask(); }
+    if(e.key==='Tab' && creating){   // keep Tab inside the sheet
+      const f = $$('input,button:not([disabled])', nsheet).filter(x => x.offsetParent !== null); if(!f.length) return;
+      const first = f[0], last = f[f.length-1];
+      if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); } else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); } }
+  });
+  nsheet.addEventListener('click', e => {
+    if(!creating) return;
+    if(e.target.closest('#nClose,#nCancel')) return closeNewTask();
+    if(e.target.closest('#nAdd')) return submitNewTask();
+    const sb = e.target.closest('#nBoard');
+    if(sb) return openMenu(sb, creating.stacks.map(x=>({label:x.name, value:x.id, checked:x.id===creating.board})), v => { creating.board = v; sb.querySelector('.lbl-t').textContent = itemById(v)?.name||''; $('#nName')?.focus({preventScroll:true}); }, 'Stack');
+    const cb = e.target.closest('#nCol');
+    if(cb) return openMenu(cb, NEW_COLS.map(c=>({label:c.name, value:c.id, checked:c.id===creating.col})), v => { creating.col = v; cb.querySelector('.lbl-t').textContent = colName(v); const d=cb.querySelector('.sdot'); if(d) d.className = 'sdot st-'+v; $('#nName')?.focus({preventScroll:true}); }, 'Status');
+  });
+  /* phone: drag the grabber or top bar down to close */
+  { let y0=null, dy=0;
+    nsheet.addEventListener('touchstart', e => { const h=e.target.closest('.sh-grab,.sh-top'); y0 = h && !e.target.closest('button,input') ? e.touches[0].clientY : null; dy=0; }, {passive:true});
+    nsheet.addEventListener('touchmove', e => { if(y0===null) return; dy=Math.max(0, e.touches[0].clientY-y0); nsheet.style.transition='none'; nsheet.style.transform=`translateY(${dy}px)`; }, {passive:true});
+    const endSwipe = close => { if(y0===null) return; nsheet.style.transition=''; nsheet.style.transform=''; if(close && dy>80) closeNewTask(); y0=null; };
+    nsheet.addEventListener('touchend', () => endSwipe(true), {passive:true});
+    nsheet.addEventListener('touchcancel', () => endSwipe(false), {passive:true}); }
 
   /* ---------- status flags (shared by every Kanban) ---------- */
   function openFlagsModal(op){
@@ -548,5 +643,5 @@ TYPE_VIEWS.kanban = (() => {
     draw();
   }
 
-  return {wide:true, render:view, lanes, cardMenuItems, cardAction, archived, colName, COLS, datesPatch, setDates, click, input, change, keydown, newShortcut, openSheet, closeSheet, refreshSheet, openFlagsModal, focusStart(){}};
+  return {wide:true, render:view, lanes, cardMenuItems, cardAction, archived, colName, COLS, datesPatch, setDates, click, input, change, keydown, newShortcut, openNewTask, closeNewTask, openSheet, closeSheet, refreshSheet, openFlagsModal, focusStart(){}};
 })();

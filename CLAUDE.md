@@ -1,6 +1,6 @@
 # Life Organiser — working rules
 
-- Versioning: SemVer, currently betas of the first version (`1.0.0-beta.N`). Bump `VERSION`, add a CHANGELOG entry, `python3 build.py`.
+- Versioning: SemVer, currently `1.0.1-beta.N`. Bump `VERSION`, add a CHANGELOG entry, `python3 build.py`.
 - Never commit personal data. The repo and GitHub Pages are public; Pages runs demo mode with fictional data only.
 - **Before every release:**
   1. `python3 build.py --local && node test/smoke.js && node test/review.js` — all must pass; look at the screenshots in `test/shots/`.

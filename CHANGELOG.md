@@ -2,6 +2,21 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.1] - 2026-11-11
+### Changed
+- New look, inspired by the Pulse design: light and dark themes, soft gradient cards with white text, black pill controls, dot-matrix charts and the iPhone system font.
+- Home: gradient stat tiles (right-click or double-tap a tile to pick its colour), a lighter heading, and Pulse-style lists.
+- Sidebar: a white panel with compact rows, black count badges and folder section labels. The show/hide button now sits in the sidebar and the top bar is gone. The version is in the card at the bottom.
+- Kanban: stack names sit on the page background; column headers have no task counts; Include filters are chips like the others; pinned cards are tinted by priority (red, orange, grey). Unpinning puts a card at the top of the unpinned cards.
+- View menu: Kanban, Gantt, List, Archive.
+- Phone: a floating dock (☰, + New task, Filter); Kanban shows one column at a time with tabs; Bills list shows stacked rows; the Bills timeline opens on this month.
+- Right-click menus open where you click.
+- Bigger tap targets on phone, stronger text contrast and clearer keyboard focus rings throughout.
+### Added
+- Phone: + New task opens a small panel (name, stack, status) above the keyboard.
+### Fixed
+- The item name field is only as wide as its name.
+
 ## [1.0.0-beta.29] - 2026-11-10
 ### Added
 - Timeline: drag tasks up and down to put them in your own order (desktop: by the title; phone: press and hold a row). ⌥↑ / ⌥↓ does the same from the keyboard. The order is kept per stack.

@@ -20,7 +20,7 @@ TYPE_VIEWS.page = (() => {
             <input class="blk-name" data-bname="${esc(b.id)}" value="${esc(b.name||'')}" placeholder="${esc(TYPES[b.type].label)}" aria-label="Block title" maxlength="80">
             <span class="blk-kind">${esc(TYPES[b.type].label)}</span>
             ${bl.length>1?`<button class="icon-btn mini" data-bmove="up" data-bid="${esc(b.id)}" aria-label="Move ${esc(b.name||'block')} up" title="Move up" ${bl[0]===b?'disabled':''}>${ICON.up}</button><button class="icon-btn mini" data-bmove="down" data-bid="${esc(b.id)}" aria-label="Move ${esc(b.name||'block')} down" title="Move down" ${bl[bl.length-1]===b?'disabled':''}>${ICON.chevD}</button>`:''}
-            <button class="icon-btn mini blk-del" data-bdel="${esc(b.id)}" aria-label="Remove ${esc(b.name||'block')}" title="Remove block">${ICON.x}</button>
+            <button class="icon-btn mini blk-del" data-bmenu="${esc(b.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(b.name||TYPES[b.type].label)} block options" title="Block options">${ICON.more}</button>
           </div>
           <div class="blk-body"></div>
         </section>`).join('')}</div>
@@ -46,7 +46,8 @@ TYPE_VIEWS.page = (() => {
 
   function click(e, it){
     const add = e.target.closest('[data-badd]'); if(add) return addBlock(it, add.dataset.badd);
-    const del = e.target.closest('[data-bdel]'); if(del){ const b=itemById(del.dataset.bdel); if(b) removeBlock(b); return; }
+    const bm = e.target.closest('[data-bmenu]');
+    if(bm){ const b=itemById(bm.dataset.bmenu); if(b) openMenu(bm, [{label:'Remove block', value:'del', danger:true}], v => { if(v==='del') removeBlock(b); }, 'Block options'); return; }
     const mv = e.target.closest('[data-bmove]');
     if(mv){ const ids = blocksOf(it.id).map(b=>b.id); const i = ids.indexOf(mv.dataset.bid); const j = i + (mv.dataset.bmove==='up'?-1:1);
       if(i<0 || j<0 || j>=ids.length) return; [ids[i], ids[j]] = [ids[j], ids[i]]; saveOrder(ids); render(true);

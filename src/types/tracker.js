@@ -35,20 +35,27 @@ TYPE_VIEWS.tracker = (() => {
     const X = t => m.l + (t1===t0 ? 0.5 : (t-t0)/(t1-t0))*(W-m.l-m.r);
     const Y = v => m.t + (1-(v-y0)/(y1-y0||1))*(H-m.t-m.b);
     const xy = P.map(p=>[X(new Date(p.date).getTime()), Y(+p.value)]);
-    let d = `M${xy[0][0].toFixed(1)},${xy[0][1].toFixed(1)}`;
-    for(let i=1;i<xy.length;i++) d += it.step ? `H${xy[i][0].toFixed(1)}V${xy[i][1].toFixed(1)}` : `L${xy[i][0].toFixed(1)},${xy[i][1].toFixed(1)}`;
-    if(it.step) d += `H${X(t1).toFixed(1)}`;
+    /* dot-matrix (Pulse): a square grid of equal dots (column pitch = row pitch); each column is filled up to the value at that date
+       (a step holds its value; otherwise the line between entries). Colour runs light at the bottom to saturated at the top. No lines, no area. */
+    const pw = W-m.l-m.r, ph = H-m.t-m.b, pitch = W < 420 ? 9 : 10, LV = 6;
+    const nc = Math.max(8, Math.floor(pw/pitch)), cw = pw/nc, nr = Math.max(8, Math.floor(ph/pitch)), rh = ph/nr;
+    const valueAt = t => { let i = -1; for(let k=0;k<P.length;k++){ if(new Date(P[k].date).getTime() <= t) i = k; else break; } if(i<0) return null;
+      if(it.step || i===P.length-1) return +P[i].value;
+      const a = new Date(P[i].date).getTime(), b = new Date(P[i+1].date).getTime(); return +P[i].value + (+P[i+1].value - +P[i].value) * (t-a) / ((b-a)||1); };
+    const lv = Array(LV).fill('');
+    for(let c=0;c<nc;c++){
+      const x = m.l + (c+.5)*cw, v = valueAt(t0 + (c+.5)/nc*(t1-t0)); if(v===null) continue;
+      const h = Math.max(1, Math.min(nr, Math.round((v-y0)/((y1-y0)||1)*nr)));
+      for(let r=0;r<h;r++) lv[Math.min(LV-1, Math.floor(r/nr*LV))] += `M${x.toFixed(1)},${(m.t + ph - (r+.5)*rh).toFixed(1)}h.01`;
+    }
     // x ticks: up to 6 evenly spaced dates
     const nx = Math.min(6, Math.max(2, Math.floor((W-m.l-m.r)/110)));
     const xt = Array.from({length:nx}, (_,i)=> t0 + (t1-t0)*i/(nx-1));
     const span = t1-t0; const lab = t => { const dd=new Date(t); return span > 400*864e5 ? MON[dd.getMonth()]+' '+String(dd.getFullYear()).slice(2) : dd.getDate()+' '+MON[dd.getMonth()]; };
-    const last = xy[xy.length-1];
     box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(it.name)}: ${P.length} entries from ${esc(dateLabel(P[0].date))} to ${esc(dateLabel(P[P.length-1].date))}, latest ${esc(withUnit(it, vals[vals.length-1]))}">
-      <g class="grid">${ticks.map(v=>`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/>`).join('')}</g>
+      ${lv.map((d,i)=>d?`<path class="dots l${i}" d="${d}"/>`:'').join('')}
       <g class="axis">${ticks.map(v=>`<text x="${m.l-8}" y="${(Y(v)+4).toFixed(1)}" text-anchor="end">${esc(fmtNum(v, Math.min(it.decimals??2, 2)))}</text>`).join('')}
         ${xt.map((t,i)=>`<text x="${X(t).toFixed(1)}" y="${H-8}" text-anchor="${i===0?'start':i===xt.length-1?'end':'middle'}">${lab(t)}</text>`).join('')}</g>
-      <path class="series" d="${d}"/>
-      <circle class="endpt" cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="4.5"/>
       <g id="trHover" style="display:none"><line class="xh" y1="${m.t}" y2="${H-m.b}"/><circle class="hpt" r="5"/></g>
       <rect id="trHit" x="${m.l}" y="0" width="${W-m.l-m.r}" height="${H}" fill="transparent"/>
     </svg><div class="tip" id="trTip" hidden></div>`;
@@ -80,12 +87,13 @@ TYPE_VIEWS.tracker = (() => {
       <section class="panel"><div class="panel-h"><h2>Add an entry</h2><span class="caption">${it.step?'Each value holds until the next entry':'Points are joined in date order'}</span></div>
         <div class="entry-form"><input type="date" class="field-in" id="trDate" value="${today()}" aria-label="Date"><input type="number" step="any" inputmode="decimal" class="field-in" id="trVal" placeholder="Value${it.unit?' ('+esc(it.unit)+')':''}" aria-label="Value${it.unit?' in '+esc(it.unit):''}"><input class="field-in note-in" id="trNote" placeholder="Note, e.g. RBA cut, lender letter" aria-label="Note"><button class="pill" data-act="add">${ICON.plus}Add</button></div></section>
       <section class="panel"><div class="panel-h"><h2>Entries</h2><span class="caption">${plural(all.length,'entry').replace('entrys','entries')} · newest first</span></div>
-        ${all.length?`<div class="tbl-wrap" style="background:none;border-radius:0"><table class="tbl"><thead><tr><th scope="col"><button tabindex="-1">Date</button></th><th scope="col"><button tabindex="-1">Value</button></th><th scope="col" style="width:100%"><button tabindex="-1">Note</button></th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
-          ${all.slice().reverse().map(p=>`<tr data-key="pt-${esc(p.id)}"><td><input type="date" data-pt="${esc(p.id)}" data-k="date" value="${esc(p.date)}" aria-label="Date"></td><td><input type="number" step="any" data-pt="${esc(p.id)}" data-k="value" value="${esc(p.value)}" aria-label="Value"></td><td><input type="text" data-pt="${esc(p.id)}" data-k="note" value="${esc(p.note||'')}" aria-label="Note"></td><td><button class="x row-x" data-del-pt="${esc(p.id)}" aria-label="Delete entry from ${esc(dateLabel(p.date))}">${ICON.x}</button></td></tr>`).join('')}
+        ${all.length?`<div class="tbl-wrap" style="background:none;border-radius:0"><table class="tbl"><thead><tr><th scope="col"><button tabindex="-1">Date</button></th><th scope="col"><button tabindex="-1">Value</button></th><th scope="col" class="th-note"><button tabindex="-1">Note</button></th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+          ${all.slice().reverse().map(p=>`<tr data-key="pt-${esc(p.id)}"><td><input type="date" data-pt="${esc(p.id)}" data-k="date" value="${esc(p.date)}" aria-label="Date"></td><td><input type="number" step="any" data-pt="${esc(p.id)}" data-k="value" value="${esc(p.value)}" aria-label="Value"></td><td class="td-note"><textarea rows="1" data-pt="${esc(p.id)}" data-k="note" aria-label="Note" placeholder="Note" spellcheck="true">${esc(p.note||'')}</textarea></td><td><button class="x row-x" data-del-pt="${esc(p.id)}" aria-label="Delete entry from ${esc(dateLabel(p.date))}">${ICON.x}</button></td></tr>`).join('')}
         </tbody></table></div>`:`<div class="empty-state">Your entries will be listed here. ${it.unit==='%'?'Start with your current rate and the date it applied from.':''}</div>`}
       </section>`;
+    fitNotes(root);
     drawChart(it);
-    ro?.disconnect(); ro = new ResizeObserver(()=>{ const c=currentItem(); if(c && c.id===it.id) drawChart(c); }); ro.observe($('#trChart'));
+    ro?.disconnect(); ro = new ResizeObserver(()=>{ const c=currentItem(); if(c && c.id===it.id){ drawChart(c); fitNotes(root); } }); ro.observe($('#trChart'));
   }
   function add(it){
     const d = $('#trDate').value, v = $('#trVal').value, n = $('#trNote').value.trim();
@@ -102,6 +110,9 @@ TYPE_VIEWS.tracker = (() => {
     const dp = e.target.closest('[data-del-pt]');
     if(dp){ const before = clone(it.points||[]); docPatch('items', it.id, {points:before.filter(p=>p.id!==dp.dataset.delPt)}); view(it, $('#tv')); toast('Entry deleted', ()=>docPatch('items', it.id, {points:before})); }
   }
+  const fitNote = t => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
+  const fitNotes = r => $$('textarea[data-k="note"]', r).forEach(fitNote);
+  function input(e){ if(e.target.matches?.('textarea[data-k="note"]')) fitNote(e.target); }
   function change(e, it){
     const el = e.target; const id = el.dataset.pt; if(!id) return;
     const k = el.dataset.k; let v = el.value; if(k==='value'){ if(v===''||isNaN(+v)) return view(it,$('#tv')); v=+v; } if(k==='date' && !v) return view(it,$('#tv'));
@@ -118,5 +129,5 @@ TYPE_VIEWS.tracker = (() => {
     m.onclick = e => { if(e.target.closest('#tsStep')){ step=!step; $('#tsStep').setAttribute('aria-checked', step); return; } const b=e.target.closest('[data-x]'); if(!b) return;
       if(b.dataset.x==='yes'){ docPatch('items', it.id, {unit:$('#tsUnit').value.trim(), decimals:Math.max(0,Math.min(4, parseInt($('#tsDec').value)||0)), step}); render(true); } closeModal(); };
   }
-  return {render:view, click, change, keydown, settingsModal, newShortcut(){ $('#trVal')?.focus(); }, focusStart(){ $('#trVal')?.focus(); }};
+  return {render:view, click, input, change, keydown, settingsModal, newShortcut(){ $('#trVal')?.focus(); }, focusStart(){ $('#trVal')?.focus(); }};
 })();

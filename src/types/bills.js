@@ -55,7 +55,7 @@ TYPE_VIEWS.bills = (() => {
   }
   function nextDue(b){ for(const d of dues(b, b.created||'1900-01-01', plusDays(800))){ if(!b.paid?.[d.date]) return d; } return null; }
   const dueAmount = (b, date) => dues(b, date, date)[0]?.amount ?? b.amount;
-  const billName = b => [b.category, b.asset].filter(Boolean).join(' · ') || 'New bill';
+  const billName = b => [b.category, b.asset].filter(Boolean).join(NB_DOT) || 'New bill';   // NB_DOT keeps "name · asset" on one line
 
   /* ---------- writes ---------- */
   function setBills(it, list){ docPatch('items', it.id, {bills:list}); renderSide(); }
@@ -70,7 +70,15 @@ TYPE_VIEWS.bills = (() => {
   }
 
   /* ---------- views ---------- */
-  function statTile(n, label, c, ic){ return `<div class="stat" style="--sc:${c}"><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><b>${n}</b></span><span>${label}</span></div>`; }
+  function statTile(n, label, cap, ic){ return `<div class="stat"><span class="s-lab"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><span>${label}</span></span><b>${n}</b><small class="s-cap">${cap}</small></div>`; }
+  /* timeline: on a narrow screen the year is wider than the window; scroll it so the current month is in view */
+  function scrollToToday(root){
+    const sc = $('.tl-in', root); if(!sc || sc.scrollWidth <= sc.clientWidth + 2) return;
+    const m = $('.tl-m.cur', sc) || $('.tl-now', sc); if(!m) return;
+    const lab = $('.tl-lab', sc); const labW = lab ? lab.getBoundingClientRect().width : 0;
+    const x = m.getBoundingClientRect().left - sc.getBoundingClientRect().left + sc.scrollLeft;
+    sc.scrollLeft = Math.max(0, x - labW - (sc.clientWidth - labW)/2);
+  }
   function view(it, root){
     const s = st(it); if(!s.mode) s.mode = bills(it).some(b=>b.start) ? 'timeline' : 'list';
     const pend = pending(it, 30); const over = pend.filter(x=>x.s==='over'), soon = pend.filter(x=>x.s!=='over');
@@ -78,16 +86,20 @@ TYPE_VIEWS.bills = (() => {
     const yr = CUR_YEAR, yTot = bills(it).reduce((t,b)=>t+dues(b, yr+'-01-01', yr+'-12-31').reduce((u,d)=>u+(+(b.paid?.[d.date]?.amount ?? d.amount)||0),0),0);
     root.innerHTML = `
       <div class="stats">
-        ${statTile(bills(it).filter(b=>b.active).length, 'Active bills', '#0071e3', 'list')}
-        ${statTile(soon.length, 'Due in 30 days'+(sum(soon)?' · '+money(sum(soon)):''), '#ff9500', 'cal')}
-        ${statTile(over.length, 'Overdue'+(sum(over)?' · '+money(sum(over)):''), over.length?'#ff3b30':'#8e8e93', 'bang')}
-        ${statTile(money(yTot)||'$0', yr+' total', '#34c759', 'tracker')}
+        ${statTile(bills(it).filter(b=>b.active).length, 'Active bills', 'recurring and renewals', 'list')}
+        ${statTile(soon.length, 'Due in 30 days', sum(soon)?money(sum(soon))+' to pay':'nothing due', 'cal')}
+        ${statTile(over.length, 'Overdue', sum(over)?money(sum(over))+' to pay':'all clear', 'bang')}
+        ${statTile(money(yTot)||'$0', yr+' total', 'paid and scheduled', 'tracker')}
       </div>
       <div class="toolbar">
         <div class="seg" role="group" aria-label="View"><button data-seg="timeline" aria-pressed="${s.mode==='timeline'}">Timeline</button><button data-seg="list" aria-pressed="${s.mode==='list'}">List</button></div>
         ${s.mode==='timeline'?`<div class="yr" role="group" aria-label="Year"><button class="icon-btn" data-yr="-1" aria-label="Previous year">${ICON.chevD}</button><b>${s.year}</b><button class="icon-btn" data-yr="1" aria-label="Next year">${ICON.chevD}</button>${s.year!==CUR_YEAR?`<button class="link" data-yr="0">This year</button>`:''}</div>`:''}
         <span class="spacer"></span><button class="pill" data-act="add">${ICON.plus}Add bill</button></div>
       ${s.mode==='timeline' ? timelineHTML(it) + paymentsHTML(it) : listHTML(it)}`;
+    if(s.mode==='timeline'){ const sc = $('.tl-in', root); if(sc){   // until you scroll it yourself, the timeline opens on today's month; after that your position is kept
+      let user = false; ['touchstart','wheel','pointerdown','keydown'].forEach(ev => sc.addEventListener(ev, () => { user = true; }, {passive:true}));
+      sc.addEventListener('scroll', () => { if(user) s.tlx = sc.scrollLeft; }, {passive:true});
+      requestAnimationFrame(() => requestAnimationFrame(() => { if(!sc.isConnected) return; if(s.tlx==null) scrollToToday(root); else sc.scrollLeft = s.tlx; })); } }
   }
 
   function timelineHTML(it){
@@ -119,12 +131,13 @@ TYPE_VIEWS.bills = (() => {
       }
     }
     const months = MON.map((m,i)=>{ const s=pct(`${Y}-${String(i+1).padStart(2,'0')}-01`), e = i<11 ? pct(`${Y}-${String(i+2).padStart(2,'0')}-01`) : 100; return {m, s, mid:(s+e)/2}; });
+    const maxTot = Math.max(1, ...monthTot);   // dot columns in the Total row: 8 dots = the busiest month
     const curM = Y===CUR_YEAR ? new Date().getMonth() : -1;
     return `<section class="tl" aria-label="Bills timeline ${Y}"><div class="tl-in">
       <div class="tl-row tl-head"><div class="tl-lab"><span>${Y}</span></div><div class="tl-track">${months.map((x,i)=>`<span class="tl-m ${i===curM?'cur':''}" style="left:${x.mid}%">${x.m}</span>`).join('')}</div></div>
       <div class="tl-body">${rows}
         <div class="tl-lines" aria-hidden="true">${months.slice(1).map(x=>`<i style="left:${x.s}%"></i>`).join('')}${Y===CUR_YEAR?`<b class="tl-now" style="left:${pct(today())}%"></b>`:''}</div></div>
-      <div class="tl-row tl-tot"><div class="tl-lab"><span>Total</span></div><div class="tl-track">${months.map((x,i)=>monthTot[i]?`<span class="tl-m" style="left:${x.mid}%">${money(Math.round(monthTot[i]))}</span>`:'').join('')}</div></div>
+      <div class="tl-row tl-tot"><div class="tl-lab"><span>Total</span></div><div class="tl-track">${months.map((x,i)=>monthTot[i]?`<span class="tl-col" style="left:${x.mid}%;--n:${Math.max(1, Math.round(monthTot[i]/maxTot*8))}" aria-hidden="true"></span><span class="tl-m" style="left:${x.mid}%">${money(Math.round(monthTot[i]))}</span>`:'').join('')}</div></div>
     </div>
     <div class="tl-legend" aria-hidden="true"><span><i class="tl-dot paid">${ICON.check}</i>Paid</span><span><i class="tl-dot up" style="--c:var(--accent)"></i>Upcoming</span><span><i class="tl-dot soon"></i>Due in 30 days</span><span><i class="tl-dot over">!</i>Overdue</span><span><i class="tl-dot pre"></i>Before tracking</span><span><i class="tl-now-k"></i>Today</span></div></section>`;
   }
@@ -143,7 +156,24 @@ TYPE_VIEWS.bills = (() => {
       ${items.length ? `<div class="pay-list">${items.map(x=>payRow(x.b,x.d,x.s)).join('')}</div>` : `<div class="empty-state">Nothing due in the next 60 days.</div>`}</section>`;
   }
 
+  /* phone: one stacked row per bill (name / provider · asset on the left; amount and next due on the right; status and the Update menu below).
+     Tap the row to edit every field; the Update menu has Renew, Switch, End and Delete, exactly as in the table. */
+  function listCardsHTML(it){
+    const bs = bills(it);
+    return `<div class="bill-cards">${bs.map(b=>{ const nd = nextDue(b); const dl = nd && dueLabel(nd.date); const stt = nd ? status(b, nd) : '';
+      const sub = [b.institution, b.asset].filter(Boolean).join(' · ');
+      return `<div class="bill-row ${b.active?'':'inactive'}" data-key="b-${esc(b.id)}">
+        ${nd ? `<button class="cbox" data-pay="${esc(b.id)}|${nd.date}" role="checkbox" aria-checked="false" aria-label="Mark paid: ${esc(billName(b))}, due ${dateLabel(nd.date)}">${ICON.check}</button>` : `<span class="cbox ghost" aria-hidden="true"></span>`}
+        <button class="br-main" data-edit="${esc(b.id)}" aria-label="Edit ${esc(billName(b))}"><b class="br-t">${esc(b.category||b.asset||'New bill')}</b><span class="br-s">${esc(sub||'No provider yet')}</span></button>
+        <span class="br-r"><b>${esc(money(b.amount)||'$0')}</b>${nd ? `<button class="nd-t ${dl.cls}" data-due="${esc(b.id)}|${nd.date}" aria-label="Due ${esc(dl.t)}. Open payment">${esc(dl.t)}</button>` : `<span class="br-none">${b.active?'No due date':'Inactive'}</span>`}</span>
+        <div class="br-f"><span class="br-tag">${esc(pName(b.period))}</span>${nd?`<span class="br-st st-${stt}">${esc(STATUS_TXT[stt])}</span>`:''}${b.active?'':'<span class="br-st st-off">Inactive</span>'}
+          <button class="pop" data-upd="${esc(b.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="Update ${esc(billName(b))}">Update${ICON.chev}</button></div>
+      </div>`; }).join('')}
+      ${bs.length?'':`<div class="empty-state"><b>No bills yet</b>Add each bill once. The app works out every due date from the start date and period.</div>`}
+      <div class="tbl-foot"><button class="add-btn" data-act="add" style="width:auto">${ICON.plus} Add bill</button><span class="caption">Annual bills with an end date are due on the end date. Others are due every period from the start date.</span></div></div>`;
+  }
   function listHTML(it){
+    if(matchMedia('(max-width:760px)').matches) return listCardsHTML(it);
     const bs = bills(it);
     const th = t => `<th scope="col"><span class="th-t">${t}</span></th>`;
     return `<div class="tbl-wrap"><table class="tbl bills-tbl"><thead><tr>${['Active','Asset','Category','Institution','Start date','End date','Period','Amount','Next due',''].map(th).join('')}</tr></thead><tbody>
@@ -245,12 +275,13 @@ TYPE_VIEWS.bills = (() => {
   function addBill(it){
     const nb = {id:uid(), active:true, asset:'', category:'', institution:'', start:'', end:'', period:12, amount:'', ref:'', notes:'', paid:{}, history:[], stopped:'', created:today(), prevId:''};
     setBills(it, [...bills(it), nb]); st(it).mode = 'list'; render(true);
+    if(matchMedia('(max-width:760px)').matches){ requestAnimationFrame(()=>editModal(it, nb, $('[data-act="add"]'))); return; }   // phone rows have no inline fields: fill the new bill in its edit window
     requestAnimationFrame(()=>{ const el=$(`[data-b="${CSS.escape(nb.id)}"][data-k="asset"]`); el?.focus(); el?.scrollIntoView({block:'nearest'}); });
   }
   const findB = (it, id) => bills(it).find(b=>b.id===id);
   function click(e, it){
     const sg = e.target.closest('[data-seg]'); if(sg){ st(it).mode = sg.dataset.seg; render(true); restoreFocus(`[data-seg="${sg.dataset.seg}"]`); return; }
-    const yr = e.target.closest('[data-yr]'); if(yr){ const d=+yr.dataset.yr; st(it).year = d ? st(it).year+d : CUR_YEAR; render(true); restoreFocus(`[data-yr="${d||1}"]`); return; }
+    const yr = e.target.closest('[data-yr]'); if(yr){ const d=+yr.dataset.yr; st(it).year = d ? st(it).year+d : CUR_YEAR; st(it).tlx = null; render(true); restoreFocus(`[data-yr="${d||1}"]`); return; }
     if(e.target.closest('[data-act="add"]')) return addBill(it);
     const pay = e.target.closest('[data-pay]');
     if(pay){ const [id,date]=pay.dataset.pay.split('|'); const b=findB(it,id); if(!b) return;
