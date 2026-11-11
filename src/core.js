@@ -218,6 +218,9 @@ function closeMenu(refocus){
 }
 function outsideMenu(e){ if(menuEl && !menuEl.contains(e.target) && e.target.closest('[aria-haspopup]')!==menuAnchor) closeMenu(false); }
 /* items: {label, value, checked?, dot?, kbd?, danger?} | {sep:true} | {head:'text'} */
+/* A right-click menu opens at the cursor; ⋯ buttons, double-tap and keyboard menus stay anchored to their element */
+let ctxPt = null;
+document.addEventListener('pointerdown', e => { if(e.button===2 && e.pointerType==='mouse') ctxPt = {x:e.clientX, y:e.clientY, t:performance.now()}; }, true);
 function openMenu(anchor, items, onPick, label, cls=''){
   if(menuEl && menuAnchor===anchor){ closeMenu(true); return; }
   closeMenu(false);
@@ -226,7 +229,9 @@ function openMenu(anchor, items, onPick, label, cls=''){
     `<button role="${it.checked!==undefined?'menuitemradio':'menuitem'}" ${it.checked!==undefined?`aria-checked="${!!it.checked}"`:''} data-i="${i}" tabindex="-1" class="${it.danger?'danger':''}">`+
     `${it.checked!==undefined?`<span class="mk" aria-hidden="true">${it.checked?ICON.check:''}</span>`:''}${it.dot?`<span class="dot" style="--oc:${it.dot}"></span>`:''}${it.html ? `<span class="mi" ${it.label?`aria-label="${esc(it.label)}" title="${esc(it.label)}"`:''}>${it.html}</span>` : `<span>${esc(it.label)}</span>`}${it.kbd?`<span class="kbd" aria-hidden="true">${esc(it.kbd)}</span>`:''}</button>`).join('');
   document.body.appendChild(m); menuEl=m; menuAnchor=anchor; anchor.setAttribute('aria-expanded','true');
-  const r = anchor.getBoundingClientRect(); const w=m.offsetWidth, h=m.offsetHeight;
+  const w=m.offsetWidth, h=m.offsetHeight;
+  const pt = ctxPt && performance.now()-ctxPt.t < 1000 ? ctxPt : null; ctxPt = null;
+  const r = pt ? {left:pt.x, right:pt.x, top:pt.y, bottom:pt.y-6} : anchor.getBoundingClientRect();
   m.style.left = Math.max(8, Math.min(r.left, innerWidth-w-8))+'px';
   m.style.top = (r.bottom+6+h > innerHeight-8 ? Math.max(8, r.top-h-6) : r.bottom+6)+'px';
   const btns = $$('button', m);
@@ -359,6 +364,7 @@ function render(force){
   const fk = (!modalOpen() && !window.__sheetOpen && !menuEl) ? focusKey(document.activeElement) : null;
   const c = $('#content'); const hs = $$('[data-hs]', c).map(el=>[el.dataset.hs, el.scrollLeft]); const wy = window.scrollY, cy = c.scrollTop;
   S.rendering = true; try{ renderContent(); } finally { S.rendering = false; }
+  fitTitle();
   for(const [k,x] of hs){ const el = c.querySelector(`[data-hs="${CSS.escape(k)}"]`); if(el && x) el.scrollLeft = x; }
   if(c.scrollTop!==cy) c.scrollTop = cy; if(window.scrollY!==wy) window.scrollTo(0, wy);
   if(fk && $('#content').contains(document.activeElement)===false) restoreFocus(fk, $('#content'));
@@ -439,11 +445,6 @@ $('#side').addEventListener('contextmenu', navContextMenu);
 /* ----- top bar ----- */
 function renderBar(){
   const it = currentItem(); const f = it && folderById(it.folderId);
-  let crumbs;
-  if(S.q) crumbs = `<b>Search</b>`;
-  else if(it) crumbs = `${f?`<span>${esc(f.name)}</span><span class="sep" aria-hidden="true">›</span>`:''}<b>${esc(it.name||'Untitled')}</b>`;
-  else crumbs = `<b>${{home:'Home',tasks:'All tasks',archive:'Archive'}[S.route.v]||'Home'}</b>`;
-  $('#crumbs').innerHTML = crumbs;
 }
 
 /* ----- phone dock: ☰ always; Filter and + New task only on Kanban pages (CSS shows the dock on phones only) ----- */
@@ -496,6 +497,15 @@ function renderContent(){
   }
   document.documentElement.style.setProperty('--board', '#0071e3');
   renderHome(c);
+}
+/* The item title field is only as wide as its text (plus room to type), not the full width */
+function fitTitle(el = $('#itemTitle')){
+  if(!el) return;
+  const m = fitTitle.m || (fitTitle.m = document.createElement('canvas').getContext('2d')); const cs = getComputedStyle(el);
+  m.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const ls = parseFloat(cs.letterSpacing)||0, txt = el.value || el.placeholder;
+  const w = m.measureText(txt).width + ls*txt.length + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 18;
+  el.style.width = Math.ceil(w) + 'px';
 }
 function headHTML(it){
   const f = folderById(it.folderId);
@@ -607,7 +617,7 @@ function renderKanban(k, root){
   const pool = S.tasks.filter(t=>ids.has(t.boardId) && t.col!=='done' && (V.bb || t.col!=='backburner') && (V.boards.size===0 || V.boards.has(t.boardId)));
   const q = QUICK.find(x=>x.id===V.quick) || QUICK[0];
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
-  const VIEWS = {board:'Board', list:'List', timeline:'Timeline', archive:'Archive'};
+  const VIEWS = {board:'Kanban', timeline:'Gantt', list:'List', archive:'Archive'};
   /* the phone Filter button lives in the dock (renderDock); desktop only needs the View menu here */
   const seg = `<div class="kb-ctl"><button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
@@ -615,7 +625,7 @@ function renderKanban(k, root){
   const groups = mode==='archive' ? `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}</div>` : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
     <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}<button class="chip-btn add-stack" data-act="add-stack" title="Add a stack">${ICON.plus}Stack</button></div>
-    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn tog" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn tog" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
+    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
   </div>`;
   /* one row: the filter groups, then Board · List · Archive at the right end (they never move between views) */
   const tabs = `<div class="kb-bar">${groups}${seg}</div>`;
@@ -648,7 +658,7 @@ function renderKanban(k, root){
 function kanbanClick(e, k){
   const V = S.tasksView;
   const vb = e.target.closest('[data-act="view"]');
-  if(vb){ openMenu(vb, [['board','Board'],['list','List'],['timeline','Timeline'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
+  if(vb){ openMenu(vb, [['board','Kanban'],['timeline','Gantt'],['list','List'],['archive','Archive']].map(([m,l])=>({label:l, value:m, checked:(V.mode||'board')===m})), m => { V.mode=m; ls.set('lo.tasksMode', m); render(true); restoreFocus('[data-act="view"]'); }, 'View'); return true; }
   if(e.target.closest('[data-act="filters"]')){ S.filtersOpen=!S.filtersOpen; render(true); restoreFocus('[data-act="filters"]'); return true; }
   const md = e.target.closest('[data-mode]'); if(md){ V.mode=md.dataset.mode; ls.set('lo.tasksMode', md.dataset.mode); S.filtersOpen=false; render(true); restoreFocus(`[data-mode="${md.dataset.mode}"]`); return true; }
   const so = e.target.closest('[data-sort]'); if(so && !e.target.closest('.tbl')){ V.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return true; }
@@ -750,7 +760,7 @@ content.addEventListener('keydown', e => {
   const st = e.target.closest?.('.home-stats .stat'); if(!st) return;
   if(e.key==='ContextMenu' || (e.shiftKey && e.key==='F10')){ e.preventDefault(); e.stopPropagation(); tileMenu(st, st); }
 });
-content.addEventListener('input', e => { const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
+content.addEventListener('input', e => { if(e.target.id==='itemTitle') fitTitle(e.target); const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
 content.addEventListener('change', e => {
   const it = currentItem(); if(!it) return;
   if(e.target.id==='itemTitle'){ const v=e.target.value.trim()||'Untitled'; if(v!==it.name){ docPatch('items', it.id, {name:v}); renderSide(); renderBar(); } return; }
@@ -776,7 +786,6 @@ $('#side').addEventListener('click', async e => {
 $('#q').addEventListener('input', e => { S.q = e.target.value; render(true); });
 $('#sideRes').addEventListener('click', e => { if(e.target.closest('a.sr-row')){ S.q=''; $('#q').value=''; document.body.classList.remove('side-open'); requestAnimationFrame(()=>render(true)); } });
 $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagation(); e.target.value=''; S.q=''; render(true); e.target.blur(); } if(e.key==='Enter') document.body.classList.remove('side-open'); });
-$('#barNew').addEventListener('click', () => openNewItem({opener:$('#barNew')}));
 $('#sideToggle').addEventListener('click', () => {
   if(matchMedia('(max-width:860px)').matches) document.body.classList.toggle('side-open');
   else { document.body.classList.toggle('side-collapsed'); ls.set('lo.sideCollapsed', document.body.classList.contains('side-collapsed')?'1':'0'); }
@@ -1080,7 +1089,7 @@ function openKeys(opener){
     <dl class="keys"><dt><kbd>/</kbd> or <kbd>⌘</kbd><kbd>K</kbd></dt><dd>Search everything</dd><dt><kbd>N</kbd></dt><dd>New task, row, entry or checklist item, depending on the page</dd><dt><kbd>⇧</kbd><kbd>N</kbd></dt><dd>New item</dd><dt><kbd>H</kbd> · <kbd>T</kbd></dt><dd>Home · All tasks</dd><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd><dt><kbd>Esc</kbd></dt><dd>Close a window or menu, clear search</dd></dl>
     <p class="keys-h">Kanban</p>
     <dl class="keys"><dt><kbd>Enter</kbd></dt><dd>Open the focused card</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the card to the previous or next column</dd><dt><kbd>⌥</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move the card up or down</dd></dl>
-    <p class="keys-h">Timeline</p>
+    <p class="keys-h">Gantt</p>
     <dl class="keys"><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Previous or next task</dd><dt><kbd>Enter</kbd></dt><dd>Open the task</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move its dates one day (a week in Quarter)</dd><dt><kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the due date only</dd></dl>
     <p class="note">On Windows use <kbd>Ctrl</kbd> for <kbd>⌘</kbd> and <kbd>Alt</kbd> for <kbd>⌥</kbd>.</p>
     <div class="row-end"><button class="pill" data-x>Done</button></div>`, {opener});

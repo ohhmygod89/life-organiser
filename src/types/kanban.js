@@ -68,7 +68,7 @@ TYPE_VIEWS.kanban = (() => {
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
     const pinned = !!t.pinned && !isDone;
     const mvTop = mvBtn && !left.length && !right.length;   // no footer: ⇄ sits beside the pin rather than adding an empty row
-    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
+    return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} pr-${PLEVEL[t.priority]?t.priority:'low'} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
       ${isDone || (TOUCH && !pinned) ? '' : TOUCH ? `<span class="pin" aria-hidden="true">${ICON.pin}</span>` : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${ICON.pin}</button>`}
       ${mvBtn && !left.length && !right.length ? mvBtn : ''}
       <div class="card-head"><div class="title">${!isDone?prioBtn(t):''}<span class="tt">${esc(t.title||'Untitled')}</span></div>
@@ -243,7 +243,7 @@ TYPE_VIEWS.kanban = (() => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
           const lim = LANE_DONE; if(c.id==='done' && ts.length>lim){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-lim)+' more'}</button>`; if(!all) ts=ts.slice(0,lim); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
-            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span><span class="count">${total||''}</span>${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span>${c.id==='done' ? `<span class="count">${total||''}</span>` : ''}${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
             ${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
             ${more}
