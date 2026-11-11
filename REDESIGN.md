@@ -1,6 +1,6 @@
 # Redesign (Pulse) — design system notes
 
-Branch `redesign`, version `1.0.0-beta.29.redesign.1`. Front end only: no feature, data, storage or behaviour changes.
+Branch `redesign`, version `1.0.0-beta.29.redesign.2`. Front end only: no feature, data, storage or behaviour changes.
 All new CSS is one block at the end of `src/styles.css` (`/* ===== REDESIGN (Pulse) ===== */`); it overrides the older layers instead of deleting them.
 
 ## Look
@@ -49,3 +49,13 @@ Charts: **Tracker** chart is a dot matrix (SVG, one path for filled dots and one
 
 ## JS/markup touched (behaviour unchanged)
 `core.js`: `renderDock`, dock click handler, `PALETTE_BY_TYPE` + `pal-*` class in `headHTML`, `home-stats` class on Home tiles, Filter button removed from the Kanban bar markup (moved to the dock). `shell.html`: dock, wordmark spans, font comment. `tracker.js`: `drawChart` draws dots. `bills.js`: dot columns in the Total row. `build.py`: Google Fonts link removed.
+
+## Round 1 (redesign.2): closer Pulse match
+- **Palettes** are now light, luminous meshes with four stops each (`--lav|blue|coral|pink|green|peach` `-a` highlight, `-b` body, `-c` deep (kept bottom/left behind the text), `-d` warm bloom). Text on heroes stays white with a 1px soft text-shadow; no dark scrim. Measured worst-pixel contrast of the big values is about 2.5 to 3.9:1 in light, 3.2 to 5:1 in dark (small labels are softer, 1.5 to 3:1) - the user's choice.
+- **Weights**: 500 for titles, hero values, big numbers; 600 only for row/section titles; Home heading is two-tone (date grey, title black, `.hd2`).
+- **Heroes**: Home tiles = icon + label top left, medium value bottom left, caption, translucent circle with an arrow top right. Item header = title bottom left, type icon in the circle. Kanban stack headers are plain white cards with a small gradient dot (the item header is the only gradient hero on Kanban).
+- **Tile colours** (new): right-click / double-tap (phone) / Menu key or Shift+F10 on a Home tile opens a "Tile colour" menu (Default, Lavender, Sky, Coral, Rose, Peach, Mint). Stored per device in `localStorage` key `lo.tileColors` (JSON `{tileId: palette}`, ids `open overdue week waiting bills`); absent = default. Disabled tiles (count 0) now use `aria-disabled` so the menu still works.
+- **Dock**: floating white pill (dark in dark mode): round menu, black "+ New task" pill with a gradient orb, round Filter (count badge).
+- **Controls**: segmented = white (or light-grey inside cards) track, solid black active pill (white in dark).
+- **Dot charts**: Tracker = discrete columns 14 to 16px apart, one dot per 8px row, a faint single baseline row, top two dots stronger. Bills = one faint dot row per bill, one coloured dot row per term, Total = single dot columns with a yellow-orange-red gradient (CSS mask). No filled areas, no background grid.
+- **Rows**: Home rows have a round gradient icon, 600 title, grey subtitle, due text right (under the subtitle on phones). Kanban column headers use a small status dot and sentence case. Timeline bars are lavender gradient pills.

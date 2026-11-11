@@ -66,6 +66,7 @@ const ICON = {
   flag:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h1.8v18H5zM7.5 4h11l-2.5 4.5 2.5 4.5h-11z"/></svg>',
   link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>',
   sort:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m8 10 4-4 4 4M8 14l4 4 4-4"/></svg>',
+  arrow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 16.5 16.5 7.5M8.5 7.5h8v8"/></svg>',
 };
 /* Item types. Kanban, Bills, Tracker and Page are created from New item; a Kanban holds stacks, a Page holds
    blocks (Text, Checklist, Table), and those live as items with a `parent`. */
@@ -429,6 +430,23 @@ function renderBar(){
 
 /* ----- phone dock: ☰ always; Filter and + New task only on Kanban pages (CSS shows the dock on phones only) ----- */
 const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', page:'green'};   // item page header palette (see REDESIGN.md)
+/* Home tile colours: a per-device preference kept in localStorage ("lo.tileColors", like theme and sort), chosen from a hidden menu
+   (right-click, double-tap on a phone, Menu key / Shift+F10 on a focused tile). Absent = the default below. */
+const TILE_PALS = [['lav','Lavender'],['blue','Sky'],['coral','Coral'],['pink','Rose'],['peach','Peach'],['green','Mint']];
+const TILE_DEFAULT = {open:'lav', overdue:'coral', week:'blue', waiting:'peach', bills:'green'};
+const tilePrefs = () => { try{ const o = JSON.parse(ls.get('lo.tileColors','{}')); return o && typeof o==='object' ? o : {}; }catch(e){ return {}; } };
+const tilePal = id => { const p = tilePrefs()[id]; return TILE_PALS.some(x=>x[0]===p) ? p : (TILE_DEFAULT[id]||'lav'); };
+function tileMenu(tile, at){
+  const id = tile.dataset.tile, cur = tilePrefs()[id] && TILE_PALS.some(x=>x[0]===tilePrefs()[id]) ? tilePrefs()[id] : '';
+  const sw = (k, name) => `<i class="sw pal-${k}" aria-hidden="true"></i><span>${esc(name)}</span>`;
+  openMenu(at, [{head:'Tile colour'}, {html:sw(TILE_DEFAULT[id]||'lav','Default'), label:'Default', value:'', checked:!cur}, {sep:true}, ...TILE_PALS.map(([k,n])=>({html:sw(k,n), label:n, value:k, checked:cur===k}))], v => {
+    const o = tilePrefs(); if(v) o[id] = v; else delete o[id];
+    ls.set('lo.tileColors', JSON.stringify(o)); render(true); restoreFocus(`[data-tile="${id}"]`);
+  }, 'Tile colour', 'menu-pal');
+}
+const tileAnchor = (tile, e) => { const r = tile.getBoundingClientRect(); const x = e && e.clientX ? Math.min(Math.max(e.clientX, r.left+12), r.right-12) : r.left+16;
+  return {getBoundingClientRect:()=>({left:x, right:x, top:r.top+r.height*.55, bottom:r.top+r.height*.55, width:0, height:0}), setAttribute(){}, focus(){}}; };
+let tileTap = null;
 function kbFilterCount(){ const V = S.tasksView; return (V.quick!=='open') + V.boards.size + (V.bb?1:0); }   // filters away from the defaults
 function renderDock(){
   const it = currentItem(), onK = !!it && it.type==='kanban' && !S.q;
@@ -436,10 +454,10 @@ function renderDock(){
   f.hidden = n.hidden = !onK;
   if(!onK) return;
   const nf = kbFilterCount();
-  f.innerHTML = `${ICON.filter}<span>Filter</span>${nf?`<b class="nf">${nf}</b>`:''}`;
+  f.innerHTML = `${ICON.filter}<span class="sr-only">Filter</span>${nf?`<b class="nf" aria-hidden="true">${nf}</b>`:''}`;
   f.setAttribute('aria-label', `Filter${nf?` (${nf} on)`:''}`);
   f.setAttribute('aria-expanded', String(!!S.filtersOpen));
-  if(!n.firstChild) n.innerHTML = `${ICON.plus}<span>New task</span>`;
+  if(!n.firstChild) n.innerHTML = `<i class="orb" aria-hidden="true">${ICON.plus}</i><span>New task</span>`;
 }
 
 /* ----- content ----- */
@@ -471,10 +489,10 @@ function headHTML(it){
 /* ----- Home ----- */
 function openTasks(){ return S.tasks.filter(t => { const b=itemById(t.boardId); return b && !b.hidden && t.col!=='done' && t.col!=='backburner'; }); }
 const QUICK = [
-  {id:'open', label:'Open tasks', test:()=>true, c:'#007aff', ic:'list'},
-  {id:'overdue', label:'Overdue', test:t=>t.due && dayDiff(t.due)<0, c:'#ff3b30', ic:'bang'},
-  {id:'week', label:'Due in 7 days', test:t=>t.due && dayDiff(t.due)>=0 && dayDiff(t.due)<=7, c:'#30b0c7', ic:'cal'},
-  {id:'waiting', label:'Flagged', test:t=>!!effFlag(t), c:'#ff9500', ic:'flag'},
+  {id:'open', label:'Open tasks', cap:'across all stacks', test:()=>true, c:'#007aff', ic:'list'},
+  {id:'overdue', label:'Overdue', cap:'past their due date', test:t=>t.due && dayDiff(t.due)<0, c:'#ff3b30', ic:'bang'},
+  {id:'week', label:'Due in 7 days', cap:'coming this week', test:t=>t.due && dayDiff(t.due)>=0 && dayDiff(t.due)<=7, c:'#30b0c7', ic:'cal'},
+  {id:'waiting', label:'Flagged', cap:'waiting or blocked', test:t=>!!effFlag(t), c:'#ff9500', ic:'flag'},
 ];
 function comingUp(){
   const out = [];
@@ -510,18 +528,19 @@ function renderHome(c){
   const trackers = S.items.filter(i=>i.type==='tracker');
   const touched = i => S.items.filter(x=>x.parent===i.id).reduce((m,x)=>(x.updated||'')>m?x.updated:m, i.updated||i.created||'');   // a page counts its blocks' edits
   const recent = S.items.filter(isTop).map(i=>({...i, updated:touched(i)})).sort((a,b)=>b.updated.localeCompare(a.updated)).slice(0,6);
+  const tile = (id, attrs, ic, n, label, cap, off) => `<button class="stat pal-${tilePal(id)}" data-tile="${id}" ${attrs} ${off?'aria-disabled="true"':''} aria-keyshortcuts="Shift+F10" title="${TOUCH?'Double-tap':'Right-click'} to change colour"><span class="s-lab"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><span>${label}</span></span><i class="s-go" aria-hidden="true">${ICON.arrow}</i><b>${n}</b><small class="s-cap">${cap}</small></button>`;
   c.innerHTML = `<div class="wrap">
-    <div><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p><h1 class="big">Home</h1></div>
-    <div class="stats home-stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return `<button class="stat" data-quick="${q.id}" style="--sc:${q.c}" ${!n&&q.id!=='open'?'disabled':''}><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON[q.ic]}</i><b>${n}</b></span><span>${q.label}</span></button>`}).join('')}${billItems.length?`<button class="stat" data-open="item:${esc(billItems[0].id)}" style="--sc:#ff9500"><span class="s-top"><i class="s-ic" aria-hidden="true">${ICON.bills}</i><b>${billsDue}</b></span><span>Bills due in 30 days</span></button>`:''}</div>
+    <div class="hd2"><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p><h1 class="big">Home</h1></div>
+    <div class="stats home-stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return tile(q.id, `data-quick="${q.id}"`, q.ic, n, q.label, q.cap, !n&&q.id!=='open')}).join('')}${billItems.length?tile('bills', `data-open="item:${esc(billItems[0].id)}"`, 'bills', billsDue, 'Bills due in 30 days', 'bills and renewals', false):''}</div>
     <div class="home-grid">
       <section class="panel" aria-labelledby="cuH"><div class="panel-h"><h2 id="cuH">Coming up</h2><span class="caption">Tasks due in ${TASK_DAYS} days · bills and collection dates in ${HOME_DAYS}</span></div>
-        ${up.length ? `<div class="list-rows">${up.map(u=>{const dl=dueLabel(u.date); return `<button class="lrow" data-open="${u.kind}:${esc(u.kind==='task'?u.task.id:u.item.id)}"><span class="t">${u.kind==='task'?bangHTML(u.task.priority):''}${esc(u.title)}</span><span class="m"><i style="--c:${itemColor(u.item)}"></i>${esc(u.item.name)}${u.what?' · '+esc(u.what):''}</span><span class="r ${dl.cls}">${esc(dl.t)}</span></button>`}).join('')}</div>`
+        ${up.length ? `<div class="list-rows">${up.map(u=>{const dl=dueLabel(u.date); return `<button class="lrow has-ri" data-open="${u.kind}:${esc(u.kind==='task'?u.task.id:u.item.id)}"><i class="ri pal-${u.kind==='task'?'lav':u.kind==='bill'?'coral':'peach'}" aria-hidden="true">${u.kind==='task'?ICON.list:u.kind==='bill'?ICON.bills:ICON.collection}</i><span class="t">${u.kind==='task'?bangHTML(u.task.priority):''}${esc(u.title)}</span><span class="m"><i style="--c:${itemColor(u.item)}"></i>${esc(u.item.name)}${u.what?' · '+esc(u.what):''}</span><span class="r ${dl.cls}">${esc(dl.t)}</span></button>`}).join('')}</div>`
           : `<div class="empty-state">Nothing due soon. Give tasks a due date, or tick “Show on Home” on a date field in a collection.</div>`}
       </section>
       <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
         ${trackers.length?`<section aria-labelledby="trH"><div class="panel-h"><h2 id="trH">Trackers</h2></div><div class="tr-cards">${trackers.map(t=>{const pts=(t.points||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)); const last=pts[pts.length-1]; return `<a class="tr-card" href="#i-${esc(t.id)}" style="text-decoration:none;color:inherit"><span class="caption">${esc(t.name)}</span><span class="v">${last?(t.unit==='$'?'$'+fmtNum(last.value,t.decimals):fmtNum(last.value,t.decimals)+`<small>${esc(t.unit||'')}</small>`):'—'}</span><span class="caption">${last?'Since '+esc(dateLabel(last.date)):'No entries yet'}</span>${pts.length>1?`<svg viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true"><path d="${sparkPath(pts.slice(-24),200,36,t.step)}" fill="none" stroke="${itemColor(t)}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`:''}</a>`}).join('')}</div></section>`:''}
         <section class="panel" aria-labelledby="reH"><div class="panel-h"><h2 id="reH">Recently edited</h2></div>
-          <div class="list-rows">${recent.map(i=>`<a class="lrow" href="#i-${esc(i.id)}" style="text-decoration:none;color:inherit"><span class="t">${esc(i.name||'Untitled')}</span><span class="m"><i style="--c:${itemColor(i)}"></i>${TYPES[i.type].label}${folderById(i.folderId)?' · '+esc(folderById(i.folderId).name):''}</span><span class="r">${i.updated?esc(shortDate(i.updated)):''}</span></a>`).join('')}</div></section>
+          <div class="list-rows">${recent.map(i=>`<a class="lrow has-ri" href="#i-${esc(i.id)}" style="text-decoration:none;color:inherit"><i class="ri pal-${PALETTE_BY_TYPE[i.type]||'lav'}" aria-hidden="true">${ICON[i.type]}</i><span class="t">${esc(i.name||'Untitled')}</span><span class="m"><i style="--c:${itemColor(i)}"></i>${TYPES[i.type].label}${folderById(i.folderId)?' · '+esc(folderById(i.folderId).name):''}</span><span class="r">${i.updated?esc(shortDate(i.updated)):''}</span></a>`).join('')}</div></section>
       </div>
     </div></div>`;
 }
@@ -669,6 +688,16 @@ const content = $('#content');
 content.addEventListener('click', e => {
   if(S.q && e.target.closest('a.lrow')){ S.q=''; $('#q').value=''; requestAnimationFrame(()=>render(true)); return; }   // a search result: leave search (even for the page already open)
   const it = currentItem(); const V = it && TYPE_VIEWS[it.type];
+  const st = e.target.closest('.home-stats .stat');
+  if(st){
+    const go_ = () => { if(!st.isConnected || st.getAttribute('aria-disabled')==='true') return; const d = st.dataset.open;
+      if(d){ const [k,id] = d.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, st); else go('i-'+id); return; }
+      const k = itemsOf(i=>i.type==='kanban')[0]; S.tasksView.quick = st.dataset.quick; if(k) go('i-'+k.id); };
+    if(TOUCH){   // phone: a double-tap opens the colour menu; a single tap goes on after a beat (same timing as cards)
+      if(tileTap && tileTap.id===st.dataset.tile){ clearTimeout(tileTap.timer); tileTap=null; tileMenu(st, tileAnchor(st, e)); return; }
+      clearTimeout(tileTap?.timer); tileTap = {id:st.dataset.tile, timer:setTimeout(() => { tileTap=null; go_(); }, 260)}; return; }
+    go_(); return;
+  }
   const op = e.target.closest('[data-open]');
   if(op){ const [k,id]=op.dataset.open.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, op); else go('i-'+id); return; }
   const qk = e.target.closest('[data-quick]');
@@ -676,6 +705,15 @@ content.addEventListener('click', e => {
     if(!onK){ const k=itemsOf(i=>i.type==='kanban')[0]; if(k) go('i-'+k.id); } else render(true); return; }
   if(it?.type==='kanban' && kanbanClick(e, it)) return;
   if(V) V.click?.(e, it);
+});
+content.addEventListener('contextmenu', e => {
+  const st = e.target.closest('.home-stats .stat'); if(!st) return;
+  e.preventDefault(); if(TOUCH) return;    // phone: the double-tap opens it (a long-press must not raise the system menu)
+  tileMenu(st, pointAnchor(e));
+});
+content.addEventListener('keydown', e => {
+  const st = e.target.closest?.('.home-stats .stat'); if(!st) return;
+  if(e.key==='ContextMenu' || (e.shiftKey && e.key==='F10')){ e.preventDefault(); e.stopPropagation(); tileMenu(st, st); }
 });
 content.addEventListener('input', e => { const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
 content.addEventListener('change', e => {
