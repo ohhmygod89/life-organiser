@@ -5,3 +5,4 @@ test/*.png
 .DS_Store
 node_modules
 test/shots/
+fonts/

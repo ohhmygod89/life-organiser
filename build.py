@@ -30,6 +30,21 @@ head = f'''<title>Life Organiser</title>
 <meta name="generator" content="Life Organiser {VERSION}">
 <!-- Font: system stack by default (see --font-ui in styles.css and the commented Inter link in shell.html) -->
 '''
+# Optional licensed font: python3 build.py --fonts fonts/fh-oscar "FH Oscar"
+# Embeds every *.woff2 in that folder (gitignored, never committed) as @font-face and puts the family first in --font-ui.
+# Missing characters fall back to the system font. Builds without --fonts (and GitHub Pages) use the system font.
+if '--fonts' in sys.argv:
+    import base64
+    i = sys.argv.index('--fonts'); fdir = R/sys.argv[i+1]; fam = sys.argv[i+2] if len(sys.argv) > i+2 and not sys.argv[i+2].startswith('--') else 'Brand'
+    W = {'thin':100, 'extralight':200, 'light':300, 'regular':400, 'medium':500, 'semibold':600, 'bold':700, 'extrabold':800, 'black':900}
+    faces = []
+    for f in sorted(fdir.glob('*.woff2')):
+        st = f.stem.split('-')[-1].lower(); ital = st.endswith('italic'); key = st[:-6] if ital else st
+        w = W.get(key or 'regular', 400)
+        faces.append(f'@font-face{{font-family:"{fam}";src:url(data:font/woff2;base64,{base64.b64encode(f.read_bytes()).decode()}) format("woff2");font-weight:{w};font-style:{"italic" if ital else "normal"};font-display:swap}}')
+    css = '\n'.join(faces) + f'\n:root{{--font-ui:"{fam}",-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}}\n' + css
+    css += f'\n/* embedded font */ :root{{--font-ui:"{fam}",-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}}\n'
+    print(f'Embedded {len(faces)} font files as "{fam}"')
 body = head + '<style>\n' + css + '</style>\n' + shell + sortable + '\n<script>\n(() => {\n' + js + '\nstart();\n})();\n</script>\n'
 (R/'dist').mkdir(exist_ok=True)
 (R/'dist'/'life-organiser.html').write_text(body)
