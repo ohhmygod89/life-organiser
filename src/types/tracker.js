@@ -87,12 +87,13 @@ TYPE_VIEWS.tracker = (() => {
       <section class="panel"><div class="panel-h"><h2>Add an entry</h2><span class="caption">${it.step?'Each value holds until the next entry':'Points are joined in date order'}</span></div>
         <div class="entry-form"><input type="date" class="field-in" id="trDate" value="${today()}" aria-label="Date"><input type="number" step="any" inputmode="decimal" class="field-in" id="trVal" placeholder="Value${it.unit?' ('+esc(it.unit)+')':''}" aria-label="Value${it.unit?' in '+esc(it.unit):''}"><input class="field-in note-in" id="trNote" placeholder="Note, e.g. RBA cut, lender letter" aria-label="Note"><button class="pill" data-act="add">${ICON.plus}Add</button></div></section>
       <section class="panel"><div class="panel-h"><h2>Entries</h2><span class="caption">${plural(all.length,'entry').replace('entrys','entries')} · newest first</span></div>
-        ${all.length?`<div class="tbl-wrap" style="background:none;border-radius:0"><table class="tbl"><thead><tr><th scope="col"><button tabindex="-1">Date</button></th><th scope="col"><button tabindex="-1">Value</button></th><th scope="col" style="width:100%"><button tabindex="-1">Note</button></th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
-          ${all.slice().reverse().map(p=>`<tr data-key="pt-${esc(p.id)}"><td><input type="date" data-pt="${esc(p.id)}" data-k="date" value="${esc(p.date)}" aria-label="Date"></td><td><input type="number" step="any" data-pt="${esc(p.id)}" data-k="value" value="${esc(p.value)}" aria-label="Value"></td><td><input type="text" data-pt="${esc(p.id)}" data-k="note" value="${esc(p.note||'')}" aria-label="Note"></td><td><button class="x row-x" data-del-pt="${esc(p.id)}" aria-label="Delete entry from ${esc(dateLabel(p.date))}">${ICON.x}</button></td></tr>`).join('')}
+        ${all.length?`<div class="tbl-wrap" style="background:none;border-radius:0"><table class="tbl"><thead><tr><th scope="col"><button tabindex="-1">Date</button></th><th scope="col"><button tabindex="-1">Value</button></th><th scope="col" class="th-note"><button tabindex="-1">Note</button></th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+          ${all.slice().reverse().map(p=>`<tr data-key="pt-${esc(p.id)}"><td><input type="date" data-pt="${esc(p.id)}" data-k="date" value="${esc(p.date)}" aria-label="Date"></td><td><input type="number" step="any" data-pt="${esc(p.id)}" data-k="value" value="${esc(p.value)}" aria-label="Value"></td><td class="td-note"><textarea rows="1" data-pt="${esc(p.id)}" data-k="note" aria-label="Note" placeholder="Note" spellcheck="true">${esc(p.note||'')}</textarea></td><td><button class="x row-x" data-del-pt="${esc(p.id)}" aria-label="Delete entry from ${esc(dateLabel(p.date))}">${ICON.x}</button></td></tr>`).join('')}
         </tbody></table></div>`:`<div class="empty-state">Your entries will be listed here. ${it.unit==='%'?'Start with your current rate and the date it applied from.':''}</div>`}
       </section>`;
+    fitNotes(root);
     drawChart(it);
-    ro?.disconnect(); ro = new ResizeObserver(()=>{ const c=currentItem(); if(c && c.id===it.id) drawChart(c); }); ro.observe($('#trChart'));
+    ro?.disconnect(); ro = new ResizeObserver(()=>{ const c=currentItem(); if(c && c.id===it.id){ drawChart(c); fitNotes(root); } }); ro.observe($('#trChart'));
   }
   function add(it){
     const d = $('#trDate').value, v = $('#trVal').value, n = $('#trNote').value.trim();
@@ -109,6 +110,9 @@ TYPE_VIEWS.tracker = (() => {
     const dp = e.target.closest('[data-del-pt]');
     if(dp){ const before = clone(it.points||[]); docPatch('items', it.id, {points:before.filter(p=>p.id!==dp.dataset.delPt)}); view(it, $('#tv')); toast('Entry deleted', ()=>docPatch('items', it.id, {points:before})); }
   }
+  const fitNote = t => { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; };
+  const fitNotes = r => $$('textarea[data-k="note"]', r).forEach(fitNote);
+  function input(e){ if(e.target.matches?.('textarea[data-k="note"]')) fitNote(e.target); }
   function change(e, it){
     const el = e.target; const id = el.dataset.pt; if(!id) return;
     const k = el.dataset.k; let v = el.value; if(k==='value'){ if(v===''||isNaN(+v)) return view(it,$('#tv')); v=+v; } if(k==='date' && !v) return view(it,$('#tv'));
@@ -125,5 +129,5 @@ TYPE_VIEWS.tracker = (() => {
     m.onclick = e => { if(e.target.closest('#tsStep')){ step=!step; $('#tsStep').setAttribute('aria-checked', step); return; } const b=e.target.closest('[data-x]'); if(!b) return;
       if(b.dataset.x==='yes'){ docPatch('items', it.id, {unit:$('#tsUnit').value.trim(), decimals:Math.max(0,Math.min(4, parseInt($('#tsDec').value)||0)), step}); render(true); } closeModal(); };
   }
-  return {render:view, click, change, keydown, settingsModal, newShortcut(){ $('#trVal')?.focus(); }, focusStart(){ $('#trVal')?.focus(); }};
+  return {render:view, click, input, change, keydown, settingsModal, newShortcut(){ $('#trVal')?.focus(); }, focusStart(){ $('#trVal')?.focus(); }};
 })();

@@ -186,12 +186,13 @@ const touchItem = id => { const it=itemById(id); if(it) docPatch('items', id, {u
 
 /* ---------- toast with optional Undo ---------- */
 let toastT;
-function toast(msg, undo, bad){
+function toast(msg, undo, bad, act){
   const t = $('#toast'); t.innerHTML = '';
   const s = document.createElement('span'); s.textContent = msg; t.appendChild(s);
+  if(act){ const b=document.createElement('button'); b.type='button'; b.textContent=act.label; b.onclick=()=>{ t.classList.remove('show'); clearTimeout(toastT); act.fn(); }; t.appendChild(b); }   // optional second action, e.g. Open
   if(undo){ const b=document.createElement('button'); b.type='button'; b.textContent='Undo'; b.onclick=()=>{ undo(); t.classList.remove('show'); clearTimeout(toastT); render(true); refreshOverlays(); }; t.appendChild(b); }
-  t.classList.toggle('has-action', !!undo); t.classList.toggle('bad', !!bad); t.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), undo ? 6000 : 2800);
+  t.classList.toggle('has-action', !!(undo||act)); t.classList.toggle('bad', !!bad); t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), (undo||act) ? 6000 : 2800);
 }
 
 /* ---------- focus helpers: survive re-renders ---------- */
@@ -257,6 +258,11 @@ function lockPage(on){
 (() => { const vv = window.visualViewport; if(!vv) return; let lastFocusOut = 0;
   document.addEventListener('focusout', () => { lastFocusOut = Date.now(); });
   const fit = () => {
+    /* new-task sheet: stays bottom-anchored, lifted by the keyboard's height (visual viewport), never above the top of what is visible */
+    const ns = $('#nsheet');
+    if(ns){ if(ns.classList.contains('show') && vv.scale <= 1.01){ let k = Math.max(0, innerHeight - vv.height - vv.offsetTop); if(k < 80) k = 0;
+        ns.style.bottom = k ? `${k + 8}px` : ''; ns.style.maxHeight = k ? `${vv.height - 16}px` : ''; }
+      else { ns.style.bottom = ns.style.maxHeight = ''; } }
     const sh = $('#sheet'); if(!sh || !matchMedia('(max-width:760px)').matches) return;
     if(!sh.classList.contains('show')){ sh.style.top = sh.style.maxHeight = ''; return; }
     if(vv.scale > 1.01) return;                                         // pinch zoom, not a keyboard
@@ -270,9 +276,12 @@ function lockPage(on){
   window.__recentFocusOut = () => Date.now() - lastFocusOut < 700;
 })();
 function setBackgroundInert(){
-  const sheetOpen = $('#sheet').classList.contains('show') || !!window.__sheetOpen;
+  const newShown = $('#nsheet').classList.contains('show');
+  const taskShown = $('#sheet').classList.contains('show') || (!!window.__sheetOpen && !newShown);
+  const sheetOpen = taskShown || newShown;
   $('.shell').inert = sheetOpen || modalOpen();
-  $('#sheet').inert = !sheetOpen || modalOpen();
+  $('#sheet').inert = !taskShown || modalOpen();
+  $('#nsheet').inert = !newShown || modalOpen();
   modal().inert = !modalOpen();
   lockPage(sheetOpen || modalOpen());
   const scrim = $('#scrim');
@@ -288,6 +297,15 @@ function openModal(html, {opener, wide}={}){
   requestAnimationFrame(()=>{ if(!m.contains(document.activeElement)) (m.querySelector('[autofocus]') || m.querySelector('input,button'))?.focus(); });
   return m;
 }
+/* Tab stays inside an open dialog (first <-> last) */
+modal().addEventListener('keydown', e => {
+  if(e.key!=='Tab' || !modalOpen()) return;
+  const f = $$('button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])', modal()).filter(x => x.offsetParent !== null);
+  if(!f.length) return;
+  const first = f[0], last = f[f.length-1];
+  if(e.shiftKey && (document.activeElement===first || !modal().contains(document.activeElement))){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && (document.activeElement===last || !modal().contains(document.activeElement))){ e.preventDefault(); first.focus(); }
+});
 function closeModal(){
   if(!modalOpen()) return;
   modal().classList.remove('show'); setBackgroundInert();
@@ -333,7 +351,7 @@ window.addEventListener('hashchange', () => {
 let contentPending = false;
 function isEditing(){ const a=document.activeElement; return !!a && $('#content').contains(a) && a.matches('input:not([type=checkbox]):not([type=date]),textarea,[contenteditable="true"],[contenteditable="plaintext-only"]'); }
 function render(force){
-  renderSide(); renderBar(); renderDock();
+  renderSide(); renderBar(); renderDock(); syncSideRes();
   if(S.dragging){ contentPending=true; return; }
   if(!force && isEditing()){ contentPending=true; return; }
   if(S.rendering){ contentPending=true; return; }
@@ -494,6 +512,7 @@ const QUICK = [
   {id:'week', label:'Due in 7 days', cap:'coming this week', test:t=>t.due && dayDiff(t.due)>=0 && dayDiff(t.due)<=7, c:'#30b0c7', ic:'cal'},
   {id:'waiting', label:'Flagged', cap:'waiting or blocked', test:t=>!!effFlag(t), c:'#ff9500', ic:'flag'},
 ];
+const NB_DOT = '\u00a0·\u00a0';   // "Internet · House": the dot stays with both words, so a title never ends a line on a lone dot
 function comingUp(){
   const out = [];
   for(const t of openTasks()) if(t.due && dayDiff(t.due)<=TASK_DAYS) out.push({kind:'task', date:t.due, title:t.title, item:itemById(t.boardId), task:t});
@@ -508,7 +527,7 @@ function comingUp(){
     }
   }
   for(const it of S.items.filter(i=>i.type==='bills'))
-    for(const p of TYPE_VIEWS.bills.pending(it, HOME_DAYS)) out.push({kind:'bill', date:p.d.date, title:[p.b.category,p.b.asset].filter(Boolean).join(' · ')||'Bill', what:(p.d.inst||p.b.institution||'')+(p.d.amount!==''&&p.d.amount!==undefined?' · $'+fmtNum(p.d.amount,2):''), item:it});
+    for(const p of TYPE_VIEWS.bills.pending(it, HOME_DAYS)) out.push({kind:'bill', date:p.d.date, title:[p.b.category,p.b.asset].filter(Boolean).join(NB_DOT)||'Bill', what:(p.d.inst||p.b.institution||'')+(p.d.amount!==''&&p.d.amount!==undefined?' · $'+fmtNum(p.d.amount,2):''), item:it});
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
 function sparkPath(points, w, h, step){
@@ -662,7 +681,7 @@ function renderArchive(c, stacks){
 
 /* ----- Search across everything ----- */
 function snippet(text, q){ const i=text.toLowerCase().indexOf(q); if(i<0) return ''; const s=Math.max(0,i-40); return (s?'…':'')+text.slice(s, i+q.length+60).replace(/\s+/g,' ')+(i+q.length+60<text.length?'…':''); }
-function renderSearch(c){
+function searchHits(){
   const q = S.q.trim().toLowerCase();
   const res = [];
   for(const it of S.items){
@@ -670,13 +689,29 @@ function renderSearch(c){
     if((it.name||'').toLowerCase().includes(q)) res.push({k:'item', it:top, t:it.name, m:isTop(it) ? TYPES[it.type].label : top.name+' · '+TYPES[it.type].label});
     if(it.type==='note' && (it.body||'').toLowerCase().includes(q)) res.push({k:'item', it:top, t:top.name, m:snippet(it.body,q)});
     if(it.type==='checklist') (it.entries||[]).filter(e=>e.text.toLowerCase().includes(q)).forEach(e=>res.push({k:'item', it:top, t:e.text, m:top.name+' · checklist item'}));
-    if(it.type==='bills') (it.bills||[]).filter(b=>[b.asset,b.category,b.institution,b.ref,b.notes].join(' ').toLowerCase().includes(q)).forEach(b=>res.push({k:'item', it, t:[b.category,b.asset].filter(Boolean).join(' · '), m:it.name+' · '+(b.institution||'')}));
+    if(it.type==='bills') (it.bills||[]).filter(b=>[b.asset,b.category,b.institution,b.ref,b.notes].join(' ').toLowerCase().includes(q)).forEach(b=>res.push({k:'item', it, t:[b.category,b.asset].filter(Boolean).join(NB_DOT), m:it.name+' · '+(b.institution||'')}));
     if(it.type==='tracker') (it.points||[]).filter(p=>(p.note||'').toLowerCase().includes(q)).forEach(p=>res.push({k:'item', it, t:p.note, m:it.name+' · '+dateLabel(p.date)}));
   }
   for(const t of S.tasks){ const hay=[t.title,t.notes,t.flagWho,...(t.checklist||[]).map(c=>c.text),...(t.log||[]).map(l=>l.text)].join(' ').toLowerCase(); if(hay.includes(q)){ const b=itemById(t.boardId); if(b) res.push({k:'task', t, it:b}); } }
   for(const r of S.rows){ const it=itemById(r.itemId); if(!it) continue; const vals=Object.values(r.values||{}).map(v=>String(v)); if(vals.join(' ').toLowerCase().includes(q)){ const tf=(it.fields||[]).find(f=>f.type==='text'); res.push({k:'row', it:topOf(it), r, t:(tf&&r.values?.[tf.id])||'Row', m:topOf(it).name}); } }
   const seen = new Set(); const uniq = res.filter(x=>{ const key=x.k+(x.t?.id||'')+(x.it?.id||'')+(x.r?.id||'')+(typeof x.t==='string'?x.t:''); if(seen.has(key)) return false; seen.add(key); return true; });
-  c.innerHTML = `<div class="wrap narrow"><div><p class="eyebrow">Search</p><h1 class="big">“${esc(S.q.trim())}”</h1><p class="sub">${plural(uniq.length,'result')} across items, tasks, rows and notes. Press Esc to clear.</p></div>
+  return uniq;
+}
+/* phone: while the menu is open the page behind it is hidden, so show the matches inside the menu too */
+function syncSideRes(){
+  const box = $('#sideRes'); if(!box) return;
+  const on = !!S.q.trim() && matchMedia('(max-width:860px)').matches && document.body.classList.contains('side-open');
+  document.body.classList.toggle('side-searching', on);
+  if(!on){ box.hidden = true; box.innerHTML = ''; return; }
+  const hits = searchHits();
+  box.hidden = false;
+  box.innerHTML = `<p class="sr-h" role="status">${plural(hits.length,'result')}</p>` + hits.slice(0,30).map(x => {
+    const it = x.it, t = x.k==='task' ? x.t.title : (x.t||'Untitled'), m = x.k==='task' ? it.name+' · Task' : (x.m||it.name);
+    return `<a class="sr-row" href="#i-${esc(it.id)}"><span class="sr-t">${esc(t||'Untitled')}</span><span class="sr-m">${esc(m)}</span></a>`; }).join('');
+}
+function renderSearch(c){
+  const uniq = searchHits();
+  c.innerHTML = `<div class="wrap narrow"><div><p class="eyebrow">Search</p><h1 class="big">“${esc(S.q.trim())}”</h1><p class="sub">${plural(uniq.length,'result')} across items, tasks, rows and notes. ${TOUCH ? 'Tap ✕ in the search box to clear.' : 'Press Esc to clear.'}</p></div>
     ${uniq.length?`<section class="panel"><div class="list-rows">${uniq.slice(0,80).map(x=> x.k==='task'
       ? `<button class="lrow" data-open="task:${esc(x.t.id)}"><span class="t">${esc(x.t.title)}${chipHTML(x.t)}</span><span class="m"><i style="--c:${itemColor(x.it)}"></i>${esc(x.it.name)} · Task</span></button>`
       : `<a class="lrow" href="#i-${esc(x.it.id)}" style="text-decoration:none;color:inherit"><span class="t">${esc(x.t||'Untitled')}</span><span class="m"><i style="--c:${itemColor(x.it)}"></i>${esc(x.m||'')}</span></a>`).join('')}</div></section>`
@@ -739,6 +774,7 @@ $('#side').addEventListener('click', async e => {
   if(act==='app-menu') return appMenu(a);
 });
 $('#q').addEventListener('input', e => { S.q = e.target.value; render(true); });
+$('#sideRes').addEventListener('click', e => { if(e.target.closest('a.sr-row')){ S.q=''; $('#q').value=''; document.body.classList.remove('side-open'); requestAnimationFrame(()=>render(true)); } });
 $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagation(); e.target.value=''; S.q=''; render(true); e.target.blur(); } if(e.key==='Enter') document.body.classList.remove('side-open'); });
 $('#barNew').addEventListener('click', () => openNewItem({opener:$('#barNew')}));
 $('#sideToggle').addEventListener('click', () => {
@@ -747,13 +783,13 @@ $('#sideToggle').addEventListener('click', () => {
 });
 $('#sideScrim').addEventListener('click', () => document.body.classList.remove('side-open'));
 $('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
-/* dock: Filter opens the same Filter panel as before; + New task is the `n` shortcut (on a Kanban page) */
+/* dock: Filter opens the same Filter panel as before; + New task opens the new-task sheet (on a Kanban page) */
 $('#dock').addEventListener('click', e => {
   const k = currentItem(); if(!k || k.type!=='kanban') return;
   if(e.target.closest('#dkFilter')){ S.filtersOpen = !S.filtersOpen; render(true); restoreFocus('#dkFilter'); return; }
   if(e.target.closest('#dkNew')){
     const V = S.tasksView; if((V.mode||'board')!=='board'){ V.mode='board'; ls.set('lo.tasksMode','board'); }   // new tasks are added on the board
-    S.filtersOpen = false; TYPE_VIEWS.kanban.newShortcut(k);
+    S.filtersOpen = false; TYPE_VIEWS.kanban.openNewTask(k, e.target.closest('#dkNew'));   // phone: a small bottom sheet (stack, status, name); the N key and the column + buttons are unchanged
   }
 });
 /* What's new: hover the version on desktop, tap it on a phone */
@@ -992,7 +1028,7 @@ function openNewItem({folderId, type='page', opener}={}){
   const side = $('#side');
   let g = null;
   const hScroller = el => { for(let n=el; n && n!==document.body; n=n.parentElement){ if(n.scrollWidth>n.clientWidth+2 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return n; } return null; };
-  const boardScroller = () => $('#content [data-hs]');
+  const boardScroller = () => matchMedia('(max-width:760px)').matches && $('#content .lane-cols') ? null : $('#content [data-hs]');   // phone Kanban: each stack's row of columns scrolls natively
   function snapPoints(sc){ const r=sc.getBoundingClientRect(); const first=sc.querySelector('.col'); if(!first) return [0]; const row=first.parentElement; return $$(':scope > .col', row).map(el=>Math.max(0, Math.min(el.getBoundingClientRect().left - r.left + sc.scrollLeft - (parseFloat(getComputedStyle(sc).paddingLeft)||0), sc.scrollWidth-sc.clientWidth))); }
   document.addEventListener('touchstart', e => {
     g = null;
@@ -1033,6 +1069,9 @@ function openNewItem({folderId, type='page', opener}={}){
   document.addEventListener('touchend', end, {passive:true});
   document.addEventListener('touchcancel', end, {passive:true});
 })();
+
+/* the Bills list is stacked rows on a phone and a table on a wider screen: redraw if the window crosses that line (rotation, split view) */
+matchMedia('(max-width:760px)').addEventListener?.('change', () => { if(currentItem()?.type==='bills' && !modalOpen() && !window.__sheetOpen) render(true); });
 
 /* ----- shortcuts ----- */
 function openKeys(opener){

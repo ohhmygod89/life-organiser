@@ -1,6 +1,6 @@
 # Redesign (Pulse) — design system notes
 
-Branch `redesign`, version `1.0.0-beta.29.redesign.4`. Front end only: no feature, data, storage or behaviour changes.
+Branch `redesign`, version `1.0.0-beta.29.redesign.5`. Front end only, except the two behaviour changes approved in round 4 (phone new-task sheet, phone one-column Kanban).
 All new CSS is one block at the end of `src/styles.css` (`/* ===== REDESIGN (Pulse) ===== */`); it overrides the older layers instead of deleting them.
 
 ## Look
@@ -73,3 +73,13 @@ Layout and spacing may change; features and behaviour do not. Everything below i
 - **Top bar** has a black "New item" pill (same action as the sidebar New item and the N key); hidden on phones.
 - **Density**: card titles 15px, rows 13px, captions 11.5px, cards 16-20px padding, radius 20-22, gaps 12-14, hairline separators; Kanban chips/cards/columns tightened; tables get small uppercase headers. Desktop (mouse) body type is 13.5px; touch keeps roomier sizes, 16px inputs and 40px tap targets.
 - **Home**: title then grey date; on phones the "Coming up" date sits under the title so titles keep the whole row.
+
+## Round 4 (redesign.5): design-critique fixes
+Last CSS block in `styles.css` ("round 4") plus small JS changes. Two approved behaviour changes, everything else front end only; Home and Bills count definitions untouched.
+- **Phone "+ New task"** (dock) opens a bottom sheet (`#nsheet`, `openNewTask` in `kanban.js`): 16px autofocused title, stack picker (filtered stack, else first), status picker (To Do), Add / Enter, Esc / scrim / swipe-down cancel, kept above the iOS keyboard (`visualViewport` in `core.js`), same `addTask` path, toast with Open. Desktop `N` and the inline "+" are unchanged.
+- **Phone Kanban** shows one column at a time: per-stack scroll-snap row of ~86vw columns with To Do / In Progress / Done tabs and counts; card drag between columns still works with horizontal edge auto-scroll. Desktop lanes unchanged.
+- **Gradient contrast**: white text kept; deeper stop under the text, bloom top-right, soft dark radial scrim; captions 13px/500; item-header eyebrow fixed.
+- **Bills on phone**: stacked rows list, timeline opens at today's month, no orphan middle dot (non-breaking dot).
+- **Tap targets**: 40x40 hit areas on touch (`::after` where the visible size must stay), card priority bars non-interactive on touch.
+- **Labels**: one `--lbl` colour token (>= 4.5:1 light and dark), 11px minimum; readable breadcrumb separator; real 2px focus outlines on Home tiles, item header title and search; timeline Today is a black pill over a red line and the line is masked under outside bar labels; Tracker notes wrap (textarea) and the Note column width bug is gone; search empty copy differs for touch; phone menu shows matches while typing; page block X became a block options menu (undo kept); dialogs trap Tab; stack colour is id-hashed; "Due in 7 days" fits one line on phone.
+- **Tokens**: font sizes `--fs-2xs..--fs-3xl` (8 steps), radii `--r-s..--r-2xl` + `--r-pill`, stray shadows folded into `--shadow` / `--shadow-lift`.
