@@ -16,7 +16,15 @@ if(window.Sortable){ const make = Sortable.create.bind(Sortable);
   const off = () => document.body.classList.remove('no-select');
   Sortable.create = (el, o={}) => make(el, {forceFallback:true, fallbackOnBody:true, ...o,
     onChoose(e){ on(); o.onChoose?.(e); }, onUnchoose(e){ off(); o.onUnchoose?.(e); },
-    onStart(e){ on(); active = true; o.onStart?.(e); }, onEnd(e){ off(); active = false; o.onEnd?.(e); }});
+    onStart(e){ on(); active = true; o.onStart?.(e); }, onEnd(e){ off(); active = false; o.onEnd?.(e); sweepSoon(); }});
+  /* After a drop nothing of the drag may stay on screen: remove any leftover floating copy of the dragged element
+     (Sortable's fallback clone) and its highlight classes once no drag is running. */
+  const sweep = () => { if(active) return;
+    $$('body > .sortable-fallback, body > .dragging').forEach(el => el.remove());
+    $$('.sortable-chosen, .sortable-ghost, .sortable-drag, .ghost-card, .gt-ghostrow, .gt-chosen').forEach(el => el.classList.remove('sortable-chosen','sortable-ghost','sortable-drag','ghost-card','gt-ghostrow','gt-chosen'));
+    if(!document.querySelector('.sortable-fallback, body > .dragging')) off(); };
+  const sweepSoon = () => { setTimeout(sweep, 0); setTimeout(sweep, 400); };
+  document.addEventListener('pointerup', () => { if(!active) sweepSoon(); }, true);
   /* If the mouse is released outside the page (e.g. over the window around the app), the page never hears it and the
      card would stay "held". The next move with no button down, or the window losing focus, finishes the drop there. */
   let active = false, last = {x:0, y:0};
@@ -26,6 +34,12 @@ if(window.Sortable){ const make = Sortable.create.bind(Sortable);
   document.addEventListener('pointermove', e => { if(!active || e.pointerType!=='mouse') return; last = {x:e.clientX, y:e.clientY}; if(e.buttons===0) release(); }, true);
   document.addEventListener('mousemove', e => { if(active && e.buttons===0) release(); }, true);
   window.addEventListener('blur', release); }
+/* No browser typing suggestions (the remembered-entries dropdown) in any box: every input and text area, including
+   ones drawn later, gets autocomplete="off". Spell check and the app's own lists (e.g. bill categories) still work. */
+{ const noSuggest = root => (root.querySelectorAll ? root : document).querySelectorAll('input:not([autocomplete]), textarea:not([autocomplete])').forEach(el => el.setAttribute('autocomplete','off'));
+  noSuggest(document);
+  new MutationObserver(ms => { for(const m of ms) for(const n of m.addedNodes) if(n.nodeType===1){ if(n.matches('input, textarea') && !n.hasAttribute('autocomplete')) n.setAttribute('autocomplete','off'); else noSuggest(n); } })
+    .observe(document.documentElement, {childList:true, subtree:true}); }
 /* Right-click does nothing unless a feature offers its own menu there (menu items, cards). Text fields keep the
    browser's menu for copy, paste and spelling. */
 document.addEventListener('contextmenu', e => { if(e.defaultPrevented || e.target.closest?.('input, textarea, [contenteditable="true"], [contenteditable="plaintext-only"]')) return; e.preventDefault(); });

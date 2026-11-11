@@ -2,6 +2,13 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.3] - 2026-11-11
+### Changed
+- Desktop: when the sidebar is hidden, only its show/hide icon shows. Point at it to open the sidebar; click it to keep the sidebar open.
+- No browser typing suggestions in any box.
+### Fixed
+- After dragging a card, a copy of it could stay floating over the board even though the card had moved. It is now cleared as soon as the drag ends.
+
 ## [1.0.1-beta.2] - 2026-11-11
 ### Changed
 - Desktop sidebar hides itself to a thin strip of icons and opens when you point at it (or tab into it). The button at its top keeps it open; [ does the same.
