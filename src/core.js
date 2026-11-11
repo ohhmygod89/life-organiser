@@ -169,7 +169,8 @@ const blocksOf = pid => S.items.filter(i=>i.parent===pid && i.type!=='stack').so
 const Store = {
   db:null, chains:{},
   async connect(){
-    if(!window.claude || typeof window.claude.use!=='function'){ this.db = DemoDB(); this.demo = true; return true; }
+    if(window.LO_MODE==='firebase'){ this.db = await FireDB.connect(); this.fire = !!this.db; return !!this.db; }   // GitHub Pages: your own encrypted Firebase
+    if(window.LO_MODE==='demo' || !window.claude || typeof window.claude.use!=='function'){ this.db = DemoDB(); this.demo = true; return true; }
     this.db = await window.claude.use('db'); return !!this.db;
   },
   watch(col, onData, onErr){ return this.db.collection(col).onSnapshot(s => onData(s.docs.map(d=>({...d.data(), id:d.id})), s.metadata?.fromCache), onErr); },
@@ -918,9 +919,12 @@ function appMenu(anchor){
     {sep:true}, {head:'Appearance'},
     {label:'Match system', value:'t-system', checked:theme==='system'}, {label:'Light', value:'t-light', checked:theme==='light'}, {label:'Dark', value:'t-dark', checked:theme==='dark'},
     {sep:true}, {label:'Status flags…', value:'flags'}, {label:'Export…', value:'export'}, {label:'Import…', value:'import'}, ...(ls.get('lo.preImport','')?[{label:'Undo last import…', value:'undoimport'}]:[]), ...(Store.demo?[{label:'Reset demo data', value:'reset'}]:[]), ...(TOUCH?[]:[{label:'Keyboard shortcuts', value:'keys', kbd:'?'}]),
+    ...(Store.fire ? [{sep:true}, {label:(Store.db.user?.email||'Signed in'), value:'acct', disabled:true}, {label:'Lock', value:'lock'}, {label:'Sign out', value:'signout'}] : []),
     {sep:true}, {head:bkLastLabel()}, {head:'Version '+APP_VERSION},
   ], v => {
     if(v==='new') openNewItem({opener:anchor});
+    if(v==='lock') Store.db.lock();
+    if(v==='signout') Store.db.signOut();
     if(v==='folder') newFolder(anchor);
     if(v.startsWith('t-')){ setTheme(v.slice(2)); }
     if(v==='flags') TYPE_VIEWS.kanban.openFlagsModal(anchor);
@@ -1165,7 +1169,9 @@ async function start(){
   render(true);
   if(!(await Store.connect())){
     S.loaded = {folders:true, items:true, tasks:true, rows:true};
-    $('#content').innerHTML = `<div class="wrap"><div class="notice">Your organiser couldn’t load here. Open this page in Claude while signed in, so it can sync between your phone and computer.</div></div>`;
+    $('#content').innerHTML = window.LO_MODE==='firebase'
+      ? `<div class="wrap"><div class="notice">Your organiser couldn’t connect. Check your internet connection, then reload the page.</div></div>`
+      : `<div class="wrap"><div class="notice">Your organiser couldn’t load here. Open this page in Claude while signed in, so it can sync between your phone and computer.</div></div>`;
     renderSide(); return;
   }
   if(Store.demo){ const c=$('#demoChip'); if(c) c.hidden=false; }

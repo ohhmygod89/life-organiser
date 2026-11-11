@@ -2,6 +2,12 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.5] - 2026-11-11
+### Added
+- The GitHub Pages site is now your own organiser: sign in with your email and password, then unlock with your passphrase. Everything is encrypted on your device before it is saved to your Firebase database, so only you can read it. It syncs between your devices and works offline.
+- "Remember on this device" skips the passphrase next time. Lock (app menu) asks for it again; Sign out signs you out and forgets it.
+- The demo with sample data moved to /demo.
+
 ## [1.0.1-beta.4] - 2026-11-11
 ### Fixed
 - Desktop sidebar opens and closes smoothly: it slides out and back instead of popping in, labels no longer squeeze while it moves, and nothing is left hanging over the page when it closes. Keeping it open (or letting it auto-hide) now slides the page across instead of jumping.

@@ -2484,3 +2484,21 @@ body.nav-dragging .nav-folder .nav-list > .nav-empty:only-child{height:auto;min-
 /* Stack names: larger, so each stack stands out */
 .lane-hi .lane-name{font-size:var(--fs-xl)!important;font-weight:600;letter-spacing:-.025em}
 .lane-hi .count{font-size:var(--fs-s)}
+
+/* ===== Lock screen (GitHub Pages app): sign in, then passphrase ===== */
+body.locked > :not(#lock):not(script){visibility:hidden}
+.lock{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:var(--bg);
+  padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow:auto}
+.lock-card{width:min(400px,100%);background:var(--panel);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:28px 24px;display:flex;flex-direction:column;gap:12px}
+.lock-brand{margin:0;font-size:var(--fs-s);font-weight:600;color:var(--muted)}
+.lock h1{margin:0;font-size:var(--fs-xl);font-weight:600;letter-spacing:-.02em}
+.lock-p{margin:0;font-size:var(--fs-m);color:var(--muted);line-height:1.45}
+.lock-p b{color:var(--fg);font-weight:600}
+.lock-f{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+.lock-f label{display:flex;flex-direction:column;gap:6px;font-size:var(--fs-s);font-weight:500;color:var(--muted)}
+.lock-f input[type=email],.lock-f input[type=password]{font:inherit;font-size:16px;color:var(--fg);background:var(--fill-2);border:0;border-radius:var(--r-m);padding:12px 14px;min-height:44px}
+.lock-f input:focus-visible{outline:2px solid var(--fg);outline-offset:1px}
+.lock-f .lock-chk{flex-direction:row;align-items:center;gap:10px;color:var(--fg);font-weight:400;font-size:var(--fs-m)}
+.lock-f .lock-chk input{width:20px;height:20px;accent-color:var(--fg)}
+.lock-f .pill{min-height:44px;justify-content:center;font-size:var(--fs-m);width:100%}
+.lock-err{margin:0;color:var(--down);font-size:var(--fs-s)}

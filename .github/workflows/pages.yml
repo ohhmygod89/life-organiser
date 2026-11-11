@@ -31,6 +31,7 @@ jobs:
         run: |
           mkdir -p _site
           cp dist/index.html _site/index.html
+          mkdir -p _site/demo && cp dist/demo/index.html _site/demo/index.html
           cp VERSION _site/version.txt
       - name: Tag the release from VERSION
         run: |
