@@ -35,7 +35,7 @@ TYPE_VIEWS.gantt = (() => {
   let collapsed; try{ collapsed = new Set(JSON.parse(lsGet('lo.gcCollapsed', '[]'))); }catch(e){ collapsed = new Set(); }
   const st = {
     zoom: ZOOMS[lsGet('lo.gcZoom', 'month')] ? lsGet('lo.gcZoom', 'month') : 'month', fit:null,
-    grid: lsGet('lo.gcGrid', '1') !== '0', gw: +lsGet('lo.gcGw', 0) || 0,
+    grid: lsGet('lo.gcGrid', matchMedia('(max-width:860px)').matches ? '0' : '1') !== '0', gw: +lsGet('lo.gcGw', 0) || 0,
     sel:null, selDep:null, reveal:null,
   };
   const views = {};   // per Gantt: {lo, hi, ax (day at the left edge of the timeline, fractional), sy}
