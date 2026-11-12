@@ -2,6 +2,14 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.10] - 2026-11-11
+### Changed
+- The item name box in the header hugs the text instead of a tall block.
+- Title colour menu has "No colour" for a plain header card.
+### Fixed
+- Editing a card title looks the same whether or not the mouse is over it.
+- The item name box is measured from the real text, so the cursor never sits outside it.
+
 ## [1.0.1-beta.9] - 2026-11-11
 ### Changed
 - Desktop item pages use the same gradient header card as the phone; right-click it to choose its colour.

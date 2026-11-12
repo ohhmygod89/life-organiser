@@ -537,18 +537,21 @@ function renderContent(){
 /* The item title field is only as wide as its text (plus room to type), not the full width */
 function fitTitle(el = $('#itemTitle')){
   if(!el) return;
-  const m = fitTitle.m || (fitTitle.m = document.createElement('canvas').getContext('2d')); const cs = getComputedStyle(el);
-  m.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  const ls = parseFloat(cs.letterSpacing)||0, txt = el.value || el.placeholder;
-  const w = m.measureText(txt).width + ls*txt.length + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 18;
-  el.style.width = Math.ceil(w) + 'px';
+  /* measure a hidden copy of the text in the field's own font, so the box always fits the real text (and the caret stays inside it) */
+  const m = fitTitle.m || (fitTitle.m = Object.assign(document.createElement('span'), {className:'title-measure'}));
+  const cs = getComputedStyle(el);
+  for(const k of ['fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','fontFeatureSettings','fontVariationSettings']) m.style[k] = cs[k];
+  m.textContent = el.value || el.placeholder || ' ';
+  (el.parentNode || document.body).appendChild(m);
+  const w = m.getBoundingClientRect().width; m.remove();
+  el.style.width = Math.ceil(w + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 3) + 'px';
 }
 const yearDate = iso => { const d=new Date(iso); return d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear(); };   // 11 Nov 2026
 /* Item header colour: chosen per item (kept with the item, so it syncs), else the type's default */
-const headPal = it => TILE_PALS.some(x=>x[0]===it.pal) ? it.pal : (PALETTE_BY_TYPE[it.type]||'lav');
+const headPal = it => it.pal==='none' ? 'none' : TILE_PALS.some(x=>x[0]===it.pal) ? it.pal : (PALETTE_BY_TYPE[it.type]||'lav');
 function headMenu(it, at){
-  const sw = (k, name) => `<i class="sw pal-${k}" aria-hidden="true"></i><span>${esc(name)}</span>`, cur = TILE_PALS.some(x=>x[0]===it.pal) ? it.pal : '';
-  openMenu(at, [{head:'Title colour'}, {html:sw(PALETTE_BY_TYPE[it.type]||'lav','Default'), label:'Default', value:'', checked:!cur}, {sep:true}, ...TILE_PALS.map(([k,n])=>({html:sw(k,n), label:n, value:k, checked:cur===k}))],
+  const sw = (k, name) => `<i class="sw pal-${k}" aria-hidden="true"></i><span>${esc(name)}</span>`, cur = it.pal==='none' || TILE_PALS.some(x=>x[0]===it.pal) ? it.pal : '';
+  openMenu(at, [{head:'Title colour'}, {html:sw(PALETTE_BY_TYPE[it.type]||'lav','Default'), label:'Default', value:'', checked:!cur}, {sep:true}, ...TILE_PALS.map(([k,n])=>({html:sw(k,n), label:n, value:k, checked:cur===k})), {sep:true}, {html:sw('none','No colour'), label:'No colour', value:'none', checked:cur==='none'}],
     v => { docPatch('items', it.id, {pal:v}); render(true); }, 'Title colour', 'menu-pal');
 }
 function headHTML(it){

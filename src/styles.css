@@ -2529,3 +2529,22 @@ body{cursor:default}
 .card .tt[contenteditable],.card .ctt[contenteditable]{padding:1px 14px 1px 4px;margin:-1px -4px}
 /* desktop header card: the mobile gradient card, a bit shorter */
 @media (min-width:861px){ .ihead{min-height:150px} }
+
+/* ===== 1.0.1-beta.10 ===== */
+.title-measure{position:absolute;visibility:hidden;white-space:pre;pointer-events:none;left:-9999px;top:0}
+/* header title box: hugs the text (not a tall slab) */
+.ihead .title-in{line-height:1.08;padding:1px 10px;margin-left:-10px;border-radius:12px}
+/* "No colour" header: a plain card with dark text */
+.ihead.pal-none{background:var(--panel)!important;color:var(--fg);text-shadow:none;box-shadow:var(--shadow-card)}
+.ihead.pal-none::before,.ihead.pal-none::after{display:none}
+.ihead.pal-none .title-in{color:var(--fg);text-shadow:none}
+.ihead.pal-none .title-in::placeholder{color:var(--muted)}
+.ihead.pal-none .title-in:hover{background:var(--fill-2)}
+.ihead.pal-none .title-in:focus,.ihead.pal-none .title-in:focus-visible{background:var(--fill-2)!important}
+.ihead.pal-none .eyebrow{color:var(--muted)}
+.ihead.pal-none .ti{background:var(--fill-2);color:var(--fg);box-shadow:none}
+.menu .sw.pal-none{background:var(--panel);box-shadow:inset 0 0 0 1.5px var(--sep)}
+/* editing always looks the same, whether or not the mouse is over the field (hover never overrides editing) */
+.card:not(.is-done) .tt[contenteditable],.card:not(.is-done) .tt[contenteditable]:hover,.card .ctt[contenteditable],.card .ctt[contenteditable]:hover{background:var(--panel);box-shadow:0 0 0 2px var(--accent-ring)}
+:is(.lane-name,.blk-name,.log-t):focus,:is(.lane-name,.blk-name,.log-t):focus:hover{background:var(--panel)}
+.lane-hi .lane-name:focus,.lane-hi .lane-name:focus:hover{background:var(--panel)}
