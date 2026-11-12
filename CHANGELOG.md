@@ -2,6 +2,13 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.11] - 2026-11-11
+### Added
+- Gantt chart: a new item type. A task table (Name, Start, Due, Days) with collapsible sections beside a scrollable timeline; Week / Month / Quarter / Year zoom, Today, Auto fit and a today line.
+- Drag bars to move them, drag their ends to change dates, or drag across an empty row to draw one. Milestones, progress, and finish-to-start dependencies (drag from a bar's end dot; overlaps show in red). Undo after every change.
+- Click a task for its panel; right-click (desktop) or double-tap (phone) for its menu. Keyboard: arrows to select, ⌥←/→ to move, ⌥⇧←/→ to change the due date.
+- Gantt tasks use the same fields as Kanban tasks (ready for a future merge) but stay out of Kanban and Home counts.
+
 ## [1.0.1-beta.10] - 2026-11-11
 ### Changed
 - The item name box in the header hugs the text instead of a tall block.
