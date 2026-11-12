@@ -2748,3 +2748,32 @@ body > .gc-row.sortable-fallback .gc-nm{flex:1;font-size:13px}
 .card:not(.is-done) .tt[contenteditable],.card:not(.is-done) .tt[contenteditable]:hover,.card .ctt[contenteditable],.card .ctt[contenteditable]:hover{background:var(--panel);box-shadow:0 0 0 2px var(--accent-ring)}
 :is(.lane-name,.blk-name,.log-t):focus,:is(.lane-name,.blk-name,.log-t):focus:hover{background:var(--panel)}
 .lane-hi .lane-name:focus,.lane-hi .lane-name:focus:hover{background:var(--panel)}
+
+/* ===== Inline editing: no border, outline or ring anywhere — only a soft background ===== */
+:root{--edit-hover:color-mix(in srgb,var(--fg) 4%,transparent);--edit-bg:color-mix(in srgb,var(--fg) 7%,transparent)}
+/* text that edits in place (header title, stack names, card titles and subtasks, page block names, task updates, Gantt names) */
+:is(.lane-name,.blk-name,.log-t,.t-input,.ci input[type=text],input.gc-nm,.gc-dn,.gc-addin):is(:focus,:focus-visible),
+:is(.lane-name,.blk-name,.log-t,.t-input,.ci input[type=text],input.gc-nm,.gc-dn,.gc-addin):is(:focus,:focus-visible):hover,
+.lane-hi .lane-name:is(:focus,:focus-visible),.lane-hi .lane-name:is(:focus,:focus-visible):hover{outline:none!important;box-shadow:none!important;background:var(--edit-bg)!important}
+:is(.lane-name,.blk-name,.log-t,.t-input,.ci input[type=text]):hover,.lane-hi .lane-name:hover{background:var(--edit-hover)}
+.card .tt[contenteditable],.card .tt[contenteditable]:hover,.card:not(.is-done) .tt[contenteditable],.card:not(.is-done) .tt[contenteditable]:hover,
+.card .ctt[contenteditable],.card .ctt[contenteditable]:hover{outline:none!important;box-shadow:none!important;background:var(--edit-bg)!important}
+.ihead .title-in:is(:focus,:focus-visible){outline:none!important;box-shadow:none!important}
+.ihead.pal-none .title-in:is(:focus,:focus-visible){background:var(--edit-bg)!important}
+/* boxed fields (task window, forms): the box just deepens a little while you type */
+:is(.field-in,.txt-in,.prop-in,.sheet textarea.notes,.ci-f .ci-who,.note-edit,.add-input):is(:focus,:focus-visible){outline:none!important;box-shadow:none!important;background:var(--fill)!important}
+.nsheet .ns-in:is(:focus,:focus-visible):not([aria-invalid="true"]){outline:none!important;box-shadow:none!important;background:var(--fill)!important}
+/* the edit box hugs its text, so the caret always sits right after the last letter */
+.ihead .title-in{padding:0 8px;margin-left:-8px;border-radius:9px}
+
+/* ===== Item header card: compact, like a Pulse hero card ===== */
+@media (min-width:861px){
+  .ihead{min-height:98px;padding:14px 20px 15px 22px}
+  .ihead .title-in{font-size:29px;line-height:1.12;letter-spacing:-.035em;max-width:calc(100% - 44px)}
+  .ihead .eyebrow{margin-top:1px;line-height:1.3}
+}
+@media (max-width:860px){
+  .ihead{min-height:86px;padding:12px 16px 13px 18px}
+  .ihead .title-in{font-size:26px!important;line-height:1.12;max-width:calc(100% - 40px)}
+  .ihead .eyebrow{margin-top:1px;line-height:1.3}
+}

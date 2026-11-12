@@ -346,7 +346,7 @@ TYPE_VIEWS.kanban = (() => {
       if(tap && tap.id===id){ clearTimeout(tap.timer); tap=null; const t=S.tasks.find(x=>x.id===id); const r=card.getBoundingClientRect();
         if(t) openMenu({getBoundingClientRect:()=>({left:r.left+12, right:r.left+12, top:r.top+20, bottom:r.top+20, width:0, height:0}), setAttribute(){}, focus(){}}, cardMenuItems(t), v => cardAction(v, t, card, {clientX:r.left+r.width/2, clientY:r.top+r.height/2}), 'Card');
         return true; }
-      clearTimeout(tap?.timer); tap = {id, timer:setTimeout(() => { tap=null; if(card.isConnected) openSheet(id, card); }, 260)}; return true; }
+      clearTimeout(tap?.timer); tap = {id, timer:setTimeout(() => { tap=null; const c = card.isConnected ? card : document.querySelector(`.card[data-id="${CSS.escape(id)}"]`); if(c) openSheet(id, c); }, 260)}; return true; }   // a redraw in between (a field you just left saving) swaps in a fresh copy of the card
     if(card){ openSheet(card.dataset.id, card); return true; }
     return false;
   }

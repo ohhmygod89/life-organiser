@@ -387,9 +387,31 @@ window.addEventListener('hashchange', () => {
 /* ---------- render ---------- */
 let contentPending = false;
 function isEditing(){ const a=document.activeElement; return !!a && $('#content').contains(a) && a.matches('input:not([type=checkbox]):not([type=date]),textarea,[contenteditable="true"],[contenteditable="plaintext-only"]'); }
+/* One click moves editing from one field to the next. Leaving a field (its blur/change on mousedown) saves and asks for a
+   redraw; while the button is still down that redraw waits until the click has landed, so the field under the pointer is
+   still the one the click reaches (otherwise the redraw swaps it out and the first click only ends the old edit). */
+let ptrHold = 0;
+document.addEventListener('pointerdown', e => { if(e.button===0) ptrHold = performance.now(); }, true);
+const ptrRelease = () => { if(!ptrHold) return; ptrHold = 0; if(contentPending) setTimeout(() => { if(contentPending && !ptrHold) render(); }, 0); };   // after the click: a plain render waits again if the click started a new edit
+let ptrT = 0;
+['click','pointercancel','dragstart'].forEach(t => document.addEventListener(t, () => { clearTimeout(ptrT); ptrRelease(); }, true));
+/* mouse: release on button up (drags end there); touch: the field change happens later, with the tap's click, so wait for it */
+document.addEventListener('pointerup', e => { clearTimeout(ptrT); if(e.pointerType==='mouse') ptrRelease(); else ptrT = setTimeout(ptrRelease, 600); }, true);
+window.addEventListener('blur', ptrRelease);
+/* No stray text cursor: a click on plain text or empty space leaves a collapsed selection there, which browsers with caret
+   browsing on (F7 in Chrome/Edge) draw as a blinking caret, e.g. just after the item title in the header card. A caret
+   belongs only in a field you are typing in, so drop any collapsed selection outside one. */
+function clearStrayCaret(){
+  const s = getSelection(); if(!s || !s.rangeCount || !s.isCollapsed) return;
+  const a = document.activeElement; if(a && (a.matches('input,textarea,select') || a.isContentEditable)) return;
+  const n = s.anchorNode, el = n && (n.nodeType===1 ? n : n.parentElement); if(el?.closest?.('[contenteditable]:not([contenteditable="false"])')) return;
+  s.removeAllRanges();
+}
+['pointerup','focusout'].forEach(t => document.addEventListener(t, () => setTimeout(clearStrayCaret, 0), true));
 function render(force){
   renderSide(); renderBar(); renderDock(); syncSideRes();
   if(S.dragging){ contentPending=true; return; }
+  if(ptrHold && performance.now()-ptrHold < 4000){ contentPending=true; return; }
   if(!force && isEditing()){ contentPending=true; return; }
   if(S.rendering){ contentPending=true; return; }
   contentPending=false;
