@@ -428,15 +428,20 @@ function renderSide(){
   const root = itemsOf(i=>navable(i) && (!i.folderId || !folderById(i.folderId)));
   let html = `<div class="nav-group"><div class="nav-lbl" id="navMain">Main</div>${navLink('home','Home',ICON.home)}</div>`;
   /* items without a folder first, then the folders; drag anything anywhere */
-  html += `<div class="nav-group nav-root"><div class="nav-list" data-list="items" data-fid="">${root.map(navItemHTML).join('')}${root.length?'':'<div class="nav-empty nav-drop-root">Drop here for no folder</div>'}</div></div>`;
+  html += `<div class="nav-group nav-root"><div class="nav-list" data-list="items" data-fid="">${root.map(navItemHTML).join('')}<div class="nav-empty nav-drop-root">Drop here for no folder</div></div></div>`;
   html += `<div class="nav-folders">${sortedFolders().map(f=>{ const open=!S.collapsed.has(f.id); const its=inFolder(f.id);
     return `<div class="nav-group nav-folder" data-fid="${esc(f.id)}" data-key="f-${esc(f.id)}"><div class="nav-h" data-folder="${esc(f.id)}"><button class="fold" data-act="fold" data-fid="${esc(f.id)}" aria-expanded="${open}">${ICON.chevD}<span>${esc(f.name)}</span></button>${TOUCH?`<button class="icon-btn mini" data-act="folder-menu" data-fid="${esc(f.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(f.name)} options">${ICON.more}</button>`:''}</div>
-      <div class="nav-list" data-list="items" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}${its.length?'':`<div class="nav-empty">Drag items here</div>`}</div></div>`; }).join('')}</div>`;
+      <div class="nav-list" data-list="items" data-fid="${esc(f.id)}" ${open?'':'hidden'}>${its.map(navItemHTML).join('')}<div class="nav-empty">Drag items here</div></div></div>`; }).join('')}</div>`;
   html += `<div class="side-foot"><div class="nav-lbl">Create</div><button class="nav-item" data-act="new-item"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New item</span>${TOUCH?'':'<kbd aria-hidden="true">N</kbd>'}</button><button class="nav-item" data-act="new-folder"><span class="ti plain" aria-hidden="true">${ICON.plus}</span><span class="nm">New folder</span></button></div>`;
   const fk = el.contains(document.activeElement) ? focusKey(document.activeElement) : null;
   navSortables.forEach(s=>s.destroy()); navSortables=[];
   el.innerHTML = html;
-  const opts = {animation:RM?0:150, delay:250, delayOnTouchOnly:true, fallbackTolerance:4, ghostClass:'ghost', onStart(){ S.dragging=true; document.body.classList.add('nav-dragging'); }, onEnd(){ S.dragging=false; document.body.classList.remove('nav-dragging'); saveNavOrder(); render(true); }};
+  const opts = {animation:RM?0:150, delay:250, delayOnTouchOnly:true, fallbackTolerance:4, ghostClass:'ghost', onStart(e){ S.dragging=true; document.body.classList.add('nav-dragging');
+      /* hold every list's height while dragging: the item's old spot keeps its space, and every other list has room for it,
+         so nothing below jumps as the item crosses between folders */
+      if(e.item.classList.contains('nav-item')){ const rh = e.item.offsetHeight + 2;
+        $$('#nav .nav-list').forEach(l => { if(l.hidden) return; const h = l.offsetHeight; l.style.minHeight = (l===e.from ? h : Math.max(h + rh, 36)) + 'px'; }); } },
+    onEnd(){ S.dragging=false; document.body.classList.remove('nav-dragging'); $$('#nav .nav-list').forEach(l => l.style.minHeight=''); saveNavOrder(); render(true); }};
   $$('.nav-list', el).forEach(list => navSortables.push(Sortable.create(list, {...opts, group:'nav-'+list.dataset.list, draggable:'.nav-item'})));
   const fl = $('.nav-folders', el); if(fl) navSortables.push(Sortable.create(fl, {...opts, draggable:'.nav-folder', handle:'.nav-h'}));
   if(fk) restoreFocus(fk, el);
@@ -550,7 +555,7 @@ function headHTML(it){
   const f = folderById(it.folderId);
   return `<div class="ihead pal-${headPal(it)}" data-hid="${esc(it.id)}"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
     <div class="ihead-t"><input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80">
-    <p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(yearDate(it.updated)):''}</p></div></div>`;
+    <p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(shortDate(it.updated)):''}</p></div></div>`;
 }
 
 /* ----- Home ----- */
@@ -816,7 +821,7 @@ content.addEventListener('change', e => {
 });
 content.addEventListener('keydown', e => {
   const it = currentItem();
-  if(e.target.id==='itemTitle' && e.key==='Enter'){ e.preventDefault(); e.target.blur(); return; }
+  if(e.target.matches?.('#itemTitle, .lane-name') && (e.key==='Enter' || e.key==='Escape')){ e.preventDefault(); if(e.key==='Escape' && e.target.id==='itemTitle'){ const it=currentItem(); if(it) e.target.value = it.name||''; fitTitle(e.target); } e.target.blur(); return; }
   if(it) TYPE_VIEWS[it.type]?.keydown?.(e, it);
 });
 

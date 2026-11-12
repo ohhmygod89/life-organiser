@@ -2,6 +2,17 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.9] - 2026-11-11
+### Changed
+- Desktop item pages use the same gradient header card as the phone; right-click it to choose its colour.
+- Dates leave out the year when it's this year.
+- Stack ↑ ↓ arrows sit on the right, next to ⋯.
+- Filter row: no dividers, more space between Show, Stacks, Include and View.
+### Fixed
+- Dragging items between sidebar folders no longer makes the list jump, and an emptied folder still takes drops.
+- Editing a card's title leaves room after the last character.
+- Esc leaves the item name and stack name, so no blinking cursor is left behind.
+
 ## [1.0.1-beta.8] - 2026-11-11
 ### Changed
 - Item titles on desktop are a gradient pill with white text; right-click the title to choose its colour (kept with the item, so it syncs).
