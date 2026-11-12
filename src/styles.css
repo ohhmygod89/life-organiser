@@ -2785,3 +2785,10 @@ body > .gc-row.sortable-fallback .gc-nm{flex:1;font-size:13px}
   .ihead .title-in{font-size:26px!important;line-height:1.12;max-width:calc(100% - 40px)}
   .ihead .eyebrow{margin-top:1px;line-height:1.3}
 }
+
+/* ===== 1.0.1-beta.13 ===== */
+/* "Pick a date…": the real date field shown beside the row */
+.pick-float{position:fixed!important;z-index:300;width:220px!important;height:auto!important;clip:auto!important;clip-path:none!important;overflow:visible!important;margin:0!important;
+  font:inherit;font-size:16px;color:var(--fg);background:var(--panel);border:0;border-radius:12px;padding:10px 12px;box-shadow:var(--pop-shadow);color-scheme:inherit}
+/* Ongoing column dot */
+.lcol.ongoing{--dc:#2bb3a8}

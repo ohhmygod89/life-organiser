@@ -6,6 +6,7 @@ TYPE_VIEWS.kanban = (() => {
   const COLS = [
     {id:'todo', name:'To Do', hint:''},
     {id:'doing', name:'In Progress', hint:''},
+    {id:'ongoing', name:'Ongoing', hint:'Continuous'},
     {id:'done', name:'Done', hint:'Newest first'},
     {id:'backburner', name:'Backburner', hint:'Parked'},
   ];
@@ -222,7 +223,9 @@ TYPE_VIEWS.kanban = (() => {
         /* Sortable may swallow the next click after a drag; release it so the first click on a card opens it */
         setTimeout(() => document.dispatchEvent(new MouseEvent('click', {bubbles:true})), 0); }
     })));
-    if(adding){ const a=$('#kbAdd'); if(a){ grow(a); a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); a.scrollIntoView({block:'nearest', inline:'nearest'}); } }
+    if(adding){ const a=$('#kbAdd'); if(a){ grow(a); a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length);
+      /* bring the box into view once the page has laid out (the dock and the keyboard cover the bottom on a phone) */
+      requestAnimationFrame(() => requestAnimationFrame(() => { const r = a.getBoundingClientRect(); if(r.top < 70 || r.bottom > innerHeight - 110) a.scrollIntoView({block:'center', inline:'nearest', behavior:RM?'auto':'smooth'}); })); } }
   }
 
   function view(it, root){ renderKanban(it, root); }
@@ -232,8 +235,8 @@ TYPE_VIEWS.kanban = (() => {
   /* a stack's dot colour comes from its id, not its position, so it stays the same when other stacks are filtered out */
   const STACK_PALS = ['lav','blue','coral','green','peach'];
   const stackPal = id => { let h = 0; for(const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return STACK_PALS[h % STACK_PALS.length]; };
-  function lanes(boards, root, {bb=false, test=null, done=true}={}){
-    const cols = COLS.filter(c => (bb || c.id!=='backburner') && (done && !test || c.id!=='done'));
+  function lanes(boards, root, {bb=false, og=false, test=null, done=true}={}){
+    const cols = COLS.filter(c => (bb || c.id!=='backburner') && (og || c.id!=='ongoing') && (done && !test || c.id!=='done'));
     if(adding && !boards.some(b=>b.id===adding.board)) adding = null;
     const keep = t => !test || test(t);
     root.innerHTML = `<div class="lanes" data-hs="lanes" style="--n:${cols.length}"><div class="lanes-in">` + boards.map(b => {
@@ -502,7 +505,21 @@ TYPE_VIEWS.kanban = (() => {
     if(e.target.dataset.ct){ e.preventDefault(); $('#fCheckNew')?.focus(); }
   });
   function flagItems(cur){ return [{label:'None', value:'', checked:!cur}, ...flags().map(fl=>({label:fl.label, value:fl.id, dot:colorOf(fl.color), checked:cur===fl.id}))]; }
-  function pickDate(id='fDue'){ const i=$('#'+id); if(!i) return; try{ i.showPicker(); }catch(e){ i.classList.remove('sr-only'); i.removeAttribute('aria-hidden'); i.focus(); } }
+  /* "Pick a date…": a real date field appears beside the row and opens. Browsers (Safari above all) won't open a picker
+     for a hidden field, so it is shown; if the picker still doesn't open by itself, tapping the field opens it. */
+  function pickDate(id='fDue', anchor){
+    const i=$('#'+id); if(!i) return;
+    const r = (anchor || $(id==='fDue'?'#pDue':'#pStart'))?.getBoundingClientRect();
+    i.classList.remove('sr-only'); i.removeAttribute('aria-hidden'); i.tabIndex = 0; i.classList.add('pick-float');
+    i.setAttribute('aria-label', id==='fDue' ? 'Due date' : 'Start date');
+    if(r){ /* the panel is transformed, so a fixed field is placed relative to the panel, not the screen */
+      const box = i.closest('.sheet'), t = box && getComputedStyle(box).transform !== 'none' ? box.getBoundingClientRect() : {left:0, top:0, width:innerWidth, height:innerHeight};
+      i.style.top = Math.min(t.height - 64, r.bottom - t.top + 6) + 'px'; i.style.left = Math.max(12, Math.min(t.width - 232, r.left - t.left)) + 'px'; }
+    const done = () => { i.classList.add('sr-only'); i.classList.remove('pick-float'); i.setAttribute('aria-hidden','true'); i.tabIndex = -1; i.removeAttribute('style'); };
+    i.addEventListener('blur', () => setTimeout(done, 150), {once:true});
+    i.focus({preventScroll:true});
+    try{ i.showPicker(); }catch(e){}
+  }
   sheet.addEventListener('click', e => {
     const t = cur(); if(!t) return;
     const sb = e.target.closest('[data-send]'); if(sb){ if(sb.dataset.send==='check') addCheck(); else addLog(); return; }
@@ -519,11 +536,11 @@ TYPE_VIEWS.kanban = (() => {
     if(pp) return openMenu(pp, ['high','med','low'].map(p=>({label:PRIO[p].label, value:p, checked:(t.priority||'low')===p})), v => { if(v===(t.priority||'low')) return; docPatch('tasks', t.id, {priority:v}); renderSheet(); markSaved(); render(); }, 'Priority');
     const pd = e.target.closest('#pDue');
     if(pd) return openMenu(pd, [...quickDates().map(([l,v])=>({label:`${l} · ${dateLabel(v)}`, value:v, checked:t.due===v})), {sep:true}, {label:'Pick a date…', value:'pick'}, ...(t.due?[{label:'No due date', value:'clear'}]:[])], v => {
-      if(v==='pick') return pickDate();
+      if(v==='pick') return pickDate('fDue', pd);
       setDates(t, {due:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Due date');
     const ps = e.target.closest('#pStart');
     if(ps) return openMenu(ps, [...quickDates().map(([l,v])=>({label:`${l} · ${dateLabel(v)}`, value:v, checked:t.start===v})), {sep:true}, {label:'Pick a date…', value:'pick'}, ...(t.start?[{label:'No start date', value:'clear'}]:[])], v => {
-      if(v==='pick') return pickDate('fStart');
+      if(v==='pick') return pickDate('fStart', ps);
       setDates(t, {start:v==='clear'?'':v}); renderSheet(); markSaved(); render(); }, 'Start date');
     const pf = e.target.closest('#pFlag');
     if(pf) return openMenu(pf, flagItems(t.flag), v => { if(v===(t.flag||'')) return; docPatch('tasks', t.id, {flag:v, ...(v!==t.flag?{flagWho:''}:{})}); renderSheet(); markSaved(); render(); const w=$('#fWho'); if(flagAsk(flagOf(v)) && w){ w.focus({preventScroll:true}); reveal(w); } }, 'Flag');

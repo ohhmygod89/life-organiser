@@ -2,6 +2,13 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.13] - 2026-11-12
+### Added
+- Kanban: an Ongoing column (between In Progress and Done), shown with the Ongoing switch under Include, like Backburner. Ongoing tasks count as open.
+### Fixed
+- "Pick a date…" in a task opens a date field right under the row (the picker didn't appear before).
+- Adding a card scrolls the page so the box you type in is in view.
+
 ## [1.0.1-beta.12] - 2026-11-11
 ### Changed
 - The item header card is compact (about 100px on desktop).

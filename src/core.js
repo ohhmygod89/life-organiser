@@ -154,7 +154,7 @@ const S = {
   loaded:{folders:false, items:false, tasks:false, rows:false},
   route:{v:'home', id:null}, q:'', dragging:false,
   collapsed:new Set(JSON.parse(ls.get('lo.collapsed','[]'))),
-  tasksView:{sort:ls.get('lo.sort','priority'), mode:ls.get('lo.tasksMode','board'), quick:'open', boards:new Set(), bb:false},
+  tasksView:{sort:ls.get('lo.sort','priority'), mode:ls.get('lo.tasksMode','board'), quick:'open', boards:new Set(), bb:false, og:ls.get('lo.showOngoing','0')==='1'},
   /* Done column: hidden by default on phones, shown on desktop; per device */
   showDone: ls.get('lo.showDone', matchMedia('(max-width:760px)').matches ? '0' : '1') === '1',
   archiveYear:null,
@@ -533,7 +533,7 @@ function tileMenu(tile, at){
 const tileAnchor = (tile, e) => { const r = tile.getBoundingClientRect(); const x = e && e.clientX ? Math.min(Math.max(e.clientX, r.left+12), r.right-12) : r.left+16;
   return {getBoundingClientRect:()=>({left:x, right:x, top:r.top+r.height*.55, bottom:r.top+r.height*.55, width:0, height:0}), setAttribute(){}, focus(){}}; };
 let tileTap = null;
-function kbFilterCount(){ const V = S.tasksView; return (V.quick!=='open') + V.boards.size + (V.bb?1:0); }   // filters away from the defaults
+function kbFilterCount(){ const V = S.tasksView; return (V.quick!=='open') + V.boards.size + (V.bb?1:0) + (V.og?1:0); }   // filters away from the defaults
 function renderDock(){
   const it = currentItem(), onK = !!it && it.type==='kanban' && !S.q;
   const f = $('#dkFilter'), n = $('#dkNew'); if(!f || !n) return;
@@ -681,7 +681,7 @@ const chipHTML = (t, cls='') => { const e=effFlag(t); const f=e&&flagOf(e.flag);
   return `<span class="chip ${cls}" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${who?' · '+esc(who):''}${e.from?' (subtask: '+esc(e.from.text)+')':''}">${esc(flagShort(f))}${who?` · ${esc(who)}`:''}</span>`; };
 const byDue = (a,b) => (a.due||'9999').localeCompare(b.due||'9999');
 function taskRow(t){
-  const b = itemById(t.boardId); const d = t.due ? dueLabel(t.due) : null; const col = {upcoming:'To Do',todo:'To Do',doing:'In Progress',done:'Done',backburner:'Backburner'}[t.col];
+  const b = itemById(t.boardId); const d = t.due ? dueLabel(t.due) : null; const col = {upcoming:'To Do',todo:'To Do',doing:'In Progress',ongoing:'Ongoing',done:'Done',backburner:'Backburner'}[t.col];
   return `<button class="lrow" data-open="task:${esc(t.id)}"><span class="t">${bangHTML(t.priority)}${esc(t.title||'Untitled')}${chipHTML(t)}</span><span class="m"><i style="--c:${itemColor(b)}"></i>${esc(b?.name||'')} · <span class="status ${t.col}">${col}</span></span><span class="r ${d?d.cls:''}">${d?esc(d.t):''}</span></button>`;
 }
 const doneYear = t => t.doneAt ? new Date(t.doneAt).getFullYear() : CUR_YEAR;
@@ -703,7 +703,7 @@ function renderKanban(k, root){
   const groups = mode==='archive' ? `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}${viewDD}</div>` : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
     <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}<button class="chip-btn add-stack" data-act="add-stack" title="Add a stack">${ICON.plus}Stack</button></div>
-    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
+    <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn" data-act="og" aria-pressed="${V.og}">Ongoing</button><button class="chip-btn" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
     ${viewDD}
   </div>`;
   /* one row: the filter groups, then Board · List · Archive at the right end (they never move between views) */
@@ -712,7 +712,7 @@ function renderKanban(k, root){
   if(!stacks.length){ root.innerHTML = `<div class="kb">${tabs}<div class="panel empty-state"><b>No stacks yet</b>A stack is a set of To Do, In Progress and Done columns, for example Home or Work. <button class="pill" data-act="add-stack" style="margin-top:12px">${ICON.plus} Add a stack</button></div></div>`; return; }
   if(mode==='board'){
     root.innerHTML = `<div class="kb tasks-board">${tabs}${shown.length ? '<div id="lanesRoot"></div>' : `<div class="panel empty-state">Pick a stack above.</div>`}</div>`;
-    if(shown.length) TYPE_VIEWS.kanban.lanes(shown, $('#lanesRoot'), {bb:V.bb, done:S.showDone, test: V.quick==='open' ? null : q.test});
+    if(shown.length) TYPE_VIEWS.kanban.lanes(shown, $('#lanesRoot'), {bb:V.bb, og:V.og, done:S.showDone, test: V.quick==='open' ? null : q.test});
     return;
   }
   if(mode==='timeline'){
@@ -743,6 +743,7 @@ function kanbanClick(e, k){
   const so = e.target.closest('[data-sort]'); if(so && !e.target.closest('.tbl')){ V.sort=so.dataset.sort; ls.set('lo.sort',so.dataset.sort); render(true); return true; }
   const fb = e.target.closest('[data-fb]'); if(fb){ const id=fb.dataset.fb, B=V.boards; if(!id) B.clear(); else B.has(id)?B.delete(id):B.add(id); render(true); return true; }
   if(e.target.closest('[data-act="bb"]')){ V.bb=!V.bb; render(true); return true; }
+  if(e.target.closest('[data-act="og"]')){ V.og=!V.og; ls.set('lo.showOngoing', V.og?'1':'0'); render(true); return true; }
   if(e.target.closest('[data-act="done"]')){ toggleShowDone(); return true; }
   if(e.target.closest('[data-act="add-stack"]')){ addStack(k, e.target.closest('[data-act]')); return true; }
   const sm = e.target.closest('[data-act="stack-menu"]');
