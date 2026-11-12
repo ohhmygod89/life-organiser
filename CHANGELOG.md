@@ -2,6 +2,16 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.12] - 2026-11-11
+### Changed
+- The item header card is compact (about 100px on desktop).
+- Editing any text shows only a soft background, no border.
+- Gantt: fills the whole screen; drag on empty space or the date header to pan; trackpad / Shift+wheel pans from anywhere over the chart; section rows have + (add task) and pencil (rename) icons instead of "Add task" lines; task names always sit to the right of their bar or diamond.
+### Fixed
+- Clicking another text while editing one starts editing it straight away.
+- No stray blinking cursor after clicking blank areas (seen with Chrome's caret browsing, F7).
+- Gantt: scrolling left into the earlier dates no longer stalls or jumps.
+
 ## [1.0.1-beta.11] - 2026-11-11
 ### Added
 - Gantt chart: a new item type. A task table (Name, Start, Due, Days) with collapsible sections beside a scrollable timeline; Week / Month / Quarter / Year zoom, Today, Auto fit and a today line.
