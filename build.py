@@ -39,7 +39,7 @@ doc = ('<!doctype html><html lang="en-AU"><head><meta charset="utf-8">'
 # Your real app lives on Firebase Hosting (dist/firebase/ -> life-organiser-7fc5f.web.app): Google sign-in + your encrypted data.
 # GitHub Pages shows the public demo with sample data (at / and /demo/).
 SITE = 'life-organiser-7fc5f.web.app'
-FIREBASE = {"apiKey":"AIzaSyAoOMq_oTa8WAy8TvIjmGhItv1BHQpZO8A","authDomain":SITE,"projectId":"life-organiser-7fc5f",
+FIREBASE = {"apiKey":"AIzaSyAoOMq_oTa8WAy8TvIjmGhItv1BHQpZO8A","authDomain":"life-organiser-7fc5f.firebaseapp.com","projectId":"life-organiser-7fc5f",
             "storageBucket":"life-organiser-7fc5f.firebasestorage.app","messagingSenderId":"1018557951375","appId":"1:1018557951375:web:4c4a7e6cea44e744b0affa"}
 FB = 'https://www.gstatic.com/firebasejs/10.14.1/'
 fb_scripts = ''.join(f'<script src="{FB}firebase-{m}-compat.js"></script>' for m in ('app','auth','firestore'))

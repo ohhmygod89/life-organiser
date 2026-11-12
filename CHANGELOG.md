@@ -2,6 +2,10 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.7] - 2026-11-11
+### Fixed
+- Google sign-in uses Firebase's own sign-in window, so it works without extra Google Cloud settings (it showed "redirect_uri_mismatch").
+
 ## [1.0.1-beta.6] - 2026-11-11
 ### Changed
 - Sign in with Google instead of an email and password. Your passphrase still encrypts everything, and "Remember on this device" means you type it once per device.
