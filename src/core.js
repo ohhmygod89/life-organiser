@@ -95,11 +95,14 @@ const ICON = {
    blocks (Text, Checklist, Table), and those live as items with a `parent`. */
 ICON.page = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M7.5 8h9M7.5 12h9M7.5 16h5" stroke-linecap="round"/></svg>';
 ICON.stack = ICON.kanban;
+ICON.gantt = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 5v14"/><rect x="6.5" y="4.5" width="8" height="4" rx="2"/><rect x="10.5" y="10" width="9" height="4" rx="2"/><rect x="7.5" y="15.5" width="6" height="4" rx="2"/></svg>';
 const TYPES = {
   kanban:    {label:'Kanban',     color:'slate',  desc:'Stacks of To Do / In Progress / Done columns you drag cards across.'},
   bills:     {label:'Bills',      color:'orange', desc:'Recurring bills and renewals on a yearly timeline, with paid ticks.'},
   tracker:   {label:'Tracker',    color:'indigo', desc:'Dated numbers with a chart: loan rate, balances, weight.'},
   page:      {label:'Page',       color:'amber',  desc:'A page you build from blocks: text, checklists and tables.'},
+  gantt:     {label:'Gantt chart',color:'blue',   desc:'Sections of tasks on a timeline: drag bars, link tasks that depend on each other.'},
+  gsection:  {label:'Section',    color:'blue',   part:true},
   stack:     {label:'Stack',      color:'slate',  part:true},
   note:      {label:'Text',       color:'amber',  part:true},
   checklist: {label:'Checklist',  color:'teal',   part:true},
@@ -160,9 +163,12 @@ const itemById = id => S.items.find(i=>i.id===id);
 const folderById = id => S.folders.find(f=>f.id===id);
 const itemsIn = fid => S.items.filter(i=>(i.folderId||'')===(fid||'')).sort((a,b)=>(a.order??0)-(b.order??0));
 const sortedFolders = () => S.folders.slice().sort((a,b)=>(a.order??0)-(b.order??0));
+/* A Gantt chart's tasks live in `tasks` like Kanban tasks, but their boardId is a Gantt section (an item of type 'gsection'). Everything that counts or lists Kanban tasks must skip them. */
+const isGanttTask = t => itemById(t.boardId)?.type==='gsection';
 const kanbans = () => S.items.filter(i=>i.type==='stack');                       // every stack, across all Kanbans
 const stacksOf = kid => S.items.filter(i=>i.type==='stack' && i.parent===kid).sort((a,b)=>(a.order??0)-(b.order??0)||(a.name||'').localeCompare(b.name||''));
-const blocksOf = pid => S.items.filter(i=>i.parent===pid && i.type!=='stack').sort((a,b)=>(a.order??0)-(b.order??0));
+const sectionsOf = gid => S.items.filter(i=>i.type==='gsection' && i.parent===gid).sort((a,b)=>(a.order??0)-(b.order??0)||(a.name||'').localeCompare(b.name||''));
+const blocksOf = pid => S.items.filter(i=>i.parent===pid && i.type!=='stack' && i.type!=='gsection').sort((a,b)=>(a.order??0)-(b.order??0));
 
 /* ---------- store: the only code that knows about the database.
    Swap this object for a PocketBase version later; the rest of the app stays the same. ---------- */
@@ -356,7 +362,9 @@ function promptModal({title, label, value='', action='Save', placeholder='', ope
     m.onkeydown = e => { if(e.key==='Enter' && e.target.id==='pIn'){ e.preventDefault(); done(true); } if(e.key==='Escape') res(null); };
   });
 }
-function refreshOverlays(){ if(window.__sheetOpen && TYPE_VIEWS.kanban?.refreshSheet) TYPE_VIEWS.kanban.refreshSheet(); }
+function refreshOverlays(){ if(window.__sheetOpen && TYPE_VIEWS.gantt?.sheetOpen()) TYPE_VIEWS.gantt.refreshSheet(); else if(window.__sheetOpen && TYPE_VIEWS.kanban?.refreshSheet) TYPE_VIEWS.kanban.refreshSheet(); }
+/* the task window is shared: a Gantt task's panel or a Kanban card's */
+function closeAnySheet(silent){ if(TYPE_VIEWS.gantt?.sheetOpen()) TYPE_VIEWS.gantt.closeSheet(silent); else TYPE_VIEWS.kanban.closeSheet(silent); }
 
 /* ---------- routing ---------- */
 function parseHash(){
@@ -372,7 +380,7 @@ function go(hash){
 window.addEventListener('hashchange', () => {
   S.route = parseHash(); S.q=''; const si=$('#q'); if(si) si.value='';
   document.body.classList.remove('side-open');
-  if(window.__sheetOpen) TYPE_VIEWS.kanban.closeSheet(true);
+  if(window.__sheetOpen) closeAnySheet(true);
   render(true); $('#content').scrollTop=0; window.scrollTo({top:0});
 });
 
@@ -413,11 +421,12 @@ function navItemHTML(it){
   let ct = '';
   if(it.type==='kanban'){ const ids = stacksOf(it.id).map(s=>s.id); ct = S.tasks.filter(t=>ids.includes(t.boardId) && !['done','backburner'].includes(t.col)).length || ''; }
   else if(it.type==='bills') ct = TYPE_VIEWS.bills.pending(it, 30).length || '';
+  else if(it.type==='gantt') ct = TYPE_VIEWS.gantt.openCount(it) || '';
   return `<a class="nav-item" draggable="false" href="#i-${esc(it.id)}" data-id="${esc(it.id)}" ${cur?'aria-current="page"':''} style="--c:${itemColor(it)}"><span class="ti" aria-hidden="true">${ICON[it.type]}</span><span class="nm">${esc(it.name||'Untitled')}</span>${ct!==''?`<span class="ct" aria-label="${esc(String(ct))}">${ct}</span>`:''}${TOUCH&&cur?`<button class="icon-btn mini nav-more" data-act="item-menu" data-iid="${esc(it.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(it.name)} options">${ICON.more}</button>`:''}</a>`;
 }
 /* Sidebar: Home · custom items (Kanbans, Bills, Trackers; drag to reorder) · folders of Pages (drag folders, and
    drag pages within or between folders) · unfiled Pages. Right-click an item or folder for its options. */
-const TYPE_GROUP = {kanban:'custom', bills:'custom', tracker:'custom', page:'page'};
+const TYPE_GROUP = {kanban:'custom', bills:'custom', tracker:'custom', gantt:'custom', page:'page'};
 const byOrder = (a,b) => (a.order??0)-(b.order??0) || (a.name||'').localeCompare(b.name||'');
 const itemsOf = (pred) => S.items.filter(i=>isTop(i) && pred(i)).sort(byOrder);
 function renderSide(){
@@ -484,7 +493,7 @@ function renderBar(){
 }
 
 /* ----- phone dock: ☰ always; Filter and + New task only on Kanban pages (CSS shows the dock on phones only) ----- */
-const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', page:'green'};   // item page header palette (see REDESIGN.md)
+const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', gantt:'pink', page:'green'};   // item page header palette (see REDESIGN.md)
 /* Home tile colours: a per-device preference kept in localStorage ("lo.tileColors", like theme and sort), chosen from a hidden menu
    (right-click, double-tap on a phone, Menu key / Shift+F10 on a focused tile). Absent = the default below. */
 const TILE_PALS = [['lav','Lavender'],['blue','Sky'],['coral','Coral'],['pink','Rose'],['peach','Peach'],['green','Mint']];
@@ -559,7 +568,7 @@ function headHTML(it){
 }
 
 /* ----- Home ----- */
-function openTasks(){ return S.tasks.filter(t => { const b=itemById(t.boardId); return b && !b.hidden && t.col!=='done' && t.col!=='backburner'; }); }
+function openTasks(){ return S.tasks.filter(t => { const b=itemById(t.boardId); return b && b.type!=='gsection' && !b.hidden && t.col!=='done' && t.col!=='backburner'; }); }   // Gantt tasks (boardId = a gsection) are not Kanban tasks
 const QUICK = [
   {id:'open', label:'Open tasks', cap:'across all stacks', test:()=>true, c:'#007aff', ic:'list'},
   {id:'overdue', label:'Overdue', cap:'past their due date', test:t=>t.due && dayDiff(t.due)<0, c:'#ff3b30', ic:'bang'},
@@ -755,7 +764,7 @@ function searchHits(){
     if(it.type==='bills') (it.bills||[]).filter(b=>[b.asset,b.category,b.institution,b.ref,b.notes].join(' ').toLowerCase().includes(q)).forEach(b=>res.push({k:'item', it, t:[b.category,b.asset].filter(Boolean).join(NB_DOT), m:it.name+' · '+(b.institution||'')}));
     if(it.type==='tracker') (it.points||[]).filter(p=>(p.note||'').toLowerCase().includes(q)).forEach(p=>res.push({k:'item', it, t:p.note, m:it.name+' · '+dateLabel(p.date)}));
   }
-  for(const t of S.tasks){ const hay=[t.title,t.notes,t.flagWho,...(t.checklist||[]).map(c=>c.text),...(t.log||[]).map(l=>l.text)].join(' ').toLowerCase(); if(hay.includes(q)){ const b=itemById(t.boardId); if(b) res.push({k:'task', t, it:b}); } }
+  for(const t of S.tasks){ const hay=[t.title,t.notes,t.flagWho,...(t.checklist||[]).map(c=>c.text),...(t.log||[]).map(l=>l.text)].join(' ').toLowerCase(); if(hay.includes(q)){ const b=itemById(t.boardId); if(!b) continue; if(b.type==='gsection'){ const g=topOf(b); if(g) res.push({k:'item', it:g, t:t.title, m:g.name+' · Gantt task', gtask:t.id}); } else res.push({k:'task', t, it:b}); } }
   for(const r of S.rows){ const it=itemById(r.itemId); if(!it) continue; const vals=Object.values(r.values||{}).map(v=>String(v)); if(vals.join(' ').toLowerCase().includes(q)){ const tf=(it.fields||[]).find(f=>f.type==='text'); res.push({k:'row', it:topOf(it), r, t:(tf&&r.values?.[tf.id])||'Row', m:topOf(it).name}); } }
   const seen = new Set(); const uniq = res.filter(x=>{ const key=x.k+(x.t?.id||'')+(x.it?.id||'')+(x.r?.id||'')+(typeof x.t==='string'?x.t:''); if(seen.has(key)) return false; seen.add(key); return true; });
   return uniq;
@@ -770,20 +779,21 @@ function syncSideRes(){
   box.hidden = false;
   box.innerHTML = `<p class="sr-h" role="status">${plural(hits.length,'result')}</p>` + hits.slice(0,30).map(x => {
     const it = x.it, t = x.k==='task' ? x.t.title : (x.t||'Untitled'), m = x.k==='task' ? it.name+' · Task' : (x.m||it.name);
-    return `<a class="sr-row" href="#i-${esc(it.id)}"><span class="sr-t">${esc(t||'Untitled')}</span><span class="sr-m">${esc(m)}</span></a>`; }).join('');
+    return `<a class="sr-row" href="#i-${esc(it.id)}"${x.gtask?` data-gtask="${esc(x.gtask)}"`:''}><span class="sr-t">${esc(t||'Untitled')}</span><span class="sr-m">${esc(m)}</span></a>`; }).join('');
 }
 function renderSearch(c){
   const uniq = searchHits();
   c.innerHTML = `<div class="wrap narrow"><div><p class="eyebrow">Search</p><h1 class="big">“${esc(S.q.trim())}”</h1><p class="sub">${plural(uniq.length,'result')} across items, tasks, rows and notes. ${TOUCH ? 'Tap ✕ in the search box to clear.' : 'Press Esc to clear.'}</p></div>
     ${uniq.length?`<section class="panel"><div class="list-rows">${uniq.slice(0,80).map(x=> x.k==='task'
       ? `<button class="lrow" data-open="task:${esc(x.t.id)}"><span class="t">${esc(x.t.title)}${chipHTML(x.t)}</span><span class="m"><i style="--c:${itemColor(x.it)}"></i>${esc(x.it.name)} · Task</span></button>`
-      : `<a class="lrow" href="#i-${esc(x.it.id)}" style="text-decoration:none;color:inherit"><span class="t">${esc(x.t||'Untitled')}</span><span class="m"><i style="--c:${itemColor(x.it)}"></i>${esc(x.m||'')}</span></a>`).join('')}</div></section>`
+      : `<a class="lrow" href="#i-${esc(x.it.id)}" ${x.gtask?`data-gtask="${esc(x.gtask)}" `:''}style="text-decoration:none;color:inherit"><span class="t">${esc(x.t||'Untitled')}</span><span class="m"><i style="--c:${itemColor(x.it)}"></i>${esc(x.m||'')}</span></a>`).join('')}</div></section>`
       : `<div class="panel empty-state">No matches. Try a shorter word.</div>`}</div>`;
 }
 
 /* ---------- content events (core views + delegate to type views) ---------- */
 const content = $('#content');
 content.addEventListener('click', e => {
+  { const gt = e.target.closest('a.lrow[data-gtask]'); if(gt) TYPE_VIEWS.gantt.reveal(gt.dataset.gtask); }
   if(S.q && e.target.closest('a.lrow')){ S.q=''; $('#q').value=''; requestAnimationFrame(()=>render(true)); return; }   // a search result: leave search (even for the page already open)
   const it = currentItem(); const V = it && TYPE_VIEWS[it.type];
   const st = e.target.closest('.home-stats .stat');
@@ -837,7 +847,7 @@ $('#side').addEventListener('click', async e => {
   if(act==='app-menu') return appMenu(a);
 });
 $('#q').addEventListener('input', e => { S.q = e.target.value; render(true); });
-$('#sideRes').addEventListener('click', e => { if(e.target.closest('a.sr-row')){ S.q=''; $('#q').value=''; document.body.classList.remove('side-open'); requestAnimationFrame(()=>render(true)); } });
+$('#sideRes').addEventListener('click', e => { { const gt = e.target.closest('a.sr-row[data-gtask]'); if(gt) TYPE_VIEWS.gantt.reveal(gt.dataset.gtask); } if(e.target.closest('a.sr-row')){ S.q=''; $('#q').value=''; document.body.classList.remove('side-open'); requestAnimationFrame(()=>render(true)); } });
 $('#q').addEventListener('keydown', e => { if(e.key==='Escape'){ e.stopPropagation(); e.target.value=''; S.q=''; render(true); e.target.blur(); } if(e.key==='Enter') document.body.classList.remove('side-open'); });
 /* Desktop sidebar: by default it auto-hides to a thin strip of icons and opens while the pointer or keyboard focus is in it.
    The button at its top keeps it open (pinned); [ does the same. On a phone the sidebar is the ☰ drawer. */
@@ -967,12 +977,14 @@ function itemMenu(anchor, it){
     {label:'Rename…', value:'rename'},
     {label:'Move to folder…', value:'move'},
     ...(it.type==='kanban'?[{label:'Add stack…', value:'stack'}, {label:'Status flags…', value:'flags'}]:[]),
+    ...(it.type==='gantt'?[{label:'Add section…', value:'gsection'}]:[]),
     ...(it.type==='tracker'?[{label:'Tracker settings…', value:'tsettings'}]:[]),
     {sep:true}, {label:'Delete…', value:'del', danger:true}
   ], async v => {
     if(v==='rename'){ const n = await promptModal({title:'Rename', label:'Name', value:it.name||'', opener:anchor}); if(n){ docPatch('items', it.id, {name:n}); render(true); } }
     if(v==='move') openMenu(anchor, [{label:'No folder', value:'', checked:!it.folderId}, ...sortedFolders().map(f=>({label:f.name, value:f.id, checked:it.folderId===f.id}))], fid => { docPatch('items', it.id, {folderId:fid, order:itemsOf(i=>TYPE_GROUP[i.type] && (i.folderId||'')===fid).length}); render(true); toast('Moved to '+(folderById(fid)?.name||'No folder')); }, 'Move to folder');
     if(v==='stack') addStack(it, anchor);
+    if(v==='gsection') TYPE_VIEWS.gantt.addSection(it, anchor);
     if(v==='flags') TYPE_VIEWS.kanban.openFlagsModal(anchor);
     if(v==='tsettings') TYPE_VIEWS.tracker.settingsModal(it, anchor);
     if(v==='del') deleteItem(it, anchor);
@@ -1016,10 +1028,10 @@ function colourModal(it, opener){
   m.onclick = e => { const sw=e.target.closest('.sw'); if(sw){ col=sw.dataset.k; $$('.sw',m).forEach(s=>s.setAttribute('aria-pressed', s===sw)); return; } const b=e.target.closest('[data-x]'); if(!b) return; closeModal(); if(b.dataset.x==='yes'){ docPatch('items', it.id, {color:col}); render(true); } };
 }
 async function deleteItem(it, opener){
-  const parts = it.type==='kanban' ? stacksOf(it.id) : it.type==='page' ? blocksOf(it.id) : [];
-  const tasks = it.type==='kanban' ? S.tasks.filter(t=>parts.some(p=>p.id===t.boardId)) : [];
+  const parts = it.type==='kanban' ? stacksOf(it.id) : it.type==='gantt' ? sectionsOf(it.id) : it.type==='page' ? blocksOf(it.id) : [];
+  const tasks = it.type==='kanban' || it.type==='gantt' ? S.tasks.filter(t=>parts.some(p=>p.id===t.boardId)) : [];
   const rows = S.rows.filter(r=>r.itemId===it.id || parts.some(p=>p.id===r.itemId));
-  const what = it.type==='kanban' ? plural(parts.length,'stack')+' and '+plural(tasks.length,'task') : it.type==='page' ? plural(parts.length,'block') : it.type==='tracker' ? plural((it.points||[]).length,'entry').replace('entrys','entries') : it.type==='bills' ? plural((it.bills||[]).length,'bill') : '';
+  const what = it.type==='kanban' ? plural(parts.length,'stack')+' and '+plural(tasks.length,'task') : it.type==='gantt' ? plural(parts.length,'section')+' and '+plural(tasks.length,'task') : it.type==='page' ? plural(parts.length,'block') : it.type==='tracker' ? plural((it.points||[]).length,'entry').replace('entrys','entries') : it.type==='bills' ? plural((it.bills||[]).length,'bill') : '';
   const ok = await confirmModal({title:`Delete “${it.name}”?`, body:`This deletes the ${TYPES[it.type].label.toLowerCase()}${what?' and its '+what:''}. You can undo for a few seconds.`, action:'Delete', opener});
   if(!ok) return;
   const snap = clone(it), ps = clone(parts), ts = clone(tasks), rs = clone(rows);
@@ -1092,6 +1104,7 @@ function openNewItem({folderId, type='page', opener}={}){
     const it = buildItem(t, name, fid);
     docSet('items', it);
     if(t==='kanban') docSet('items', {id:uid(), type:'stack', parent:it.id, name:'Tasks', order:0, created:nowIso(), updated:nowIso()});
+    if(t==='gantt') docSet('items', {id:uid(), type:'gsection', parent:it.id, name:'Tasks', order:0, created:nowIso(), updated:nowIso()});
     closeModal(); go('i-'+it.id);
   };
   draw(); focusName(true);
@@ -1156,8 +1169,10 @@ function openKeys(opener){
     <dl class="keys"><dt><kbd>/</kbd> or <kbd>⌘</kbd><kbd>K</kbd></dt><dd>Search everything</dd><dt><kbd>N</kbd></dt><dd>New task, row, entry or checklist item, depending on the page</dd><dt><kbd>⇧</kbd><kbd>N</kbd></dt><dd>New item</dd><dt><kbd>H</kbd> · <kbd>T</kbd></dt><dd>Home · All tasks</dd><dt><kbd>[</kbd></dt><dd>Show or hide the sidebar</dd><dt><kbd>Esc</kbd></dt><dd>Close a window or menu, clear search</dd></dl>
     <p class="keys-h">Kanban</p>
     <dl class="keys"><dt><kbd>Enter</kbd></dt><dd>Open the focused card</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the card to the previous or next column</dd><dt><kbd>⌥</kbd> <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Move the card up or down</dd></dl>
-    <p class="keys-h">Gantt</p>
+    <p class="keys-h">Kanban, Gantt view</p>
     <dl class="keys"><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Previous or next task</dd><dt><kbd>Enter</kbd></dt><dd>Open the task</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move its dates one day (a week in Quarter)</dd><dt><kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the due date only</dd></dl>
+    <p class="keys-h">Gantt chart</p>
+    <dl class="keys"><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Previous or next row</dd><dt><kbd>Enter</kbd></dt><dd>Open the task</dd><dt><kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Move the bar one day</dd><dt><kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>←</kbd> <kbd>→</kbd></dt><dd>Change the due date by a day</dd><dt><kbd>Delete</kbd></dt><dd>Delete the task (with Undo)</dd><dt><kbd>Esc</kbd></dt><dd>Cancel a drag</dd><dt><kbd>⌘</kbd> scroll</dt><dd>Zoom the timeline</dd></dl>
     <p class="note">On Windows use <kbd>Ctrl</kbd> for <kbd>⌘</kbd> and <kbd>Alt</kbd> for <kbd>⌥</kbd>.</p>
     <div class="row-end"><button class="pill" data-x>Done</button></div>`, {opener});
   m.onclick = e => { if(e.target.closest('[data-x]')) closeModal(); };
@@ -1166,7 +1181,7 @@ document.addEventListener('keydown', e => {
   if(e.key==='Escape'){
     if(menuEl){ closeMenu(true); return; }
     if(modalOpen()){ closeModal(); return; }
-    if(window.__sheetOpen){ TYPE_VIEWS.kanban.closeSheet(); return; }
+    if(window.__sheetOpen){ closeAnySheet(); return; }
     if(document.body.classList.contains('side-open')){ document.body.classList.remove('side-open'); return; }
     if(S.q){ S.q=''; $('#q').value=''; render(true); return; }
     return;
@@ -1182,7 +1197,7 @@ document.addEventListener('keydown', e => {
   if(e.key==='t'){ go('tasks'); return; }
   if(e.key==='['){ $('#sideToggle').click(); return; }
 });
-$('#scrim').addEventListener('click', () => { if(modalOpen()) closeModal(); else if(window.__sheetOpen) TYPE_VIEWS.kanban.closeSheet(); });
+$('#scrim').addEventListener('click', () => { if(modalOpen()) closeModal(); else if(window.__sheetOpen) closeAnySheet(); });
 
 /* ---------- boot ---------- */
 async function start(){

@@ -111,7 +111,7 @@ TYPE_VIEWS.note = (() => {
   function backlinks(it){
     const key = '[['+(topOf(it).name||'').trim().toLowerCase()+']]';   // links name the page, not the block
     const notes = S.items.filter(x => x.id!==it.id && x.type==='note' && (x.body||'').toLowerCase().includes(key)).map(topOf).filter((x,i,a)=>x && x.id!==topOf(it)?.id && a.indexOf(x)===i);
-    const tasks = S.tasks.filter(t => (t.notes||'').toLowerCase().includes(key));
+    const tasks = S.tasks.filter(t => !isGanttTask(t) && (t.notes||'').toLowerCase().includes(key));
     if(blocksOf(topOf(it).id).filter(b=>b.type==='note')[0]?.id !== it.id) return {notes:[], tasks:[]};   // shown once per page, under its first text block
     return {notes, tasks};
   }

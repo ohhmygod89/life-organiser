@@ -4,7 +4,7 @@
    Data is fictional sample data and stays in this browser (localStorage).
    ============================================================ */
 function DemoDB(){
-  const KEY = 'lo.demo.v6';   // v6: demo tasks gained start dates (beta.28)
+  const KEY = 'lo.demo.v7';   // v7: added the Gantt chart demo (v6: demo tasks gained start dates, beta.28)
   const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); };
   const ahead = n => ago(-n);
   const iso = nowIso();
@@ -36,6 +36,9 @@ Press ? for keyboard shortcuts.`},
         {id:'demokanbanhome1', type:'stack', parent:'demokanban0001', name:'Home', folderId:'', order:0, created:iso, updated:iso},
         {id:'demokanbanwork1', type:'stack', parent:'demokanban0001', name:'Work', folderId:'', order:1, created:iso, updated:iso},
         {id:'demokanbanside1', type:'stack', parent:'demokanban0001', name:'Side Business', folderId:'', order:2, created:iso, updated:iso},
+        {id:'demogantt000001', type:'gantt', name:'Kitchen renovation', folderId:F.p, order:3, nav:1, created:iso, updated:iso},
+        {id:'demogsecplan001', type:'gsection', parent:'demogantt000001', name:'Design and ordering', order:0, created:iso, updated:iso},
+        {id:'demogsecbuild01', type:'gsection', parent:'demogantt000001', name:'Build', order:1, created:iso, updated:iso},
         {id:'demopagejapan01', type:'page', name:'Japan Trip', folderId:F.p, order:1, created:iso, updated:iso},
         {id:'demonotejapan01', type:'note', name:'Plan', parent:'demopagejapan01', folderId:'', order:0, created:iso, updated:iso, body:
 `Ten days in **April**: Tokyo, Kyoto, then Osaka.
@@ -86,6 +89,21 @@ Press ? for keyboard shortcuts.`},
           },
         };
         const out = []; let n = 0;
+        /* Gantt demo (Kitchen renovation): same task fields as the Kanban plus deps (finish-to-start), progress and milestone.
+           One link is deliberately out of order (Painting starts before Benchtop ends) so the red arrow can be seen. */
+        const gt = (id, sec, pos, title, start, due, x={}) => ({id, boardId:sec, col:'todo', pos, title, notes:'', start, due, priority:'low', flag:'', flagWho:'', checklist:[], log:[], deps:[], progress:0, milestone:false, created:iso, updated:iso, ...x});
+        const GP = 'demogsecplan001', GB = 'demogsecbuild01';
+        out.push(
+          gt('demogtask000001', GP, 1024, 'Measure up and sketch the layout', ago(16), ago(10), {col:'done', progress:100, doneAt:ago(10)+'T09:00:00.000Z'}),
+          gt('demogtask000002', GP, 2048, 'Choose cabinets and benchtop', ago(8), ahead(4), {col:'doing', progress:60, deps:['demogtask000001'], notes:'Shortlist two suppliers, then order samples.'}),
+          gt('demogtask000003', GP, 3072, 'Order appliances', ahead(5), ahead(9), {deps:['demogtask000002']}),
+          gt('demogtask000004', GP, 4096, 'Design approved', ahead(10), ahead(10), {milestone:true, deps:['demogtask000003']}),
+          gt('demogtask000005', GB, 1024, 'Strip out the old kitchen', ahead(12), ahead(16), {deps:['demogtask000004']}),
+          gt('demogtask000006', GB, 2048, 'Plumbing and electrical rough-in', ahead(17), ahead(26), {deps:['demogtask000005'], checklist:[{id:'dgc1', text:'Move the sink waste', done:false}]}),
+          gt('demogtask000007', GB, 3072, 'Install cabinets and benchtop', ahead(27), ahead(40), {deps:['demogtask000006']}),
+          gt('demogtask000008', GB, 4096, 'Painting and finishing', ahead(36), ahead(48), {deps:['demogtask000007']}),
+          gt('demogtask000009', GB, 5120, 'Order bar stools'),
+        );
         for(const [bid, cols] of Object.entries(spec)){
           cols.todo = [...cols.todo, ...(cols.upcoming||[])].slice(0,5); delete cols.upcoming;   // no Upcoming column since beta.13
           for(const [col, list] of Object.entries(cols)) list.forEach(([title, x], i) => out.push(task('dt'+(++n), bid, col, (i+1)*1024, title, x)));
