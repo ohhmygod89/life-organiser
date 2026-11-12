@@ -7,7 +7,8 @@
                             created, updated, doneAt?} plus Gantt-only {deps:[taskId…] (finish-to-start predecessors), progress:0-100, milestone:bool}
    Everything that counts Kanban tasks skips tasks whose boardId is a gsection (see isGanttTask in core.js).
    Layout: one scroller holds the sticky header, a sticky left table (Name, Start, Due, Days) and the timeline, so both
-   panes scroll vertically together. Desktop: mouse drags (bars, ends, dependency dots, empty rows to create a bar).
+   panes scroll vertically together; the chart fills the screen below the toolbar. Desktop: mouse drags (bars, ends,
+   dependency dots; a row without dates to create a bar; anywhere else on the timeline or its header to pan sideways).
    Phone: press and hold a bar, then drag; tap opens the task window, double-tap the menu.
    ============================================================ */
 TYPE_VIEWS.gantt = (() => {
@@ -30,7 +31,7 @@ TYPE_VIEWS.gantt = (() => {
   const ZOOMS = {week:{label:'Week', dw:[38, 34]}, month:{label:'Month', dw:[17, 15]}, quarter:{label:'Quarter', dw:[5, 4.5]}, year:{label:'Year', dw:[1.7, 1.6]}};
   const ZKEYS = Object.keys(ZOOMS);
   const SEC_PALS = ['blue', 'green', 'lav', 'coral', 'peach', 'pink'];
-  const EXTEND = 182;   // days added when you scroll near either end of the chart
+  const EXTEND = 364;   // days added (at least) when you scroll near either end of the chart
   const lsGet = (k, d) => ls.get(k, d);
   let collapsed; try{ collapsed = new Set(JSON.parse(lsGet('lo.gcCollapsed', '[]'))); }catch(e){ collapsed = new Set(); }
   const st = {
@@ -43,13 +44,6 @@ TYPE_VIEWS.gantt = (() => {
   let suppressClick = false, tap = null, drag = null, th = null, modelNow = null;
 
   /* ---------- measuring ---------- */
-  let ctx2d = null;
-  function textW(s){
-    if(!ctx2d){ try{ ctx2d = document.createElement('canvas').getContext('2d'); }catch(e){} }
-    if(!ctx2d) return s.length * 7;
-    ctx2d.font = '500 12.5px ' + getComputedStyle(document.body).fontFamily;
-    return ctx2d.measureText(s).width;
-  }
   const rowH = () => TOUCH ? 44 : 36, headH = () => TOUCH ? 60 : 56, barH = () => TOUCH ? 28 : 22;
   const curDw = () => st.fit ?? ZOOMS[st.zoom].dw[phone() ? 1 : 0];
   const nearZoom = dw => ZKEYS.reduce((b, k) => Math.abs(Math.log(ZOOMS[k].dw[phone() ? 1 : 0] / dw)) < Math.abs(Math.log(ZOOMS[b].dw[phone() ? 1 : 0] / dw)) ? k : b, 'month');
@@ -239,10 +233,14 @@ TYPE_VIEWS.gantt = (() => {
     if(!opts.length) return toast('No other task can be linked here');
     openMenu(anchor, [{head:'Starts after this task finishes'}, ...opts.slice(0, 40).map(x => ({label:x.title || 'Untitled', value:x.id}))], v => addDep(taskOf(v), t), 'Add dependency');
   }
+  async function renameSection(sec, opener){
+    const n = await promptModal({title:'Rename section', label:'Name', value:sec.name, opener}); if(!n || n===sec.name) return;
+    const b = sec.name; docPatch('items', sec.id, {name:n}); render(true); toast('Renamed', () => { docPatch('items', sec.id, {name:b}); render(true); });
+  }
   function secMenu(sec, anchor){
     const sib = sectionsOf(sec.parent), i = sib.indexOf(sec);
     openMenu(anchor, [{label:'Rename…', value:'rename'}, {label:'Add task', value:'add'}, {label:'Colour…', value:'pal'}, {label:'Move up', value:'up', disabled:i===0}, {label:'Move down', value:'down', disabled:i===sib.length-1}, {sep:true}, {label:'Delete section…', value:'del', danger:true}], async v => {
-      if(v==='rename'){ const n = await promptModal({title:'Rename section', label:'Name', value:sec.name, opener:anchor}); if(n){ const b = sec.name; docPatch('items', sec.id, {name:n}); render(true); toast('Renamed', () => { docPatch('items', sec.id, {name:b}); render(true); }); } }
+      if(v==='rename') return renameSection(sec, anchor);
       if(v==='add') return addTaskUI(sec, anchor);
       if(v==='pal'){ const cur = TILE_PALS.some(x => x[0]===sec.pal) ? sec.pal : '';
         const sw = (k, name) => `<i class="sw pal-${k}" aria-hidden="true"></i><span>${esc(name)}</span>`;
@@ -253,6 +251,7 @@ TYPE_VIEWS.gantt = (() => {
     }, 'Section options');
   }
   const menuAt = (x, y) => ({getBoundingClientRect:() => ({left:x, right:x, top:y, bottom:y, width:0, height:0}), setAttribute(){}, focus(){}});
+  /* a new task in a section: a prompt on touch; on a desktop the row appears with its name selected, ready to type over */
   function addTaskUI(sec, opener){
     if(!sec){ const g = ganttOf(); sec = g && sectionsOf(g.id)[0]; if(!sec) return; }
     collapsed.delete(sec.id); ls.set('lo.gcCollapsed', JSON.stringify([...collapsed]));
@@ -260,8 +259,8 @@ TYPE_VIEWS.gantt = (() => {
       promptModal({title:'New task', label:'Name', placeholder:'Task name', action:'Add', opener}).then(n => { if(n){ addTaskTo(sec, n); } });
       return;
     }
-    render(true);
-    requestAnimationFrame(() => { const el = document.querySelector(`.gc-addin[data-add="${CSS.escape(sec.id)}"]`); if(el){ el.focus({preventScroll:true}); el.scrollIntoView({block:'nearest'}); } });
+    const id = addTaskTo(sec, '');
+    requestAnimationFrame(() => { const el = G?.root.querySelector(`input[data-name="${CSS.escape(id)}"]`); if(el){ el.focus({preventScroll:true}); el.select(); el.scrollIntoView({block:'nearest'}); } });
   }
 
   /* ---------- the chart ---------- */
@@ -270,13 +269,14 @@ TYPE_VIEWS.gantt = (() => {
     secs.forEach((sec, si) => {
       const ts = S.tasks.filter(t => t.boardId===sec.id).sort(byPos); by[sec.id] = ts;
       rows.push({k:'sec', sec, si, ts});
-      if(!collapsed.has(sec.id)){ ts.forEach(t => { idx[t.id] = rows.length; rows.push({k:'task', t, sec, si}); }); rows.push({k:'add', sec, si}); }
+      if(!collapsed.has(sec.id)) ts.forEach(t => { idx[t.id] = rows.length; rows.push({k:'task', t, sec, si}); });
     });
     return {secs, rows, idx, by};
   }
   const stIcon = c => c==='done' ? '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="currentColor"/><path d="m6.2 10.2 2.6 2.6 5-5.4" fill="none" stroke="var(--panel)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>'
     : c==='doing' ? '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M10 3.6a6.4 6.4 0 0 1 0 12.8z" fill="currentColor"/></svg>'
     : '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+  const PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19.2 8.8a2.1 2.1 0 0 0 0-3L18.2 4.8a2.1 2.1 0 0 0-3 0L4 16z"/><path d="m13.5 6.5 4 4"/></svg>';
   const chev = '<svg class="gc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const dateTxt = s => s ? fullDate(s) : '';
 
@@ -319,16 +319,15 @@ TYPE_VIEWS.gantt = (() => {
     const x0 = (sp.a - G.lo) * dw, x1 = (sp.b + 1 - G.lo) * dw, w = Math.max(10, x1 - x0 - 1);
     const done = t.col==='done', prog = ms ? 0 : Math.max(0, Math.min(100, t.progress || 0));
     const od = t.due && !done && dayDiff(t.due) < 0;
-    const title = t.title || 'Untitled', need = textW(title) + 22;
-    const inside = !ms && need <= w - 2;
+    const title = t.title || 'Untitled';
     const dots = TOUCH ? '' : '<i class="gc-dot l" data-dot="l" aria-hidden="true"></i><i class="gc-dot r" data-dot="r" aria-hidden="true"></i>';
     const grips = TOUCH || ms || w < 26 ? '' : '<i class="gc-h l" aria-hidden="true"></i><i class="gc-h r" aria-hidden="true"></i>';
     if(ms){
       const cx = x0 + dw / 2;
       return `<div class="gc-bar ms${done ? ' is-done' : ''}${od ? ' od' : ''}${st.sel===t.id ? ' sel' : ''}" data-id="${esc(t.id)}" style="left:${(cx - bh / 2 - 1).toFixed(2)}px;width:${bh + 2}px" title="${esc(title + ' · ' + fullDate(iso(sp.a)))}"><span class="gc-bg"><i class="gc-dia"></i></span>${dots}<span class="gc-ol" aria-hidden="true">${esc(title)}</span></div>`;
     }
-    return `<div class="gc-bar${inside ? ' in' : ''}${done ? ' is-done' : ''}${od ? ' od' : ''}${st.sel===t.id ? ' sel' : ''}" data-id="${esc(t.id)}" style="left:${x0.toFixed(2)}px;width:${w.toFixed(2)}px" title="${esc(title + ' · ' + datesText(sp.a, sp.b) + (prog ? ' · ' + prog + '%' : ''))}">`
-      + `<span class="gc-bg"><i class="gc-fill" style="width:${prog}%"></i></span>${grips}${dots}${inside ? `<span class="gc-bl" aria-hidden="true">${esc(title)}</span>` : `<span class="gc-ol" aria-hidden="true">${esc(title)}</span>`}</div>`;
+    return `<div class="gc-bar${done ? ' is-done' : ''}${od ? ' od' : ''}${st.sel===t.id ? ' sel' : ''}" data-id="${esc(t.id)}" style="left:${x0.toFixed(2)}px;width:${w.toFixed(2)}px" title="${esc(title + ' · ' + datesText(sp.a, sp.b) + (prog ? ' · ' + prog + '%' : ''))}">`
+      + `<span class="gc-bg"><i class="gc-fill" style="width:${prog}%"></i></span>${grips}${dots}<span class="gc-ol" aria-hidden="true">${esc(title)}</span></div>`;
   }
 
   function rowHTML(r, i, T, P, cols, ctr){
@@ -338,12 +337,8 @@ TYPE_VIEWS.gantt = (() => {
       const summ = ds.length ? (() => { const a = Math.min(...ds.map(x => x.a)), b = Math.max(...ds.map(x => x.b)); return `<i class="gc-sum" style="left:${((a - G.lo) * G.dw).toFixed(2)}px;width:${Math.max(6, (b + 1 - a) * G.dw).toFixed(2)}px"></i>`; })() : '';
       return `<div class="gc-row sec" role="row" data-srow="${esc(sec.id)}" data-sid="${esc(sec.id)}" style="${sc}" tabindex="${ctr===i ? 0 : -1}" aria-label="Section ${esc(sec.name)}, ${plural(r.ts.length, 'task')}, ${open ? 'expanded' : 'collapsed'}">
         <div class="gc-g" role="gridcell"><button class="gc-sh" data-sec="${esc(sec.id)}" aria-expanded="${open}" tabindex="-1">${chev}<i class="gc-sdot" aria-hidden="true"></i><b>${esc(sec.name)}</b><span class="gc-n">${r.ts.length}</span></button>
-          <button class="gc-more" data-secmenu="${esc(sec.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(sec.name)} section options" title="Section options">${ICON.more}</button></div>
+          <span class="gc-sact"><button class="gc-sb" data-secadd="${esc(sec.id)}" aria-label="Add task to ${esc(sec.name)}" title="Add task">${ICON.plus}</button><button class="gc-sb" data-secren="${esc(sec.id)}" aria-label="Rename section ${esc(sec.name)}" title="Rename section">${PENCIL}</button><button class="gc-more" data-secmenu="${esc(sec.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(sec.name)} section options" title="Section options">${ICON.more}</button></span></div>
         <div class="gc-track" role="gridcell" aria-hidden="true">${summ}</div></div>`;
-    }
-    if(r.k==='add'){
-      return `<div class="gc-row add" data-sid="${esc(sec.id)}" style="${sc}"><div class="gc-g">${TOUCH || P ? `<button class="gc-addb" data-addb="${esc(sec.id)}" tabindex="-1">${ICON.plus}<span>Add task</span></button>`
-        : `<span class="gc-addic" aria-hidden="true">${ICON.plus}</span><input class="gc-addin" data-add="${esc(sec.id)}" placeholder="Add task" aria-label="Add a task to ${esc(sec.name)}" maxlength="200" enterkeyhint="done">`}</div><div class="gc-track" aria-hidden="true"></div></div>`;
     }
     const t = r.t, sp = span(t), done = t.col==='done';
     const dur = sp ? sp.b - sp.a + 1 : null, od = t.due && !done && dayDiff(t.due) < 0;
@@ -399,7 +394,7 @@ TYPE_VIEWS.gantt = (() => {
     const P = phone(), M = modelNow = model(g), T = dn(today()), ROW = rowH(), HEAD = headH();
     const V = views[g.id] || (views[g.id] = {ax:null, sy:0, lo:null, hi:null, sx:0});
     const dw = curDw(), boxW = Math.max(300, root.clientWidth || 600);
-    const gw = !st.grid ? 0 : Math.max(P ? 140 : 220, Math.min(st.gw || (P ? 172 : boxW >= 1000 ? 500 : 440), boxW - (P ? 110 : 260)));
+    const gw = !st.grid ? 0 : Math.max(P ? 170 : 220, Math.min(st.gw || (P ? 236 : boxW >= 1000 ? 500 : 440), boxW - (P ? 110 : 260)));
     const cols = gw >= 470 ? 'full' : gw >= 380 ? 'dates' : 'name';
     const dated = M.rows.filter(r => r.k==='task').map(r => span(r.t)).filter(Boolean);
     let mn = T, mx = T; dated.forEach(x => { mn = Math.min(mn, x.a); mx = Math.max(mx, x.b); });
@@ -448,7 +443,7 @@ TYPE_VIEWS.gantt = (() => {
       </div>` : `<div class="panel empty-state"><b>No sections yet</b>A section groups tasks, like Design or Build. <button class="pill" data-a="addsec" style="margin-top:12px">${ICON.plus} Add a section</button></div>`}
     </div>`;
     const sc = G.sc = $('.gc-scroll', root);
-    bind(root);
+    bind(root); fitBleed();
     if(!sc) return;
     for(const sec of $$('.gc-sec', sc)) Sortable.create(sec, {
       group:'gc-rows:' + g.id, draggable:'.gc-row.task', handle: TOUCH || P ? '.gc-g' : '.gc-grip', filter:'input,button.gc-st,button.gc-more,label', preventOnFilter:false, direction:'vertical', animation:RM ? 0 : 150,
@@ -462,7 +457,7 @@ TYPE_VIEWS.gantt = (() => {
     if(V.focus!==undefined && V.focus!==null){ V.ax = V.focus.day - V.focus.frac * visW() / dw; V.focus = null; }
     sc.scrollLeft = Math.max(0, (V.ax - lo) * dw); sc.scrollTop = V.sy || 0;
     let raf = 0;
-    sc.addEventListener('scroll', () => { if(raf) return; raf = requestAnimationFrame(() => { raf = 0; if(G?.sc!==sc) return; V.ax = lo + sc.scrollLeft / dw; V.sy = sc.scrollTop; edgeCheck(g, sc); }); }, {passive:true});
+    sc.addEventListener('scroll', () => { if(raf) return; raf = requestAnimationFrame(() => { raf = 0; if(G?.sc!==sc) return; V.ax = lo + sc.scrollLeft / dw; V.sy = sc.scrollTop; if(!drag && !th && !S.dragging) extendFor(V.ax); }); }, {passive:true});
     if(st.selFocus){ const el = st.selFocus; st.selFocus = null; const r = sc.querySelector(el); r?.focus({preventScroll:true}); }
   }
   function saveOrder(g, e){
@@ -477,22 +472,54 @@ TYPE_VIEWS.gantt = (() => {
     changes.forEach(([id, p]) => docPatch('tasks', id, p)); touchItem(g.id); render(true);
     toast('Moved', () => { Object.entries(before).forEach(([id, b]) => docPatch('tasks', id, b)); render(true); });
   }
-  /* near an end of the chart: add half a year, keeping what you're looking at where it is */
-  function edgeCheck(g, sc){
-    const V = views[g.id]; if(!V || drag || th || S.dragging) return;
-    const near = Math.max(240, sc.clientWidth * .5);
-    if(sc.scrollLeft < near){ V.lo -= EXTEND; render(true); }
-    else if(sc.scrollLeft + sc.clientWidth > sc.scrollWidth - near){ V.hi += EXTEND; render(true); }
+  /* The chart is a finite strip of days. Near either end it gains a year or more, then redraws with the same day at the left
+     edge, so nothing seems to move. `ax` is the day (fractional) wanted at the left edge of the timeline. */
+  const nearPx = () => Math.max(560, (G.sc?.clientWidth || 800) * .8);
+  const extDays = () => Math.ceil(Math.max(EXTEND, nearPx() * 2.5 / G.dw) / 7) * 7;
+  function extendFor(ax){
+    const sc = G?.sc, V = G && views[G.g.id]; if(!sc || !V || S.rendering || S.dragging) return false;
+    const want = (ax - G.lo) * G.dw, near = nearPx(), left = want < near, right = want + sc.clientWidth > G.gw + G.W - near;
+    if(!left && !right) return false;
+    V.ax = ax; V.sy = sc.scrollTop; if(left) V.lo = G.lo - extDays(); else V.hi = G.hi + extDays();
+    render(true); return true;
   }
+  /* move the timeline so day `ax` is at its left edge */
+  function panTo(ax){
+    const sc = G?.sc; if(!sc || extendFor(ax)) return;
+    sc.scrollLeft = (ax - G.lo) * G.dw;
+  }
+  const leftDay = () => G.lo + G.sc.scrollLeft / G.dw;
+  /* a pointer drag on any empty part of the timeline or its header pans it */
+  function startPan(e){
+    const x0 = e.clientX, ax0 = leftDay(), dw = G.dw; let moved = false;
+    wheelTarget = null;
+    const off = () => { document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.removeEventListener('pointercancel', up, true); document.body.classList.remove('no-select', 'gc-panning'); };
+    const move = ev => {
+      if(ev.buttons===0) return up();
+      const dx = ev.clientX - x0;
+      if(!moved){ if(Math.abs(dx) < 4) return; moved = true; document.body.classList.add('no-select', 'gc-panning'); try{ getSelection()?.removeAllRanges(); }catch(err){} }
+      panTo(ax0 - dx / dw);
+    };
+    const up = () => { off(); if(moved){ suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); } };
+    document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); document.addEventListener('pointercancel', up, true);
+  }
+  /* the chart runs to the edges of the content area: undo the page's side padding (the safe areas stay clear) */
+  function fitBleed(){
+    const gc = G?.root && $('.gc', G.root), c = $('#content'); if(!gc || !c) return;
+    const cs = getComputedStyle(c); gc.style.setProperty('--bl', cs.paddingLeft); gc.style.setProperty('--br', cs.paddingRight);
+  }
+  addEventListener('resize', () => { if(G?.root?.isConnected) fitBleed(); });
   const dayAtX = cx => { const r = G.sc.getBoundingClientRect(); return G.lo + Math.floor((cx - r.left - G.gw + G.sc.scrollLeft) / G.dw); };
   function scrollToDay(n, smooth, frac=1/3){
     const sc = G?.sc; if(!sc) return;
-    sc.scrollTo({left:Math.max(0, (n - G.lo) * G.dw - (sc.clientWidth - G.gw) * frac), behavior: smooth && !RM ? 'smooth' : 'auto'});
+    const ax = n - (sc.clientWidth - G.gw) * frac / G.dw, want = (ax - G.lo) * G.dw; wheelTarget = null;
+    if(want < nearPx() || want + sc.clientWidth > G.gw + G.W - nearPx()) return panTo(ax);   // beyond the drawn days: extend, then jump
+    sc.scrollTo({left:Math.max(0, want), behavior: smooth && !RM && Math.abs(want - sc.scrollLeft) < sc.clientWidth * 3 ? 'smooth' : 'auto'});   // a long way is a jump, not a ride
   }
   function setZoom(key, dw, focus){
     const V = views[G.g.id], sc = G.sc;
     if(sc){ const frac = focus ?? .5; V.focus = {day:G.lo + (sc.scrollLeft + (sc.clientWidth - G.gw) * frac) / G.dw, frac}; }
-    V.lo = V.hi = null; st.zoom = key; st.fit = dw ?? null; ls.set('lo.gcZoom', st.zoom); render(true);
+    wheelTarget = null; V.lo = V.hi = null; st.zoom = key; st.fit = dw ?? null; ls.set('lo.gcZoom', st.zoom); render(true);
   }
   function stepZoom(dir, focus){
     const P = phone() ? 1 : 0, cur = curDw(), asc = [...ZKEYS].reverse();   // year, quarter, month, week: smallest to largest
@@ -506,7 +533,7 @@ TYPE_VIEWS.gantt = (() => {
     if(!ds.length) return toast('Give a task some dates first, then Auto fit shows them all');
     const a = Math.min(...ds.map(x => x.a)), b = Math.max(...ds.map(x => x.b)), n = b - a + 1;
     const vis = sc.clientWidth - G.gw - 56, dw = Math.max(1, Math.min(60, vis / n));
-    const V = views[G.g.id]; V.focus = {day:a - 14 / dw, frac:0}; V.lo = V.hi = null; st.fit = dw; st.zoom = nearZoom(dw); render(true);
+    const V = views[G.g.id]; V.focus = {day:a - 14 / dw, frac:0}; wheelTarget = null; V.lo = V.hi = null; st.fit = dw; st.zoom = nearZoom(dw); render(true);
   }
 
   /* ---------- events ---------- */
@@ -541,11 +568,12 @@ TYPE_VIEWS.gantt = (() => {
     if(sh){ e.stopPropagation(); const id = sh.dataset.sec; collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id); ls.set('lo.gcCollapsed', JSON.stringify([...collapsed])); render(true); restoreFocus(`[data-sec="${CSS.escape(id)}"]`); return; }
     const sm = e.target.closest('[data-secmenu]');
     if(sm){ e.stopPropagation(); const sec = itemById(sm.dataset.secmenu); if(sec) secMenu(sec, sm); return; }
-    const ab = e.target.closest('[data-addb]'); if(ab){ e.stopPropagation(); addTaskUI(itemById(ab.dataset.addb), ab); return; }
+    const sa = e.target.closest('[data-secadd]'); if(sa){ e.stopPropagation(); addTaskUI(itemById(sa.dataset.secadd), sa); return; }
+    const sn = e.target.closest('[data-secren]'); if(sn){ e.stopPropagation(); const sec = itemById(sn.dataset.secren); if(sec) renameSection(sec, sn); return; }
     const stb = e.target.closest('[data-st]'); if(stb){ e.stopPropagation(); const t = taskOf(stb.dataset.st); if(t){ st.sel = t.id; cycleStatus(t); } return; }
     const mb = e.target.closest('[data-more]'); if(mb){ e.stopPropagation(); const t = taskOf(mb.dataset.more); if(t){ st.sel = t.id; openMenu(mb, taskMenuItems(t), v => taskAction(v, t, mb), 'Task options'); } return; }
     const di = e.target.closest('.gc-di'); if(di){ e.stopPropagation(); try{ di.showPicker?.(); }catch(err){} return; }
-    if(e.target.closest('.gc-dn, .gc-addin, input[data-name]')) { const nm = e.target.closest('input[data-name]'); if(nm){ st.sel = nm.dataset.name; } return; }
+    if(e.target.closest('.gc-dn, input[data-name]')) { const nm = e.target.closest('input[data-name]'); if(nm){ st.sel = nm.dataset.name; } return; }
     const sr = e.target.closest('.gc-row.sec'); if(sr && !e.target.closest('button')){ e.stopPropagation(); sr.querySelector('[data-sec]')?.click(); return; }
     const row = e.target.closest('.gc-row.task'); if(!row) return;
     e.stopPropagation();
@@ -589,11 +617,6 @@ TYPE_VIEWS.gantt = (() => {
   }
   function onKey(e){
     const tg = e.target;
-    if(tg.matches('.gc-addin')){
-      if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); const v = tg.value.trim(), sec = itemById(tg.dataset.add); if(v && sec){ tg.value = ''; addTaskTo(sec, v); requestAnimationFrame(() => { const n = document.querySelector(`.gc-addin[data-add="${CSS.escape(sec.id)}"]`); n?.focus({preventScroll:true}); n?.scrollIntoView({block:'nearest'}); }); } }
-      if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); tg.value = ''; tg.blur(); }
-      return;
-    }
     if(tg.matches('input[data-name]')){
       if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); tg.blur(); }
       if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); const t = taskOf(tg.dataset.name); tg.value = t?.title || ''; tg.blur(); }
@@ -624,20 +647,38 @@ TYPE_VIEWS.gantt = (() => {
     if(e.key==='ContextMenu' || (e.shiftKey && e.key==='F10')){ e.preventDefault(); e.stopPropagation(); const mb = row.querySelector('[data-more]'); openMenu(mb || row, taskMenuItems(t), v => taskAction(v, t, row), 'Task options'); }
   }
 
-  /* ---------- wheel: ⌘ or Ctrl + wheel (and a trackpad pinch) zooms around the pointer ---------- */
-  let wheelAcc = 0, wheelT = 0;
+  /* ---------- wheel ----------
+     Sideways (a trackpad's horizontal swipe, or Shift + wheel) pans the timeline from anywhere over the chart, the table included.
+     The table is sticky, so only the timeline moves. ⌘ or Ctrl + wheel (and a trackpad pinch) zooms around the pointer. */
+  let wheelAcc = 0, wheelT = 0, wheelTarget = null, wheelPos = 0, wheelRaf = 0;
+  function wheelStep(){
+    wheelRaf = 0; if(wheelTarget===null || !G?.sc?.isConnected){ wheelTarget = null; return; }
+    const diff = wheelTarget - wheelPos;
+    if(Math.abs(diff) * G.dw < .3){ wheelPos = wheelTarget; wheelTarget = null; } else wheelPos += diff * .5;
+    panTo(wheelPos);
+    if(wheelTarget!==null) wheelRaf = requestAnimationFrame(wheelStep);
+  }
   function onWheel(e){
-    if(!(e.ctrlKey || e.metaKey)) return;
+    if(e.ctrlKey || e.metaKey){
+      e.preventDefault();
+      wheelAcc += e.deltaY; const now = performance.now();
+      if(Math.abs(wheelAcc) < 40 || now - wheelT < 220) return;
+      const r = G.sc.getBoundingClientRect(), frac = Math.max(0, Math.min(1, (e.clientX - r.left - G.gw) / Math.max(1, r.width - G.gw)));
+      stepZoom(wheelAcc < 0 ? 1 : -1, frac); wheelAcc = 0; wheelT = now; return;
+    }
+    let dx = e.shiftKey ? (e.deltaX || e.deltaY) : (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : 0);
+    if(!dx) return;                       // up and down: the browser scrolls the rows
     e.preventDefault();
-    wheelAcc += e.deltaY; const now = performance.now();
-    if(Math.abs(wheelAcc) < 40 || now - wheelT < 220) return;
-    const r = G.sc.getBoundingClientRect(), frac = Math.max(0, Math.min(1, (e.clientX - r.left - G.gw) / Math.max(1, r.width - G.gw)));
-    stepZoom(wheelAcc < 0 ? 1 : -1, frac); wheelAcc = 0; wheelT = now;
+    if(drag || th || S.dragging) return;
+    dx *= e.deltaMode===1 ? 16 : e.deltaMode===2 ? G.sc.clientWidth : 1;
+    if(wheelTarget===null) wheelTarget = wheelPos = leftDay();
+    wheelTarget += dx / G.dw;
+    if(!wheelRaf) wheelRaf = requestAnimationFrame(wheelStep);
   }
 
   /* ---------- splitter ---------- */
   function setGw(w, save){
-    const box = G.sc.clientWidth; w = Math.max(G.P ? 140 : 220, Math.min(w, box - (G.P ? 110 : 260)));
+    const box = G.sc.clientWidth; w = Math.max(G.P ? 170 : 220, Math.min(w, box - (G.P ? 110 : 260)));
     st.gw = w; G.gw = w; const el = $('.gc', G.root); el.style.setProperty('--gw', w + 'px');
     const cols = w >= 470 ? 'full' : w >= 380 ? 'dates' : 'name';
     const sp = $('.gc-split', G.root); sp.style.left = w + 'px'; sp.setAttribute('aria-valuenow', Math.round(w));
@@ -705,7 +746,7 @@ TYPE_VIEWS.gantt = (() => {
 
   function onPointerDown(e){
     if(e.button!==0 || drag) return;
-    if(e.target.closest('input, button, .gc-split, .gc-zoomb, label')) return;
+    if(e.pointerType==='touch' || e.target.closest('input, button, .gc-split, .gc-zoomb, label')) return;
     const dep = e.target.closest('.gc-dep'); if(dep) return;
     const dot = e.target.closest('.gc-dot');
     if(dot){ e.preventDefault(); return linkDrag(e, dot); }
@@ -718,11 +759,7 @@ TYPE_VIEWS.gantt = (() => {
     }
     const track = e.target.closest('.gc-row.task .gc-track');
     if(track){ const t = taskOf(track.closest('.gc-row').dataset.row); if(t && !span(t)){ e.preventDefault(); const ctl = startDrag('create', t, null, e.clientX, track); return trackPointer(e, ctl, track); } }
-    const hin = e.target.closest('.gc-head .gc-hin');
-    if(hin){ e.preventDefault(); const sc = G.sc, x0 = e.clientX, sl0 = sc.scrollLeft; document.body.classList.add('no-select', 'gc-panning');
-      const move = ev => { sc.scrollLeft = sl0 - (ev.clientX - x0); };
-      const up = () => { document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true); document.body.classList.remove('no-select', 'gc-panning'); };
-      document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true); }
+    if(e.target.closest('.gc-scroll') && !e.target.closest('.gc-g, .gc-corner')) startPan(e);   // empty timeline or its header
   }
   function trackPointer(e, ctl, el){
     try{ el.setPointerCapture(e.pointerId); }catch(err){}
