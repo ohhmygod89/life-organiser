@@ -2,6 +2,21 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.8] - 2026-11-11
+### Changed
+- Item titles on desktop are a gradient pill with white text; right-click the title to choose its colour (kept with the item, so it syncs).
+- "Edited" dates show the year (11 Nov 2026).
+- A subtask's flag shows its reason on the card, like the task's own flag (Waiting · SIRVA).
+- Past-due dates on cards are red.
+- The new-task box is one line tall and grows as you type; its send button sits at the top.
+- View is a dropdown in the same row as Show, Stacks and Include, with clearer gaps between the groups.
+- Typing boxes leave room after the last character; the stack name box no longer clips its first letter.
+- The text cursor only appears where you can type.
+- Export files are named life-organiser-yyyymmddhhmm.
+### Added
+- Move stacks up and down with the arrows beside the stack name (or Move up / Move down in its ⋯ menu).
+- Click an update in a task to edit it.
+
 ## [1.0.1-beta.7] - 2026-11-11
 ### Fixed
 - Google sign-in uses Firebase's own sign-in window, so it works without extra Google Cloud settings (it showed "redirect_uri_mismatch").

@@ -2502,3 +2502,49 @@ body.locked > :not(#lock):not(script){visibility:hidden}
 .lock-f .lock-chk input{width:20px;height:20px;accent-color:var(--fg)}
 .lock-f .pill{min-height:44px;justify-content:center;font-size:var(--fs-m);width:100%}
 .lock-err{margin:0;color:var(--down);font-size:var(--fs-s)}
+
+/* ===== 1.0.1-beta.8 Kanban batch ===== */
+/* pointer: an I-beam only where you can type; plain arrow over text you can't edit */
+body{cursor:default}
+:is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),textarea,[contenteditable="true"],.ProseMirror){cursor:text}
+:is(a[href],button:not(:disabled),[role=button],[role=menuitem],[role=menuitemradio],summary,label,select,.card,.nav-item){cursor:pointer}
+/* typing boxes keep room after the last character, so it is easy to click there */
+:is(.lane-name,.title-in,.t-input,.prop-in,.ci input[type=text],.ci-who,.blk-name,.txt-in,.field-in){padding-right:12px}
+/* stack name: room on the left so the edit box never clips the first letter */
+.lane-hi{padding-left:12px}
+.lane-hi .lane-name{padding:3px 12px 3px 8px;margin-left:-8px;border-radius:10px}
+.lane-hi .lane-mv{opacity:.55}
+.lane-hi .lane-mv:hover,.lane-hi .lane-mv:focus-visible{opacity:1}
+.lane-hi .lane-mv:disabled{opacity:.2}
+@media (hover:hover){.lane-hi .lane-mv{visibility:hidden}.lane-h:hover .lane-mv,.lane-h:focus-within .lane-mv{visibility:visible}}
+@media (max-width:860px){.lane-hi .lane-mv{display:none}}
+/* past due dates in red */
+.card .due.overdue,.tl-due.overdue{color:var(--down);font-weight:500}
+/* the new-task box: one line, grows as the text wraps; the send button sits at the top */
+.add-wrap{align-items:flex-start}
+.add-wrap .send-btn{margin:5px 0 0}
+.add-input{overflow:hidden;min-height:0;line-height:1.35}
+/* filter row: clearer gaps between Show, Stacks, Include and View */
+@media (min-width:861px){
+  .fgroups{column-gap:28px}
+  .fgroup + .fgroup{position:relative}
+  .fgroup + .fgroup::before{content:"";position:absolute;left:-14px;top:50%;height:18px;margin-top:-9px;border-left:1px solid var(--sep)}
+  .fg-view{display:none!important}
+  .kb-bar .kb-view{gap:4px}
+  .kb-bar .kb-view svg{width:14px;height:14px}
+}
+@media (max-width:860px){ .fg-viewdd{display:none!important} }
+/* updates: each one is a quiet text box, click to edit */
+.log-t{display:block;width:100%;font:inherit;font-size:var(--fs-m);color:var(--fg);background:transparent;border:0;border-radius:8px;padding:2px 12px 2px 6px;margin-left:-6px;resize:none;overflow:hidden;line-height:1.4}
+.log-t:hover{background:var(--fill-2)}
+.log-t:focus{background:var(--panel);outline:2px solid var(--fg);outline-offset:1px}
+@media (max-width:860px){.log-t{font-size:16px}}
+/* desktop item title: a gradient pill with white text (the colour is chosen with right-click) */
+@media (min-width:861px){
+  .ihead .title-in,.ihead .title-in:hover,.ihead .title-in:focus,.ihead .title-in:focus-visible{background:var(--pal,var(--pal-lav))!important;color:#fff;border-radius:999px;padding:6px 18px 7px 16px;margin:0;text-shadow:0 1px 2px rgba(10,4,32,.22);box-shadow:none!important}
+  .ihead .title-in::placeholder{color:rgba(255,255,255,.75)}
+  .ihead .title-in:hover{filter:brightness(1.04)}
+  .ihead .title-in:focus,.ihead .title-in:focus-visible{outline:2px solid var(--fg)!important;outline-offset:2px}
+  .ihead .eyebrow{padding-left:16px}
+}
+.card :is(.chip,.due,.okd){cursor:pointer}

@@ -53,7 +53,7 @@ TYPE_VIEWS.kanban = (() => {
   const toggleDone = t => moveTo(t, t.col==='done' ? (t.prevCol && t.prevCol!=='done' ? t.prevCol : 'todo') : 'done');
 
   /* subtask chip on cards: just who it's waiting on (or the short flag name), full text on hover */
-  const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = flagShort(f);   // the flag's name; its reason is in the task window   // the colour dot says which flag; the space goes to who or why
+  const subChip = c => { const f=flagOf(c.flag); const d = flagAsk(f) && c.flagWho ? c.flagWho : ''; const txt = flagShort(f) + (d ? ' · '+d : '');   // like the task's own chip: Waiting · SIRVA (just the flag name when no reason)   // the colour dot says which flag; the space goes to who or why
     return `<span class="chip one sub" style="--fc:${colorOf(f.color)}" title="${esc(f.label)}${d?' · '+esc(d):''}">${esc(txt)}</span>`; };
   /* Card, top to bottom: title (priority bars) · flag chip · open subtasks (indented) · footer with the due date and
      notes on the left. Top right: the pin button (always shown when pinned, on hover otherwise). No done tick: tasks
@@ -196,7 +196,7 @@ TYPE_VIEWS.kanban = (() => {
   });
   function addRowHTML(bid, c){
     const isAdding = adding?.board===bid && adding?.col===c.id;
-    return isAdding ? `<div class="add-row"><div class="add-wrap"><textarea class="add-input" id="kbAdd" rows="2" placeholder="Task name" aria-label="New task in ${c.name}" enterkeyhint="send">${esc(draft)}</textarea><button class="send-btn" data-send="task" aria-label="Add task" title="Add">${ICON.send}</button></div><div class="add-tip">${TOUCH?'Tap outside to finish':'Enter to add another · Esc to finish'}</div></div>`
+    return isAdding ? `<div class="add-row"><div class="add-wrap"><textarea class="add-input" id="kbAdd" rows="1" placeholder="Task name" aria-label="New task in ${c.name}" enterkeyhint="send">${esc(draft)}</textarea><button class="send-btn" data-send="task" aria-label="Add task" title="Add">${ICON.send}</button></div><div class="add-tip">${TOUCH?'Tap outside to finish':'Enter to add another · Esc to finish'}</div></div>`
       : `<div class="add-row"><button class="add-btn" data-add="${c.id}">${ICON.plus} Add task</button></div>`;
   }
   function bindSortables(root){
@@ -222,7 +222,7 @@ TYPE_VIEWS.kanban = (() => {
         /* Sortable may swallow the next click after a drag; release it so the first click on a card opens it */
         setTimeout(() => document.dispatchEvent(new MouseEvent('click', {bubbles:true})), 0); }
     })));
-    if(adding){ const a=$('#kbAdd'); if(a){ a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); a.scrollIntoView({block:'nearest', inline:'nearest'}); } }
+    if(adding){ const a=$('#kbAdd'); if(a){ grow(a); a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length); a.scrollIntoView({block:'nearest', inline:'nearest'}); } }
   }
 
   function view(it, root){ renderKanban(it, root); }
@@ -240,6 +240,7 @@ TYPE_VIEWS.kanban = (() => {
       const open = S.tasks.filter(t=>t.boardId===b.id && !['done','backburner'].includes(t.col) && keep(t)).length;
       return `<section class="lane" style="--board:${itemColor(b)}" aria-label="${esc(b.name)}" data-key="lane-${esc(b.id)}">
         <div class="lane-h"><div class="lane-hi" style="--pal:var(--pal-${stackPal(b.id)})"><h2><input class="lane-name" data-sname="${esc(b.id)}" value="${esc(b.name)}" size="${Math.max(3,(b.name||'').length+1)}" maxlength="60" aria-label="Stack name" title="Rename stack"></h2><span class="count">${plural(open,'open task')} · ${S.tasks.filter(t=>t.boardId===b.id && (t.col==='todo'||t.col==='upcoming') && keep(t)).length} to do · ${S.tasks.filter(t=>t.boardId===b.id && t.col==='doing' && keep(t)).length} in progress</span>
+          ${boards.length>1 || stacksOf(b.parent).length>1 ? (()=>{ const sib=stacksOf(b.parent), i=sib.indexOf(b); return `<button class="icon-btn mini lane-mv" data-smove="up" data-sid="${esc(b.id)}" aria-label="Move ${esc(b.name)} up" title="Move stack up" ${i===0?'disabled':''}>${ICON.up}</button><button class="icon-btn mini lane-mv" data-smove="down" data-sid="${esc(b.id)}" aria-label="Move ${esc(b.name)} down" title="Move stack down" ${i===sib.length-1?'disabled':''}>${ICON.chevD}</button>`; })() : ''}
           <button class="icon-btn mini lane-more" data-act="stack-menu" data-sid="${esc(b.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(b.name)} stack options" title="Stack options">${ICON.more}</button></div></div>
         <div class="lane-tabs" role="group" aria-label="Columns of ${esc(b.name)}">${cols.map((c,i) => `<button type="button" class="lane-tab" data-lanetab="${c.id}" aria-pressed="${i===0}">${c.name}<b>${tasksIn(b.id, c.id).filter(keep).length}</b></button>`).join('')}</div>
         <div class="lane-cols" data-hs="lc-${esc(b.id)}">${cols.map(c => {
@@ -349,7 +350,7 @@ TYPE_VIEWS.kanban = (() => {
     if(card){ openSheet(card.dataset.id, card); return true; }
     return false;
   }
-  function input(e){ if(e.target.id==='kbAdd') draft = e.target.value; if(e.target.matches('.lane-name')) e.target.size = Math.max(3, e.target.value.length+1); }
+  function input(e){ if(e.target.id==='kbAdd'){ draft = e.target.value; grow(e.target); } if(e.target.matches('.lane-name')) e.target.size = Math.max(3, e.target.value.length+1); }
   function change(e){
     const n = e.target.closest('[data-sname]'); if(!n) return;
     const s = itemById(n.dataset.sname); const v = n.value.trim();
@@ -416,7 +417,7 @@ TYPE_VIEWS.kanban = (() => {
   function propRow(id, label, value, extra=''){
     return `<div class="prop"><span class="prop-l" id="${id}L">${label}</span><button class="prop-v ${extra}" id="${id}" aria-haspopup="menu" aria-expanded="false" aria-labelledby="${id}L ${id}">${value}${ICON.chev}</button></div>`;
   }
-  function renderSheet(){
+  function renderSheet(){ requestAnimationFrame(() => $$("#sheet .log-t").forEach(grow));
     const t = cur(); if(!t){ closeSheet(true); return; }
     const b = itemById(t.boardId); const cl = t.checklist||[]; const doneN = cl.filter(c=>c.done).length; const f = flagOf(t.flag);
     sheet.style.setProperty('--board', itemColor(b));
@@ -462,7 +463,7 @@ TYPE_VIEWS.kanban = (() => {
         </section>
         <section class="sh-sec" aria-labelledby="lgLbl">
           <div class="sh-h"><h3 id="lgLbl">Updates</h3></div>
-          ${(t.log||[]).length?`<div class="log">${(t.log||[]).slice().sort((a,b)=>(a.t||'').localeCompare(b.t||'')).map(l=>`<div class="log-i"><time>${esc(stamp(l.t))}</time><p>${esc(l.text)}</p><button class="x" data-del-l="${esc(l.id)}" aria-label="Remove update from ${esc(stamp(l.t))}">${ICON.x}</button></div>`).join('')}</div>`:''}
+          ${(t.log||[]).length?`<div class="log">${(t.log||[]).slice().sort((a,b)=>(a.t||'').localeCompare(b.t||'')).map(l=>`<div class="log-i"><time>${esc(stamp(l.t))}</time><textarea class="log-t" data-lt="${esc(l.id)}" rows="1" aria-label="Update from ${esc(stamp(l.t))}">${esc(l.text)}</textarea><button class="x" data-del-l="${esc(l.id)}" aria-label="Remove update from ${esc(stamp(l.t))}">${ICON.x}</button></div>`).join('')}</div>`:''}
           <div class="ci add"><span class="cbox ghost" aria-hidden="true">${ICON.plus}</span><input type="text" id="fLogNew" placeholder="Log an update, e.g. Called the insurer" aria-label="New update" enterkeyhint="send"><button class="send-btn" data-send="log" aria-label="Add update" title="Add">${ICON.send}</button></div>
         </section>
         <div class="sh-foot"><span>Created ${esc(stamp(t.created))}${t.doneAt&&t.col==='done'?' · Done '+esc(stamp(t.doneAt)):''}</span><button class="btn danger" id="fDelete">Delete task</button></div>
@@ -485,6 +486,7 @@ TYPE_VIEWS.kanban = (() => {
     if(id==='fNotes'){ grow(e.target); const v=e.target.value; debounced('notes', ()=>{ docPatch('tasks', t.id, {notes:v}); markSaved(); }); }
     if(id==='fWho'){ const v=e.target.value; debounced('who', ()=>{ docPatch('tasks', t.id, {flagWho:v}); markSaved(); render(); }); }
     const ct = e.target.dataset.ct; if(ct){ const v=e.target.value; debounced('c'+ct, ()=>{ const x=cur(); if(!x) return; patchCl(x, ct, c=>({...c,text:v})); markSaved(); render(); }); }
+    const lt = e.target.dataset.lt; if(lt){ grow(e.target); const v=e.target.value; debounced('lt'+lt, ()=>{ const x=cur(); if(!x) return; docPatch('tasks', x.id, {log:(x.log||[]).map(l=>l.id===lt?{...l, text:v}:l)}); markSaved(); }); }
     const cw = e.target.dataset.cw; if(cw){ const v=e.target.value; debounced('w'+cw, ()=>{ const x=cur(); if(!x) return; patchCl(x, cw, c=>({...c,flagWho:v})); markSaved(); render(); }); }
   });
   sheet.addEventListener('change', e => { const t=cur(); if(t && (e.target.id==='fDue' || e.target.id==='fStart')){ setDates(t, e.target.id==='fDue' ? {due:e.target.value} : {start:e.target.value}); renderSheet(); markSaved(); render(); } });

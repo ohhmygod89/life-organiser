@@ -250,7 +250,7 @@ function openMenu(anchor, items, onPick, label, cls=''){
   closeMenu(false);
   const m = document.createElement('div'); m.className='menu '+cls; m.setAttribute('role','menu'); m.setAttribute('aria-label', label||'Menu');
   m.innerHTML = items.map((it,i)=> it.sep ? '<div class="menu-sep" role="separator"></div>' : it.head ? `<div class="menu-h" role="presentation">${esc(it.head)}</div>` :
-    `<button role="${it.checked!==undefined?'menuitemradio':'menuitem'}" ${it.checked!==undefined?`aria-checked="${!!it.checked}"`:''} data-i="${i}" tabindex="-1" class="${it.danger?'danger':''}">`+
+    `<button role="${it.checked!==undefined?'menuitemradio':'menuitem'}" ${it.checked!==undefined?`aria-checked="${!!it.checked}"`:''} data-i="${i}" tabindex="-1" class="${it.danger?'danger':''}" ${it.disabled?'disabled':''}>`+
     `${it.checked!==undefined?`<span class="mk" aria-hidden="true">${it.checked?ICON.check:''}</span>`:''}${it.dot?`<span class="dot" style="--oc:${it.dot}"></span>`:''}${it.html ? `<span class="mi" ${it.label?`aria-label="${esc(it.label)}" title="${esc(it.label)}"`:''}>${it.html}</span>` : `<span>${esc(it.label)}</span>`}${it.kbd?`<span class="kbd" aria-hidden="true">${esc(it.kbd)}</span>`:''}</button>`).join('');
   document.body.appendChild(m); menuEl=m; menuAnchor=anchor; if(anchor.closest?.('#side')) $('#side').classList.add('peek'); anchor.setAttribute('aria-expanded','true');
   const w=m.offsetWidth, h=m.offsetHeight;
@@ -466,6 +466,7 @@ function navContextMenu(e){
   if(menuEl) $('#side').classList.add('peek');   // the auto-hiding sidebar stays open while its menu is up
 }
 $('#side').addEventListener('contextmenu', navContextMenu);
+$('#content').addEventListener('contextmenu', e => { const h = e.target.closest('.ihead[data-hid]'); if(!h || matchMedia('(max-width:860px)').matches) return; const it = itemById(h.dataset.hid); if(!it) return; e.preventDefault(); headMenu(it, h.querySelector('.title-in')||h); });
 /* Delete (or ⌘⌫ on a Mac) on a focused menu item deletes it, after the usual confirmation and with Undo */
 $('#side').addEventListener('keydown', e => {
   const a = e.target.closest?.('.nav-item[data-id]'); if(!a) return;
@@ -537,11 +538,19 @@ function fitTitle(el = $('#itemTitle')){
   const w = m.measureText(txt).width + ls*txt.length + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + 18;
   el.style.width = Math.ceil(w) + 'px';
 }
+const yearDate = iso => { const d=new Date(iso); return d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear(); };   // 11 Nov 2026
+/* Item header colour: chosen per item (kept with the item, so it syncs), else the type's default */
+const headPal = it => TILE_PALS.some(x=>x[0]===it.pal) ? it.pal : (PALETTE_BY_TYPE[it.type]||'lav');
+function headMenu(it, at){
+  const sw = (k, name) => `<i class="sw pal-${k}" aria-hidden="true"></i><span>${esc(name)}</span>`, cur = TILE_PALS.some(x=>x[0]===it.pal) ? it.pal : '';
+  openMenu(at, [{head:'Title colour'}, {html:sw(PALETTE_BY_TYPE[it.type]||'lav','Default'), label:'Default', value:'', checked:!cur}, {sep:true}, ...TILE_PALS.map(([k,n])=>({html:sw(k,n), label:n, value:k, checked:cur===k}))],
+    v => { docPatch('items', it.id, {pal:v}); render(true); }, 'Title colour', 'menu-pal');
+}
 function headHTML(it){
   const f = folderById(it.folderId);
-  return `<div class="ihead pal-${PALETTE_BY_TYPE[it.type]||'lav'}"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
+  return `<div class="ihead pal-${headPal(it)}" data-hid="${esc(it.id)}"><span class="ti" style="--c:${itemColor(it)}" aria-hidden="true">${ICON[it.type]}</span>
     <div class="ihead-t"><input class="title-in" id="itemTitle" value="${esc(it.name||'')}" placeholder="Untitled" aria-label="${TYPES[it.type].label} name" maxlength="80">
-    <p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(shortDate(it.updated)):''}</p></div></div>`;
+    <p class="eyebrow">${f?`<span class="eb-folder">${esc(f.name)} · </span>`:''}${it.updated?'Edited '+esc(yearDate(it.updated)):''}</p></div></div>`;
 }
 
 /* ----- Home ----- */
@@ -649,16 +658,17 @@ function renderKanban(k, root){
   /* Board · List · Archive tabs and the Add stack button keep the same place in every view */
   const VIEWS = {board:'Kanban', timeline:'Gantt', list:'List', archive:'Archive'};
   /* the phone Filter button lives in the dock (renderDock); desktop only needs the View menu here */
-  const seg = `<div class="kb-ctl"><button class="btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}" title="View">${ICON.view}<span class="kb-lbl"><span class="muted">View</span> ${VIEWS[mode]}</span>${ICON.chevD}</button></div>`;
+  const viewDD = `<div class="fgroup fg-viewdd" role="group" aria-label="View"><span class="fg-l">View</span><button class="chip-btn kb-view" data-act="view" aria-haspopup="menu" aria-expanded="false" aria-label="View: ${VIEWS[mode]}">${VIEWS[mode]}${ICON.chevD}</button></div>`;
   /* three filter groups: Show (quick filters) · Stacks · Include (Done, Backburner) */
   const viewGroup = `<div class="fgroup fg-view" role="group" aria-label="View"><span class="fg-l">View</span>${Object.entries(VIEWS).map(([m,l])=>`<button class="chip-btn" data-mode="${m}" aria-pressed="${mode===m}">${l}</button>`).join('')}</div>`;
-  const groups = mode==='archive' ? `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}</div>` : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}
+  const groups = mode==='archive' ? `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}${viewDD}</div>` : `<div class="fgroups ${S.filtersOpen?'open':''}" id="kbFilters">${viewGroup}
     <div class="fgroup" role="group" aria-label="Show"><span class="fg-l">Show</span>${QUICK.map(x=>{const n=pool.filter(x.test).length, on=V.quick===x.id; return `<button class="chip-btn q" data-quick="${x.id}" aria-pressed="${on}" ${!n&&!on&&x.id!=='open'?'disabled':''}>${esc(x.label)} <b>${n}</b></button>`}).join('')}</div>
     <div class="fgroup" role="group" aria-label="Stacks"><span class="fg-l">Stacks</span><button class="chip-btn" data-fb="" aria-pressed="${V.boards.size===0}">All</button>${stacks.map(b=>`<button class="chip-btn" data-fb="${esc(b.id)}" aria-pressed="${V.boards.has(b.id)}">${esc(b.name)}</button>`).join('')}<button class="chip-btn add-stack" data-act="add-stack" title="Add a stack">${ICON.plus}Stack</button></div>
     <div class="fgroup" role="group" aria-label="Include"><span class="fg-l">Include</span><button class="chip-btn" data-act="done" aria-pressed="${S.showDone && V.quick==='open'}" ${V.quick==='open'?'':'disabled title="Done is hidden while a filter is on"'}>Done</button><button class="chip-btn" data-act="bb" aria-pressed="${V.bb}">Backburner</button></div>
+    ${viewDD}
   </div>`;
   /* one row: the filter groups, then Board · List · Archive at the right end (they never move between views) */
-  const tabs = `<div class="kb-bar">${groups}${seg}</div>`;
+  const tabs = `<div class="kb-bar">${groups}</div>`;
   if(mode==='archive'){ root.innerHTML = `<div class="kb">${tabs}<div id="kbArch"></div></div>`; return renderArchive($('#kbArch'), stacksOf(k.id)); }
   if(!stacks.length){ root.innerHTML = `<div class="kb">${tabs}<div class="panel empty-state"><b>No stacks yet</b>A stack is a set of To Do, In Progress and Done columns, for example Home or Work. <button class="pill" data-act="add-stack" style="margin-top:12px">${ICON.plus} Add a stack</button></div></div>`; return; }
   if(mode==='board'){
@@ -697,13 +707,21 @@ function kanbanClick(e, k){
   if(e.target.closest('[data-act="done"]')){ toggleShowDone(); return true; }
   if(e.target.closest('[data-act="add-stack"]')){ addStack(k, e.target.closest('[data-act]')); return true; }
   const sm = e.target.closest('[data-act="stack-menu"]');
-  if(sm){ const st = itemById(sm.dataset.sid); if(st) openMenu(sm, [{label:'Rename…', value:'rename'}, {sep:true}, {label:'Remove stack…', value:'del', danger:true}], async v => {
+  if(sm){ const st = itemById(sm.dataset.sid); const sib = st ? stacksOf(st.parent) : []; const i = sib.indexOf(st);
+    if(st) openMenu(sm, [{label:'Rename…', value:'rename'}, ...(sib.length>1?[{label:'Move up', value:'up', disabled:i===0}, {label:'Move down', value:'down', disabled:i===sib.length-1}]:[]), {sep:true}, {label:'Remove stack…', value:'del', danger:true}], async v => {
+      if(v==='up' || v==='down') moveStack(st, v==='up'?-1:1);
       if(v==='rename'){ const n = await promptModal({title:'Rename stack', label:'Name', value:st.name, opener:sm}); if(n){ docPatch('items', st.id, {name:n}); render(true); } }
       if(v==='del') removeStack(st, sm); }, 'Stack options'); return true; }
+  const mv = e.target.closest('[data-smove]'); if(mv){ const st=itemById(mv.dataset.sid); if(st){ moveStack(st, mv.dataset.smove==='up'?-1:1); restoreFocus(`[data-smove="${mv.dataset.smove}"][data-sid="${CSS.escape(st.id)}"]:not([disabled])`); } return true; }
   const yr = e.target.closest('[data-year]'); if(yr){ S.archiveYear=+yr.dataset.year; render(true); return true; }
   return false;
 }
 
+/* Swap a stack with its neighbour above (-1) or below (+1); every stack of the Kanban gets a clean order number */
+function moveStack(st, d){
+  const sib = stacksOf(st.parent); const i = sib.indexOf(st), j = i + d; if(i<0 || j<0 || j>=sib.length) return;
+  [sib[i], sib[j]] = [sib[j], sib[i]]; sib.forEach((s, k) => { if(s.order!==k) docPatch('items', s.id, {order:k}); }); render(true);
+}
 /* ----- Archive (finished tasks by year) ----- */
 function renderArchive(c, stacks){
   const ids = new Set(stacks.map(s=>s.id));

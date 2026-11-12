@@ -38,7 +38,7 @@ function bkNormalise(obj){
   out.settings = {flags: Array.isArray(d.settings?.flags) ? d.settings.flags : Array.isArray(d.flags) ? d.flags : null};
   return out;
 }
-const bkFileName = enc => `life-organiser-${ymd(new Date())}${enc?'-encrypted':''}.json`;
+const bkFileName = enc => { const d=new Date(), p=n=>String(n).padStart(2,'0'); return `life-organiser-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${enc?'-encrypted':''}.json`; };   // life-organiser-yyyymmddhhmm
 async function bkSave(text, name){
   const cap = window.claude && typeof window.claude.use==='function' ? await window.claude.use('downloads').catch(()=>null) : null;
   if(cap){
