@@ -2,6 +2,13 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.14] - 2026-11-12
+### Changed
+- Kanban: the Ongoing column comes after Done.
+### Fixed
+- Phone: the box for a new card stays above the floating menu and the keyboard.
+- Task panel: the pin and close buttons are the same size and line up.
+
 ## [1.0.1-beta.13] - 2026-11-12
 ### Added
 - Kanban: an Ongoing column (between In Progress and Done), shown with the Ongoing switch under Include, like Backburner. Ongoing tasks count as open.

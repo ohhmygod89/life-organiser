@@ -6,8 +6,8 @@ TYPE_VIEWS.kanban = (() => {
   const COLS = [
     {id:'todo', name:'To Do', hint:''},
     {id:'doing', name:'In Progress', hint:''},
-    {id:'ongoing', name:'Ongoing', hint:'Continuous'},
     {id:'done', name:'Done', hint:'Newest first'},
+    {id:'ongoing', name:'Ongoing', hint:'Continuous'},
     {id:'backburner', name:'Backburner', hint:'Parked'},
   ];
   const colName = id => id==='upcoming' ? 'To Do' : (COLS.find(c=>c.id===id)?.name || '');
@@ -225,7 +225,7 @@ TYPE_VIEWS.kanban = (() => {
     })));
     if(adding){ const a=$('#kbAdd'); if(a){ grow(a); a.focus({preventScroll:true}); a.setSelectionRange(a.value.length, a.value.length);
       /* bring the box into view once the page has laid out (the dock and the keyboard cover the bottom on a phone) */
-      requestAnimationFrame(() => requestAnimationFrame(() => { const r = a.getBoundingClientRect(); if(r.top < 70 || r.bottom > innerHeight - 110) a.scrollIntoView({block:'center', inline:'nearest', behavior:RM?'auto':'smooth'}); })); } }
+      requestAnimationFrame(() => requestAnimationFrame(() => keepInView(a))); } }
   }
 
   function view(it, root){ renderKanban(it, root); }
@@ -353,6 +353,18 @@ TYPE_VIEWS.kanban = (() => {
     if(card){ openSheet(card.dataset.id, card); return true; }
     return false;
   }
+  /* Keep the new-task box above everything that can cover it: the phone's floating dock and the on-screen keyboard
+     (visualViewport shrinks when the keyboard opens). Runs when the box appears and again while the keyboard slides up. */
+  function keepInView(a){
+    if(!a || !a.isConnected) return;
+    const vv = window.visualViewport, top = (vv?.offsetTop||0) + 12, dock = $('#fab'), dr = dock && dock.offsetParent ? dock.getBoundingClientRect() : null;
+    let bottom = (vv ? vv.offsetTop + vv.height : innerHeight) - 12;
+    if(dr && dr.top < bottom) bottom = Math.min(bottom, dr.top - 12);
+    const r = a.closest('.add-wrap')?.getBoundingClientRect() || a.getBoundingClientRect();
+    if(r.bottom > bottom) window.scrollBy({top: r.bottom - bottom, behavior:'auto'});
+    else if(r.top < top + 60) window.scrollBy({top: r.top - top - 60, behavior:'auto'});
+  }
+  if(window.visualViewport) visualViewport.addEventListener('resize', () => { const a = document.activeElement; if(a && a.id==='kbAdd') keepInView(a); });
   function input(e){ if(e.target.id==='kbAdd'){ draft = e.target.value; grow(e.target); } if(e.target.matches('.lane-name')) e.target.size = Math.max(3, e.target.value.length+1); }
   function change(e){
     const n = e.target.closest('[data-sname]'); if(!n) return;

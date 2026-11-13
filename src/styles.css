@@ -2792,3 +2792,8 @@ body > .gc-row.sortable-fallback .gc-nm{flex:1;font-size:13px}
   font:inherit;font-size:16px;color:var(--fg);background:var(--panel);border:0;border-radius:12px;padding:10px 12px;box-shadow:var(--pop-shadow);color-scheme:inherit}
 /* Ongoing column dot */
 .lcol.ongoing{--dc:#2bb3a8}
+
+/* ===== 1.0.1-beta.14 ===== */
+/* task panel header: pin and close are the same size and line up */
+.sh-top #fPin,.sh-top #closeSheet{width:36px;height:36px;margin:0;align-self:flex-start;flex:none}
+@media (pointer:coarse){.sh-top #fPin,.sh-top #closeSheet{width:40px;height:40px}}
