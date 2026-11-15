@@ -4,7 +4,8 @@
      item      {type:'gantt', name, folderId, ...}
      section   items doc {type:'gsection', parent:ganttId, name, order, pal?}      (like a Kanban stack)
      task      `tasks` doc {id, boardId:sectionId, title, start, due, notes, priority, col:'todo'|'doing'|'done', checklist, log, pos,
-                            created, updated, doneAt?} plus Gantt-only {deps:[taskId…] (finish-to-start predecessors), progress:0-100, milestone:bool}
+                            created, updated, doneAt?} plus Gantt-only {deps:[taskId…] (finish-to-start predecessors), progress:0-100, milestone:bool,
+                            parentId?:taskId (a subtask; same section as its parent, up to MAXD levels below a top-level task)}
    Everything that counts Kanban tasks skips tasks whose boardId is a gsection (see isGanttTask in core.js).
    Layout: one scroller holds the sticky header, a sticky left table (Name, Start, Due, Days) and the timeline, so both
    panes scroll vertically together; the chart fills the screen below the toolbar. Desktop: mouse drags (bars, ends,
@@ -25,6 +26,12 @@ TYPE_VIEWS.gantt = (() => {
   const K = () => TYPE_VIEWS.kanban;
   const byPos = (a, b) => (a.pos ?? 0) - (b.pos ?? 0) || (a.created || '').localeCompare(b.created || '');
   const taskOf = id => S.tasks.find(x => x.id===id);
+  /* subtasks: a task whose parentId names another task in the same section. MAXD levels below a top-level task. */
+  const MAXD = 5;
+  const parentOf = t => { const p = t?.parentId && t.parentId!==t.id ? taskOf(t.parentId) : null; return p && p.boardId===t.boardId ? p : null; };
+  function depthOf(t){ let d = 0, p = parentOf(t); const seen = new Set([t.id]); while(p && !seen.has(p.id)){ seen.add(p.id); d++; p = parentOf(p); } return d; }
+  function descendants(id){ const out = [], seen = new Set([id]); const walk = pid => S.tasks.forEach(x => { if(x.parentId===pid && !seen.has(x.id)){ seen.add(x.id); out.push(x); walk(x.id); } }); walk(id); return out; }
+  const kidsOf = t => S.tasks.filter(x => x.parentId===t.id && x.id!==t.id && x.boardId===t.boardId);
   const STATUS = ['todo', 'doing', 'done'];
   const STATUS_NAME = {todo:'To do', doing:'In progress', done:'Done'};
   /* zoom presets: pixels per day. Header style follows the pixels per day, so Auto fit can use any value in between. */
@@ -55,7 +62,9 @@ TYPE_VIEWS.gantt = (() => {
   const secPal = (sec, i) => TILE_PALS.some(x => x[0]===sec.pal) ? sec.pal : SEC_PALS[i % SEC_PALS.length];
   function datesText(a, b, sep=' – '){ return a===b ? fullDate(iso(a)) : dateRange(iso(a), iso(b), sep); }
   function accName(t){
-    const sp = span(t), parts = [t.title || 'Untitled', STATUS_NAME[t.col] || 'To do'];
+    const sp = span(t), parts = [t.title || 'Untitled', STATUS_NAME[t.col] || 'To do'], pa = parentOf(t);
+    if(pa) parts.splice(1, 0, 'subtask of ' + (pa.title || 'Untitled'));
+    const k = kidsOf(t).length; if(k) parts.push(plural(k, 'subtask') + (collapsed.has(t.id) ? ', hidden' : ''));
     parts.push(sp ? (t.milestone ? 'milestone, ' + fullDate(iso(sp.a)) : datesText(sp.a, sp.b, ' to ')) : 'no dates');
     if((t.progress || 0) > 0 && !t.milestone) parts.push(t.progress + '% complete');
     const n = (t.deps || []).filter(id => taskOf(id)).length; if(n) parts.push('depends on ' + plural(n, 'task'));
@@ -114,10 +123,19 @@ TYPE_VIEWS.gantt = (() => {
     return id;
   }
   function removeTask(t, opts={}){
-    const snap = clone(t), succs = S.tasks.filter(x => (x.deps || []).includes(t.id)).map(x => ({id:x.id, deps:clone(x.deps)}));
-    succs.forEach(x => docPatch('tasks', x.id, {deps:x.deps.filter(d => d!==t.id)}));
-    docDel('tasks', t.id); if(st.sel===t.id) st.sel = null; touchItem(gidOf(snap)); render(true);
-    toast('Deleted “' + (snap.title || 'Untitled') + '”', () => { docSet('tasks', snap); succs.forEach(x => docPatch('tasks', x.id, {deps:x.deps})); render(true); });
+    const all = [t, ...descendants(t.id)], gone = new Set(all.map(x => x.id)), snaps = all.map(clone);
+    const succs = S.tasks.filter(x => !gone.has(x.id) && (x.deps || []).some(d => gone.has(d))).map(x => ({id:x.id, deps:clone(x.deps)}));
+    succs.forEach(x => docPatch('tasks', x.id, {deps:x.deps.filter(d => !gone.has(d))}));
+    const gid = gidOf(t); all.forEach(x => docDel('tasks', x.id)); if(gone.has(st.sel)) st.sel = null; touchItem(gid); render(true);
+    const n = all.length - 1;
+    toast('Deleted “' + (snaps[0].title || 'Untitled') + '”' + (n ? ` and ${plural(n, 'subtask')}` : ''), () => { snaps.forEach(x => docSet('tasks', x)); succs.forEach(x => docPatch('tasks', x.id, {deps:x.deps})); render(true); });
+  }
+  /* move a task (and its subtasks) to another section; a subtask moved on its own becomes a top-level task there */
+  function moveToSection(t, sid){
+    const all = [t, ...descendants(t.id)], last = S.tasks.filter(x => x.boardId===sid).reduce((m, x) => Math.max(m, x.pos ?? 0), 0);
+    const before = all.map(x => ({id:x.id, boardId:x.boardId, pos:x.pos ?? 0, parentId:x.parentId || ''}));
+    all.forEach((x, i) => docPatch('tasks', x.id, {boardId:sid, ...(x===t ? {pos:last + 1024, parentId:''} : {})}));
+    return () => before.forEach(b => docPatch('tasks', b.id, {boardId:b.boardId, pos:b.pos, parentId:b.parentId}));
   }
   function duplicateTask(t){
     const id = uid(), now = nowIso(), sec = itemById(t.boardId);
@@ -205,7 +223,7 @@ TYPE_VIEWS.gantt = (() => {
   /* ---------- menus ---------- */
   function taskMenuItems(t){
     const n = (t.deps || []).length, m = S.tasks.filter(x => (x.deps || []).includes(t.id)).length;
-    return [{label:'Open', value:'open'}, {label:'Rename…', value:'rename', kbd:TOUCH ? '' : 'F2'}, {label:'Duplicate', value:'dup'},
+    return [{label:'Open', value:'open'}, {label:'Rename…', value:'rename', kbd:TOUCH ? '' : 'F2'}, {label:'Add subtask', value:'sub', disabled:depthOf(t) >= MAXD}, {label:'Duplicate', value:'dup'},
       {label:t.milestone ? 'Milestone: turn off' : 'Make a milestone', value:'ms'},
       {label:'Add dependency…', value:'dep'},
       {label:'Remove dependencies', value:'undep', disabled:!(n + m)},
@@ -216,6 +234,7 @@ TYPE_VIEWS.gantt = (() => {
     if(v==='open') return openSheet(t.id, anchor);
     if(v==='rename') return renamePrompt(t, anchor);
     if(v==='dup') return duplicateTask(t);
+    if(v==='sub') return addSubtaskUI(t, anchor);
     if(v==='ms') return toggleMilestone(t);
     if(v==='dep') return pickPred(t, anchor);
     if(v==='nodates') return commitDates(t, null, null, 'Dates cleared');
@@ -263,13 +282,31 @@ TYPE_VIEWS.gantt = (() => {
     requestAnimationFrame(() => { const el = G?.root.querySelector(`input[data-name="${CSS.escape(id)}"]`); if(el){ el.focus({preventScroll:true}); el.select(); el.scrollIntoView({block:'nearest'}); } });
   }
 
+  /* a subtask under `parent`: same flow as a new task (a prompt on touch, an inline name on a desktop) */
+  function addSubtaskUI(parent, opener){
+    if(depthOf(parent) >= MAXD) return toast(`Subtasks go ${MAXD} levels deep at most`);
+    const sec = itemById(parent.boardId); if(!sec) return;
+    collapsed.delete(sec.id); collapsed.delete(parent.id); ls.set('lo.gcCollapsed', JSON.stringify([...collapsed]));
+    const make = n => { const id = newTask(sec, n, {parentId:parent.id}); st.sel = id; render(true); toast('Subtask added', () => { docDel('tasks', id); render(true); }); return id; };
+    if(TOUCH || phone()){ promptModal({title:'New subtask', label:'Name', placeholder:'Subtask name', action:'Add', opener}).then(n => { if(n) make(n); }); return; }
+    const id = make('');
+    requestAnimationFrame(() => { const el = G?.root.querySelector(`input[data-name="${CSS.escape(id)}"]`); if(el){ el.focus({preventScroll:true}); el.select(); el.scrollIntoView({block:'nearest'}); } });
+  }
+
   /* ---------- the chart ---------- */
   function model(g){
     const secs = sectionsOf(g.id), rows = [], idx = {}, by = {};
     secs.forEach((sec, si) => {
       const ts = S.tasks.filter(t => t.boardId===sec.id).sort(byPos); by[sec.id] = ts;
       rows.push({k:'sec', sec, si, ts});
-      if(!collapsed.has(sec.id)) ts.forEach(t => { idx[t.id] = rows.length; rows.push({k:'task', t, sec, si}); });
+      const ids = new Set(ts.map(t => t.id)), kids = {}, seen = new Set(), show = !collapsed.has(sec.id);
+      const isKid = t => t.parentId && t.parentId!==t.id && ids.has(t.parentId);
+      ts.forEach(t => { if(isKid(t)) (kids[t.parentId] = kids[t.parentId] || []).push(t); });
+      const walk = (t, d, vis) => { if(seen.has(t.id)) return; seen.add(t.id); const k = kids[t.id] || [];
+        if(vis){ idx[t.id] = rows.length; rows.push({k:'task', t, sec, si, d, nk:k.length}); }
+        k.forEach(c => walk(c, d + 1, vis && !collapsed.has(t.id))); };
+      ts.filter(t => !isKid(t)).forEach(t => walk(t, 0, show));
+      ts.forEach(t => walk(t, 0, show));   // anything left (a parent loop) shows at the top level
     });
     return {secs, rows, idx, by};
   }
@@ -278,6 +315,7 @@ TYPE_VIEWS.gantt = (() => {
     : '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.8" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
   const PENCIL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19.2 8.8a2.1 2.1 0 0 0 0-3L18.2 4.8a2.1 2.1 0 0 0-3 0L4 16z"/><path d="m13.5 6.5 4 4"/></svg>';
   const chev = '<svg class="gc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  const SUBI = '<svg class="gc-subi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="5.5" r="2.2"/><circle cx="17" cy="17.5" r="2.2"/><path d="M7 7.7v4.3a5.5 5.5 0 0 0 5.5 5.5h2.3"/></svg>';
   const dateTxt = s => s ? fullDate(s) : '';
 
   function headerHTML(lo, hi, dw, T){
@@ -342,14 +380,17 @@ TYPE_VIEWS.gantt = (() => {
     }
     const t = r.t, sp = span(t), done = t.col==='done';
     const dur = sp ? sp.b - sp.a + 1 : null, od = t.due && !done && dayDiff(t.due) < 0;
-    const sel = st.sel===t.id;
+    const sel = st.sel===t.id, d = r.d || 0, open = !collapsed.has(t.id);
+    const tw = r.nk ? `<button class="gc-tw" data-tw="${esc(t.id)}" aria-expanded="${open}" tabindex="-1" aria-label="${open ? 'Hide' : 'Show'} ${plural(r.nk, 'subtask')} of ${esc(t.title || 'task')}" title="${open ? 'Hide' : 'Show'} subtasks">${chev}</button>` : '<span class="gc-tw" aria-hidden="true"></span>';
+    const tree = `<span class="gc-ind" style="--d:${d}" aria-hidden="true"></span>${tw}`;
+    const subAdd = TOUCH || d >= MAXD ? '' : `<button class="gc-sub" data-sub="${esc(t.id)}" tabindex="-1" aria-label="Create subtask of ${esc(t.title || 'task')}" title="Create subtask">${ICON.plus}</button>`;
     const nm = TOUCH ? `<span class="gc-nm" data-nm="${esc(t.id)}">${esc(t.title || 'Untitled')}</span>`
       : `<input class="gc-nm" data-name="${esc(t.id)}" value="${esc(t.title || '')}" placeholder="Task name" aria-label="Task name" maxlength="200" tabindex="-1" autocomplete="off">`;
     const dcell = (f, v, label) => `<label class="gc-d ${f}${od && f==='due' ? ' overdue' : ''}"><span class="gc-dt">${v ? esc(dateTxt(v)) : '<i>–</i>'}</span><input type="date" class="gc-di" data-f="${f}" value="${esc(v || '')}" aria-label="${label} of ${esc(t.title || 'task')}" tabindex="-1"></label>`;
     const cells = dcell('start', t.start, 'Start') + dcell('due', t.due, 'Due')
       + (`<span class="gc-du">${t.milestone ? '<i>◆</i>' : sp ? `<input class="gc-dn" type="number" min="1" inputmode="numeric" data-dn="${esc(t.id)}" value="${dur}" aria-label="Duration in days of ${esc(t.title || 'task')}" tabindex="-1">` : '<i>–</i>'}</span>`);
-    return `<div class="gc-row task${sel ? ' sel' : ''}${done ? ' is-done' : ''}" role="row" aria-selected="${sel}" data-row="${esc(t.id)}" data-sid="${esc(sec.id)}" style="${sc}" tabindex="${ctr===i ? 0 : -1}" aria-label="${esc(accName(t))}">
-      <div class="gc-g" role="gridcell">${TOUCH || P ? '' : `<span class="gc-grip" title="Drag to reorder" aria-hidden="true">${ICON.grip}</span>`}<button class="gc-st st-${t.col}" data-st="${esc(t.id)}" tabindex="-1" aria-label="${esc((t.title || 'Task') + ': ' + (STATUS_NAME[t.col] || 'To do') + '. Change status')}" title="${esc(STATUS_NAME[t.col] || 'To do')}">${stIcon(t.col)}</button>${nm}
+    return `<div class="gc-row task${sel ? ' sel' : ''}${done ? ' is-done' : ''}" role="row" aria-selected="${sel}" data-row="${esc(t.id)}" data-sid="${esc(sec.id)}" data-d="${d}" style="${sc}" tabindex="${ctr===i ? 0 : -1}" aria-label="${esc(accName(t))}">
+      <div class="gc-g" role="gridcell">${TOUCH || P ? '' : `<span class="gc-grip" title="Drag to reorder" aria-hidden="true">${ICON.grip}</span>`}${tree}<button class="gc-st st-${t.col}" data-st="${esc(t.id)}" tabindex="-1" aria-label="${esc((t.title || 'Task') + ': ' + (STATUS_NAME[t.col] || 'To do') + '. Change status')}" title="${esc(STATUS_NAME[t.col] || 'To do')}">${stIcon(t.col)}</button>${d ? SUBI : ''}${nm}${subAdd}
         ${TOUCH ? '' : `<button class="gc-more" data-more="${esc(t.id)}" aria-haspopup="menu" aria-expanded="false" tabindex="-1" aria-label="${esc(t.title || 'Task')} options" title="Task options">${ICON.more}</button>`}${cells}</div>
       <div class="gc-track" role="gridcell" aria-hidden="true">${sp ? barHTML(t, sec, r.si, sp, T, P) : `<span class="gc-hint">${TOUCH ? 'Press and hold, then drag to set dates' : 'Drag here to set dates'}</span>`}</div></div>`;
   }
@@ -394,7 +435,7 @@ TYPE_VIEWS.gantt = (() => {
     const P = phone(), M = modelNow = model(g), T = dn(today()), ROW = rowH(), HEAD = headH();
     const V = views[g.id] || (views[g.id] = {ax:null, sy:0, lo:null, hi:null, sx:0});
     const dw = curDw(), boxW = Math.max(300, root.clientWidth || 600);
-    const gw = !st.grid ? 0 : Math.max(P ? 170 : 220, Math.min(st.gw || (P ? 236 : boxW >= 1000 ? 500 : 440), boxW - (P ? 110 : 260)));
+    const gw = !st.grid ? 0 : Math.max(P ? 170 : 220, Math.min(st.gw || (P ? 236 : boxW >= 1200 ? 580 : boxW >= 1000 ? 500 : 440), boxW - (P ? 110 : 260)));
     const cols = gw >= 470 ? 'full' : gw >= 380 ? 'dates' : 'name';
     const dated = M.rows.filter(r => r.k==='task').map(r => span(r.t)).filter(Boolean);
     let mn = T, mx = T; dated.forEach(x => { mn = Math.min(mn, x.a); mx = Math.max(mx, x.b); });
@@ -466,8 +507,13 @@ TYPE_VIEWS.gantt = (() => {
     const changes = [];
     for(const wrap of $$('.gc-sec', G.sc)){
       const sid = wrap.dataset.secWrap, ids = rowsOf(wrap);
-      ids.forEach((id, i) => { const t = taskOf(id); if(!t) return; const pos = (i + 1) * 1024; if(t.boardId!==sid || t.pos!==pos){ before[id] = {boardId:t.boardId, pos:t.pos ?? 0}; changes.push([id, {boardId:sid, pos}]); } });
+      ids.forEach((id, i) => { const t = taskOf(id); if(!t) return; const pos = (i + 1) * 1024; if(t.boardId!==sid || t.pos!==pos){ before[id] = {boardId:t.boardId, pos:t.pos ?? 0, parentId:t.parentId || ''}; changes.push([id, {boardId:sid, pos}]); } });
     }
+    /* a subtask dragged to another section becomes a top-level task there; subtasks (hidden ones too) follow their parent */
+    const fin = id => { const c = changes.find(x => x[0]===id); return c ? c[1].boardId : taskOf(id)?.boardId; };
+    changes.forEach(([id, p]) => { const t = taskOf(id); if(t.parentId && p.boardId!==t.boardId && fin(t.parentId)!==p.boardId) p.parentId = ''; });
+    changes.filter(([id, p]) => p.boardId!==taskOf(id).boardId).forEach(([id, p]) => descendants(id).forEach(x => {
+      const c = changes.find(y => y[0]===x.id); if(c) c[1].boardId = p.boardId; else { before[x.id] = {boardId:x.boardId, pos:x.pos ?? 0, parentId:x.parentId || ''}; changes.push([x.id, {boardId:p.boardId}]); } }));
     if(!changes.length){ render(true); return; }
     changes.forEach(([id, p]) => docPatch('tasks', id, p)); touchItem(g.id); render(true);
     toast('Moved', () => { Object.entries(before).forEach(([id, b]) => docPatch('tasks', id, b)); render(true); });
@@ -568,6 +614,8 @@ TYPE_VIEWS.gantt = (() => {
     if(sh){ e.stopPropagation(); const id = sh.dataset.sec; collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id); ls.set('lo.gcCollapsed', JSON.stringify([...collapsed])); render(true); restoreFocus(`[data-sec="${CSS.escape(id)}"]`); return; }
     const sm = e.target.closest('[data-secmenu]');
     if(sm){ e.stopPropagation(); const sec = itemById(sm.dataset.secmenu); if(sec) secMenu(sec, sm); return; }
+    const tw = e.target.closest('[data-tw]'); if(tw){ e.stopPropagation(); const id = tw.dataset.tw; collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id); ls.set('lo.gcCollapsed', JSON.stringify([...collapsed])); render(true); restoreFocus(`.gc-row[data-row="${CSS.escape(id)}"]`); return; }
+    const sub = e.target.closest('[data-sub]'); if(sub){ e.stopPropagation(); const t = taskOf(sub.dataset.sub); if(t) addSubtaskUI(t, sub); return; }
     const sa = e.target.closest('[data-secadd]'); if(sa){ e.stopPropagation(); addTaskUI(itemById(sa.dataset.secadd), sa); return; }
     const sn = e.target.closest('[data-secren]'); if(sn){ e.stopPropagation(); const sec = itemById(sn.dataset.secren); if(sec) renameSection(sec, sn); return; }
     const stb = e.target.closest('[data-st]'); if(stb){ e.stopPropagation(); const t = taskOf(stb.dataset.st); if(t){ st.sel = t.id; cycleStatus(t); } return; }
@@ -641,6 +689,7 @@ TYPE_VIEWS.gantt = (() => {
     }
     const t = taskOf(row.dataset.row); if(!t) return;
     if(e.key==='Enter' || e.key===' '){ e.preventDefault(); e.stopPropagation(); openSheet(t.id, row); return; }
+    if(!e.altKey && (e.key==='ArrowRight' || e.key==='ArrowLeft') && kidsOf(t).length && (e.key==='ArrowRight')===collapsed.has(t.id)){ e.preventDefault(); e.stopPropagation(); row.querySelector('[data-tw]')?.click(); return; }
     if(e.altKey && (e.key==='ArrowLeft' || e.key==='ArrowRight')){ e.preventDefault(); e.stopPropagation(); st.selFocus = `.gc-row[data-row="${CSS.escape(t.id)}"]`; nudge(t, e.key==='ArrowRight' ? 1 : -1, e.shiftKey); return; }
     if((e.key==='Delete' || e.key==='Backspace') && tg===row){ e.preventDefault(); e.stopPropagation(); const n = rows[i + 1] || rows[i - 1]; removeTask(t); if(n?.dataset.row) st.sel = n.dataset.row; st.selFocus = n?.dataset.row ? `.gc-row[data-row="${CSS.escape(n.dataset.row)}"]` : null; render(true); return; }
     if(e.key==='F2'){ e.preventDefault(); e.stopPropagation(); const nm = row.querySelector('input[data-name]'); if(nm){ nm.focus(); nm.select(); } else renamePrompt(t, row); return; }
@@ -877,6 +926,12 @@ TYPE_VIEWS.gantt = (() => {
           <input type="date" id="gDueIn" class="sr-only" tabindex="-1" aria-hidden="true" value="${esc(t.due || '')}">
         </div>
         <section class="sh-sec"><textarea class="notes" id="gNotes" rows="2" placeholder="Add notes, links, reference numbers…" aria-label="Notes">${esc(t.notes || '')}</textarea></section>
+        <section class="sh-sec" aria-labelledby="gSubL">
+          <div class="sh-h"><h3 id="gSubL">Subtasks</h3></div>
+          ${parentOf(t) ? `<p class="gp-sub">Subtask of <button class="gp-link" data-opentask="${esc(parentOf(t).id)}">${esc(parentOf(t).title || 'Untitled')}</button></p>` : ''}
+          ${kidsOf(t).sort(byPos).map(x => `<div class="gp-dep"><button class="gp-link gp-dt" data-opentask="${esc(x.id)}"><span class="sdot st-${x.col}" aria-hidden="true"></span>${esc(x.title || 'Untitled')}</button><span class="gp-dd">${span(x) ? esc(datesText(span(x).a, span(x).b)) : 'no dates'}</span></div>`).join('') || '<p class="gp-none">No subtasks yet.</p>'}
+          ${depthOf(t) < MAXD ? `<button class="btn gp-add" id="gAddSub">${ICON.plus}Add subtask</button>` : `<p class="gp-none">Subtasks go ${MAXD} levels deep at most.</p>`}
+        </section>
         <section class="sh-sec" aria-labelledby="gDepL">
           <div class="sh-h"><h3 id="gDepL">Dependencies</h3></div>
           ${preds.length ? `<p class="gp-sub">Starts after</p>${preds.map(x => depRow(x, true)).join('')}` : ''}
@@ -910,8 +965,8 @@ TYPE_VIEWS.gantt = (() => {
     if(e.target.closest('#gClose')) return closeSheet();
     const secb = e.target.closest('#gSec');
     if(secb){ const g = itemById(itemById(t.boardId)?.parent); return openMenu(secb, sectionsOf(g?.id).map(s => ({label:s.name, value:s.id, checked:s.id===t.boardId})), v => {
-      if(v===t.boardId) return; const b = {boardId:t.boardId, pos:t.pos ?? 0}; const last = S.tasks.filter(x => x.boardId===v).reduce((m, x) => Math.max(m, x.pos ?? 0), 0);
-      docPatch('tasks', t.id, {boardId:v, pos:last + 1024}); renderSheet(); render(true); markSaved(); toast('Moved to ' + itemById(v)?.name, () => { docPatch('tasks', t.id, b); render(true); }); }, 'Section'); }
+      if(v===t.boardId) return; const undo = moveToSection(t, v);
+      renderSheet(); render(true); markSaved(); toast('Moved to ' + itemById(v)?.name, () => { undo(); render(true); }); }, 'Section'); }
     const sb = e.target.closest('#gStat');
     if(sb) return openMenu(sb, STATUS.map(c => ({label:STATUS_NAME[c], value:c, checked:c===t.col})), v => {
       if(v===t.col) return; const b = {col:t.col, progress:t.progress || 0, doneAt:t.doneAt || ''}; const p = {col:v};
@@ -923,6 +978,11 @@ TYPE_VIEWS.gantt = (() => {
         if(v==='pick') return pickDate(inId); setDateField(t, f, v==='clear' ? '' : v); renderSheet(); markSaved(); }, f==='start' ? 'Start date' : 'Due date');
     }
     if(e.target.closest('#gMs')){ toggleMilestone(t); renderSheet(); markSaved(); return; }
+    const ot = e.target.closest('[data-opentask]'); if(ot){ flush(); const id = ot.dataset.opentask; if(taskOf(id)){ openId = id; st.sel = id; renderSheet(); render(true); } return; }
+    if(e.target.closest('#gAddSub')){ const add = e.target.closest('#gAddSub');
+      promptModal({title:'New subtask', label:'Name', placeholder:'Subtask name', action:'Add', opener:add}).then(n => { if(!n || !taskOf(t.id)) return;
+        const sec = itemById(t.boardId); collapsed.delete(t.id); ls.set('lo.gcCollapsed', JSON.stringify([...collapsed]));
+        const id = newTask(sec, n, {parentId:t.id}); render(true); renderSheet(); markSaved(); toast('Subtask added', () => { docDel('tasks', id); render(true); renderSheet(); }); }); return; }
     const rm = e.target.closest('[data-rmdep]'); if(rm){ const [p, s] = rm.dataset.rmdep.split('>'); removeDep(p, s); renderSheet(); markSaved(); return; }
     const ad = e.target.closest('#gAddDep'); if(ad){ const g = itemById(itemById(t.boardId)?.parent); const opts = allTasks(g).filter(x => x.id!==t.id && !(t.deps || []).includes(x.id) && !reaches(x.id, t.id));
       if(!opts.length) return toast('No other task can be linked here');

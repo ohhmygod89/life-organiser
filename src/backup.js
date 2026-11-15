@@ -95,7 +95,7 @@ function openImport(opener){
   let parsed = null, data = null, mode = 'merge';
   const m = openModal(`<h2 id="mTitle">Import</h2>
     <p class="note">Choose a Life Organiser export file. You’ll see what’s in it before anything changes.</p>
-    <label class="btn" style="align-self:flex-start;cursor:pointer">Choose file…<input type="file" id="imFile" class="sr-only" accept=".json,application/json"></label>
+    <div class="im-drop" id="imDrop"><label class="btn" style="cursor:pointer">Choose file…<input type="file" id="imFile" class="sr-only" accept=".json,application/json"></label><p class="note im-or">or drop the file here</p></div>
     <div id="imStep"></div>
     <p class="notice" id="imErr" hidden></p>
     <div class="row-end"><button class="btn" data-x="no">Cancel</button><button class="pill" data-x="yes" disabled>Import</button></div>`, {opener});
@@ -118,8 +118,17 @@ function openImport(opener){
     try{ data = bkNormalise(await bkDecrypt(parsed, p)); err(''); showPreview(); }
     catch(e){ btn().disabled = false; btn().textContent = 'Unlock'; err(e.message==='not-backup' ? 'This doesn’t look like a Life Organiser export.' : 'That passphrase didn’t work. Check it and try again.'); }
   };
-  m.onchange = async e => {
-    if(e.target.id!=='imFile') return; const f = e.target.files?.[0]; if(!f) return;
+  m.onchange = e => { if(e.target.id==='imFile') readFile(e.target.files?.[0]); };
+  /* drag a file from the desktop onto the window */
+  const drop = $('#imDrop'); let depth = 0;
+  const hasFile = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  m.addEventListener('dragenter', e => { if(!hasFile(e)) return; e.preventDefault(); depth++; drop.classList.add('over'); });
+  m.addEventListener('dragover', e => { if(!hasFile(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  m.addEventListener('dragleave', e => { if(!hasFile(e)) return; if(--depth <= 0){ depth = 0; drop.classList.remove('over'); } });
+  m.addEventListener('drop', e => { if(!hasFile(e)) return; e.preventDefault(); depth = 0; drop.classList.remove('over'); const fs = e.dataTransfer.files;
+    if(fs.length > 1) return err('Drop one file at a time.'); readFile(fs[0]); });
+  async function readFile(f){
+    if(!f) return;
     err(''); data=null; $('#imStep').innerHTML=''; btn().disabled=true;
     try{
       parsed = JSON.parse(await f.text());
@@ -182,3 +191,5 @@ function bkNudge(){
   let seen = false; try{ seen = !!sessionStorage.getItem('lo.nudged'); sessionStorage.setItem('lo.nudged','1'); }catch(e){}
   if(days>=7 && !seen){ toast(t ? `No backup for ${days} days. Export one from the ••• menu.` : 'Tip: export a backup from the ••• menu.'); }
 }
+/* a file dropped anywhere else would make the browser open it in place of the app */
+for(const ev of ['dragover', 'drop']) addEventListener(ev, e => { if([...(e.dataTransfer?.types || [])].includes('Files') && !e.defaultPrevented){ e.preventDefault(); if(ev==='dragover') e.dataTransfer.dropEffect = 'none'; } });

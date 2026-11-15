@@ -2797,3 +2797,33 @@ body > .gc-row.sortable-fallback .gc-nm{flex:1;font-size:13px}
 /* task panel header: pin and close are the same size and line up */
 .sh-top #fPin,.sh-top #closeSheet{width:36px;height:36px;margin:0;align-self:flex-start;flex:none}
 @media (pointer:coarse){.sh-top #fPin,.sh-top #closeSheet{width:40px;height:40px}}
+
+/* ===== 1.0.1-beta.15 ===== */
+/* Gantt subtasks: indent per level, a show/hide caret, a subtask mark, and a "Create subtask" + that appears on hover */
+.gc-ind{flex:none;width:calc(var(--d,0) * 18px)}
+.gc.touch .gc-ind,.gc.ph .gc-ind{width:calc(var(--d,0) * 12px)}
+.gc-tw{flex:none;width:18px;height:24px;display:grid;place-items:center;border:0;background:none;padding:0;border-radius:6px;color:var(--muted)}
+button.gc-tw:hover{background:var(--fill);color:var(--fg)}
+.gc-tw .gc-chev{width:13px;height:13px;transition:transform .15s}
+.gc-tw[aria-expanded="false"] .gc-chev{transform:rotate(-90deg)}
+.gc.touch .gc-tw{width:26px;height:40px}
+.gc-subi{flex:none;width:14px;height:14px;color:var(--muted);margin:0 1px 0 -2px}
+.gc-sub{flex:none;width:26px;height:26px;display:grid;place-items:center;border:1px solid var(--sep);background:var(--panel);border-radius:7px;color:var(--muted);padding:0;opacity:0;margin-left:2px}
+.gc-sub svg{width:14px;height:14px}
+.gc-sub:hover{background:var(--fill);color:var(--fg)}
+.gc-row:hover .gc-sub,.gc-sub:focus-visible{opacity:1}
+.gc-row.task:not(:hover) input.gc-nm:not(:focus){text-overflow:ellipsis}
+@media (prefers-reduced-motion:reduce){.gc-tw .gc-chev{transition:none}}
+/* task names in regular weight, in the table and on the timeline */
+.gc-nm,.gc-ol,.gc-bar,.gc-bar.sel .gc-ol{font-weight:400}
+/* task window: subtasks and the parent link */
+.gp-link{border:0;background:none;padding:0;font:inherit;color:var(--fg);text-align:left;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-width:0}
+.gp-link:hover{text-decoration:underline}
+p.gp-sub .gp-link{color:var(--accent);font-weight:500}
+/* Import: drop a file onto the window */
+.im-drop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px;border:1.5px dashed var(--sep);border-radius:var(--r-m,12px);transition:border-color .15s,background .15s}
+.im-drop .note{margin:0}
+.im-drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+@media (pointer:coarse){.im-drop{border:0;padding:0}.im-drop .im-or{display:none}}
+/* the "today" dot slides under the table, not over it, when today is scrolled to the left */
+.gc-corner{z-index:4}

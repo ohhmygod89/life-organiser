@@ -2,6 +2,15 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.15] - 2026-11-15
+### Added
+- Gantt: subtasks, up to 5 levels deep. Hover a task and press + to add one, or use Add subtask in its menu or task window. Carets show and hide them; deleting or moving a task takes its subtasks with it.
+- Import: drop the file onto the Import window as well as choosing it.
+### Changed
+- Gantt: task names are no longer bold, and the table starts a little wider on large screens.
+### Fixed
+- Gantt: the today dot no longer shows over the table header.
+
 ## [1.0.1-beta.14] - 2026-11-12
 ### Changed
 - Kanban: the Ongoing column comes after Done.
