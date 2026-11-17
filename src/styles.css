@@ -2827,3 +2827,17 @@ p.gp-sub .gp-link{color:var(--accent);font-weight:500}
 @media (pointer:coarse){.im-drop{border:0;padding:0}.im-drop .im-or{display:none}}
 /* the "today" dot slides under the table, not over it, when today is scrolled to the left */
 .gc-corner{z-index:4}
+
+/* ===== 1.0.1-beta.16 ===== */
+/* Gantt: "+ Section" lives in the table's header, top right */
+.gc-corner{position:sticky}
+.gc-cadd{position:absolute;top:6px;right:8px;display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 10px 0 7px;border:0;border-radius:999px;background:var(--fill);color:var(--fg);font:inherit;font-size:var(--fs-xs);font-weight:500;cursor:pointer;white-space:nowrap}
+.gc-cadd svg{width:13px;height:13px}
+.gc-cadd:hover{background:var(--fill-2)}
+.gc-cadd:focus-visible{outline:2px solid var(--accent-ring);outline-offset:1px}
+.gc.touch .gc-cadd{height:32px;padding:0 12px 0 9px}
+/* Kanban: subtasks stay inside the card */
+.card .cl,.card.mv-top .cl{margin-right:0}
+/* Done fitting: measure columns at their natural height */
+.lane-cols.measuring{align-items:start!important}
+.lane-cols.measuring .lcol .cards{flex:none!important}

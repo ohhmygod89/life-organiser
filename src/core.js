@@ -216,11 +216,24 @@ const touchItem = id => { const it=itemById(id); if(it) docPatch('items', id, {u
 
 /* ---------- toast with optional Undo ---------- */
 let toastT;
+/* Undo history: every change offered with an Undo button (plus a few quiet ones, like reordering a card) can be
+   undone with Ctrl+Z / Cmd+Z, newest first, until the page reloads. Text fields keep their own typing undo. */
+const UNDO = [];
+function pushUndo(msg, fn){ const e = {msg, fn}; UNDO.push(e); if(UNDO.length > 40) UNDO.shift(); return e; }
+function runUndo(e){ const i = UNDO.indexOf(e); if(i < 0) return false; UNDO.splice(i, 1); try{ e.fn(); } finally { render(true); refreshOverlays(); } return true; }
+document.addEventListener('keydown', e => {
+  if(!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase()!=='z' || e.defaultPrevented) return;
+  const a = document.activeElement; if(a && (a.matches('input,textarea,select') || a.isContentEditable)) return;
+  if(S.dragging) return;
+  e.preventDefault(); const last = UNDO[UNDO.length - 1];
+  if(!last) return toast('Nothing to undo');
+  runUndo(last); toast('Undone: ' + last.msg.replace(/[.…]$/, ''));
+});
 function toast(msg, undo, bad, act){
   const t = $('#toast'); t.innerHTML = '';
   const s = document.createElement('span'); s.textContent = msg; t.appendChild(s);
   if(act){ const b=document.createElement('button'); b.type='button'; b.textContent=act.label; b.onclick=()=>{ t.classList.remove('show'); clearTimeout(toastT); act.fn(); }; t.appendChild(b); }   // optional second action, e.g. Open
-  if(undo){ const b=document.createElement('button'); b.type='button'; b.textContent='Undo'; b.onclick=()=>{ undo(); t.classList.remove('show'); clearTimeout(toastT); render(true); refreshOverlays(); }; t.appendChild(b); }
+  if(undo){ const en = pushUndo(msg, undo); const b=document.createElement('button'); b.type='button'; b.textContent='Undo'; b.title = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Undo (⌘Z)' : 'Undo (Ctrl+Z)'; b.onclick=()=>{ t.classList.remove('show'); clearTimeout(toastT); runUndo(en); }; t.appendChild(b); }
   t.classList.toggle('has-action', !!(undo||act)); t.classList.toggle('bad', !!bad); t.classList.add('show');
   clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), (undo||act) ? 6000 : 2800);
 }
@@ -408,9 +421,13 @@ function clearStrayCaret(){
   s.removeAllRanges();
 }
 ['pointerup','focusout'].forEach(t => document.addEventListener(t, () => setTimeout(clearStrayCaret, 0), true));
+/* a drag that never finished (its list was redrawn, or the pointer was lost) must not hold back redraws for good */
+const dragLive = () => !!(window.Sortable && Sortable.dragged) || document.body.matches('.gc-dragging,.gc-linking,.gt-dragging');
+function staleDrag(){ if(!S.dragging || dragLive()) return false; S.dragging = false; document.body.classList.remove('is-dragging', 'nav-dragging'); return true; }
+setInterval(() => { staleDrag(); if(contentPending && !S.dragging && !S.rendering && !(ptrHold && performance.now() - ptrHold < 4000) && !isEditing()) render(); }, 1000);
 function render(force){
   renderSide(); renderBar(); renderDock(); syncSideRes();
-  if(S.dragging){ contentPending=true; return; }
+  if(S.dragging && !(force && staleDrag())){ contentPending=true; return; }
   if(ptrHold && performance.now()-ptrHold < 4000){ contentPending=true; return; }
   if(!force && isEditing()){ contentPending=true; return; }
   if(S.rendering){ contentPending=true; return; }

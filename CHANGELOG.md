@@ -2,6 +2,19 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.16] - 2026-11-17
+### Added
+- Ctrl+Z (⌘Z on a Mac) undoes your last change: card moves and reorders, priority, deletes and anything else with an Undo button.
+### Changed
+- Gantt: "+ Section" sits in the top right of the table; the "Add task" button is gone (use the + on a section).
+- Kanban: cards show up to 6 subtasks before "+N more".
+- Kanban: Done shows as many cards as fit within the tallest column of its stack, then "Show N more".
+### Fixed
+- Kanban: long subtask text no longer runs past the edge of the card.
+- Kanban: a new priority shows on the card straight away, and a stuck drag can no longer hold back screen updates.
+- Sync: an older update that arrives late can no longer put back a value you just changed.
+- Gantt: the today dot hides when it slides under the table.
+
 ## [1.0.1-beta.15] - 2026-11-15
 ### Added
 - Gantt: subtasks, up to 5 levels deep. Hover a task and press + to add one, or use Add subtask in its menu or task window. Carets show and hide them; deleting or moving a task takes its subtasks with it.

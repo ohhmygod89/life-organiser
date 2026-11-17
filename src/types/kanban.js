@@ -68,7 +68,7 @@ TYPE_VIEWS.kanban = (() => {
       right.push(`<span class="due ${d.cls}" title="${t.start?`Starts ${esc(fullDate(t.start))}, due`:'Due'} ${esc(d.t)}">${esc(txt)}${near?` · ${esc(d.rel)}`:''}</span>`); }
     else if(t.start && !isDone) right.push(`<span class="due" title="Starts ${esc(fullDate(t.start))}">From ${esc(fullDate(t.start))}</span>`);
     const mvBtn = '';   // moving is in the card menu (hold on phone, right-click on desktop)
-    const open = cl.filter(c=>!c.done); const lim = compact ? 4 : 8;
+    const open = cl.filter(c=>!c.done); const lim = compact ? 6 : 8;
     const src = effFlag(t)?.from;   // that subtask's flag is already shown under the title
     const pinned = !!t.pinned && !isDone;
     const mvTop = mvBtn && !left.length && !right.length;   // no footer: ⇄ sits beside the pin rather than adding an empty row
@@ -86,11 +86,15 @@ TYPE_VIEWS.kanban = (() => {
   const prioBtn = t => { const l = (PRIO[t.priority]||PRIO.low).label;
     if(TOUCH) return `<span class="prio-btn ro" role="img" aria-label="Priority: ${l}">${prioIcon(t.priority)}</span>`;   // touch: a plain indicator, so a tap anywhere on the card opens it; change priority in the task window
     return `<button class="prio-btn" data-prio="" aria-haspopup="menu" aria-expanded="false" aria-label="Priority: ${l}" title="Priority: ${l}">${prioIcon(t.priority)}</button>`; };
+  /* the card shows its new priority straight away, even if a redraw is held back (e.g. while something else is busy) */
+  function paintPrio(id, v){ v = PLEVEL[v] ? v : 'low'; const l = PRIO[v].label;
+    $$(`.card[data-id="${CSS.escape(id)}"]`).forEach(c => { c.classList.remove('pr-high', 'pr-med', 'pr-low'); c.classList.add('pr-' + v);
+      const b = c.querySelector('.prio-btn'); if(b){ b.innerHTML = prioIcon(v); b.setAttribute('aria-label', 'Priority: ' + l); b.title = 'Priority: ' + l; } }); }
   function prioMenu(btn, t){
     openMenu(btn, ['high','med','low'].map(p=>({html:prioIcon(p), label:PRIO[p].label, value:p, checked:(t.priority||'low')===p})), v => {
       if(v===(t.priority||'low')) return; const before = {priority:t.priority||'', pos:t.pos};
-      docPatch('tasks', t.id, {priority:v}); render(true);
-      toast('Priority: '+PRIO[v].label, ()=>docPatch('tasks', t.id, before));
+      docPatch('tasks', t.id, {priority:v}); render(true); paintPrio(t.id, v);
+      toast('Priority: '+PRIO[v].label, ()=>{ docPatch('tasks', t.id, before); paintPrio(t.id, before.priority); });
     }, 'Priority', 'menu-icons');
   }
   /* desktop: click a card's title or a subtask to edit the text in place; the rest of the card opens the task window */
@@ -231,7 +235,25 @@ TYPE_VIEWS.kanban = (() => {
   function view(it, root){ renderKanban(it, root); }
 
   /* Stacked view: one band per Kanban, all sharing one sideways scroller so the columns line up. */
-  const LANE_DONE = 3;
+  /* Done shows as many cards as fit within the tallest other column of its stack (at least one), then "Show N more". */
+  const DONE_CAP = 60;
+  function fitDone(root){
+    $$('.lane', root).forEach(lane => {
+      const done = $('.lcol.done', lane), btn = done && $('.more', done); if(!btn) return;
+      const lc = $('.lane-cols', lane), cards = $$('.cards > .card', done); cards.forEach(c => { c.hidden = false; });
+      lc.classList.add('measuring');   // columns at their natural height (normally they stretch to the tallest)
+      try{
+        const target = Math.max(0, ...$$('.lcol:not(.done)', lane).map(c => c.offsetHeight)), total = +btn.dataset.total || cards.length;
+        if(!btn.hasAttribute('data-fit')){ btn.hidden = false; return; }
+        btn.hidden = true; if(done.offsetHeight <= target && total <= cards.length) return;
+        btn.hidden = false; let n = total - cards.length;
+        for(let i = cards.length - 1; i > 0 && done.offsetHeight > target; i--){ cards[i].hidden = true; n++; }
+        if(n <= 0){ btn.hidden = true; return; }
+        btn.textContent = `Show ${n} more`;
+      } finally { lc.classList.remove('measuring'); }
+    });
+  }
+  addEventListener('resize', () => { clearTimeout(fitDone.t); fitDone.t = setTimeout(() => { const r = $('#content'); if(r) fitDone(r); }, 150); });
   /* a stack's dot colour comes from its id, not its position, so it stays the same when other stacks are filtered out */
   const STACK_PALS = ['lav','blue','coral','green','peach'];
   const stackPal = id => { let h = 0; for(const ch of String(id)) h = (h*31 + ch.charCodeAt(0)) >>> 0; return STACK_PALS[h % STACK_PALS.length]; };
@@ -248,7 +270,7 @@ TYPE_VIEWS.kanban = (() => {
         <div class="lane-tabs" role="group" aria-label="Columns of ${esc(b.name)}">${cols.map((c,i) => `<button type="button" class="lane-tab" data-lanetab="${c.id}" aria-pressed="${i===0}">${c.name}<b>${tasksIn(b.id, c.id).filter(keep).length}</b></button>`).join('')}</div>
         <div class="lane-cols" data-hs="lc-${esc(b.id)}">${cols.map(c => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
-          const lim = LANE_DONE; if(c.id==='done' && ts.length>lim){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}">${all?'Show fewer':'Show '+(ts.length-lim)+' more'}</button>`; if(!all) ts=ts.slice(0,lim); }
+          if(c.id==='done' && ts.length>1){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}" data-total="${ts.length}"${all?'':' data-fit'}>${all?'Show fewer':'Show more'}</button>`; if(!all) ts=ts.slice(0,DONE_CAP); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
             <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span>${c.id==='done' ? `<span class="count">${total||''}</span>` : ''}${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
@@ -259,6 +281,7 @@ TYPE_VIEWS.kanban = (() => {
       </section>`;
     }).join('') + `</div></div>`;
     bindSortables(root);
+    fitDone(root);
     $$('.lane-cols', root).forEach(syncLaneTabs);
   }
   /* phone: each stack is a row of columns, one at a time; the small tabs above it say which one you are on and jump to another */
@@ -295,6 +318,7 @@ TYPE_VIEWS.kanban = (() => {
     if(col!=='done' && t.col==='done') p.prevCol = '';
     docPatch('tasks', t.id, p); if(bid!==t.boardId) touchItem(bid);
     if(bid!==t.boardId || col!==t.col) toast('Moved to '+(bid!==t.boardId ? (itemById(bid)?.name||'stack')+' · ' : '')+colName(col), () => docPatch('tasks', t.id, clone(from)));
+    else pushUndo('Card moved', () => docPatch('tasks', t.id, clone(from)));   // a reorder: no message, but Ctrl+Z puts it back
   }
   function addTask(bid, col, title){
     if(!title.trim()) return;

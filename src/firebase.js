@@ -157,9 +157,14 @@ const FireDB = (() => {
       const path = col+'/'+d.id, box = d.data();
       if(!box || !box.ct) return null;
       if(boxes[path] === box.ct && cache[path] !== undefined) return {id:d.id, body:cache[path]};
-      try{ const body = await open(key, box); cache[path] = body; boxes[path] = box.ct; return {id:d.id, body}; }
+      try{ const body = await open(key, box); return {id:d.id, body, path, ct:box.ct}; }
       catch(e){ bad.set(path, d.ref || root.collection(col).doc(d.id)); return null; }
     };
+    /* Snapshots are decrypted asynchronously, so an older one can finish after a newer one. Only the newest
+       snapshot of each listener is applied (and only it refreshes the cache that update() builds on), so a
+       slow, stale snapshot can never put back an old value - e.g. a priority that was just changed. */
+    const seqs = {};
+    const commit = xs => xs.forEach(x => { if(x && x.ct){ cache[x.path] = x.body; boxes[x.path] = x.ct; } });
     return {
       user, firebase:true,
       signOut: async () => { await keyDel(uid); await auth.signOut(); location.reload(); },
@@ -167,15 +172,20 @@ const FireDB = (() => {
       purgeUnreadable: async () => { const refs=[...bad.values()]; bad.clear(); for(const r of refs) await r.delete().catch(()=>{}); return refs.length; },
       lock: async () => { await keyDel(uid); location.reload(); },
       collection(c){ return { onSnapshot(cb, onErr){
+        const k = 'c:' + c;
         return root.collection(c).onSnapshot({includeMetadataChanges:false}, async s => {
-          const docs = (await Promise.all(s.docs.map(d => decode(c, d)))).filter(Boolean);
+          const n = seqs[k] = (seqs[k] || 0) + 1;
+          const all = await Promise.all(s.docs.map(d => decode(c, d)));
+          if(n !== seqs[k]) return; commit(all);
+          const docs = all.filter(Boolean);
           cb({docs:docs.filter(x => x.body !== undefined).map(x => ({id:x.id, data:() => JSON.parse(JSON.stringify(x.body))})), metadata:{fromCache:s.metadata.fromCache}});
         }, onErr);
       }}; },
       doc(path){ const [c, id] = path.split('/'); const ref = root.collection(c).doc(id); return {
-        onSnapshot(cb, onErr){ return ref.onSnapshot(async s => {
+        onSnapshot(cb, onErr){ const k = 'd:' + path; return ref.onSnapshot(async s => {
+          const n = seqs[k] = (seqs[k] || 0) + 1;
           if(!s.exists){ delete cache[path]; return cb({exists:false, data:() => ({})}); }
-          const x = await decode(c, s); cb({exists:!!x, data:() => x && x.body !== undefined ? JSON.parse(JSON.stringify(x.body)) : {}});
+          const x = await decode(c, s); if(n !== seqs[k]) return; commit([x]); cb({exists:!!x, data:() => x && x.body !== undefined ? JSON.parse(JSON.stringify(x.body)) : {}});
         }, onErr); },
         async set(b){ b = b || {}; cache[path] = JSON.parse(JSON.stringify(b)); const box = await seal(key, b); boxes[path] = box.ct; await ref.set(box); },
         async update(p){ const b = {...(cache[path]||{}), ...JSON.parse(JSON.stringify(p))}; return this.set(b); },

@@ -455,7 +455,7 @@ TYPE_VIEWS.gantt = (() => {
       }); if(open) out += '</div>'; return out; })();
     const hasAny = M.secs.length > 0;
     const zl = st.fit ? 'Custom' : ZOOMS[st.zoom].label;
-    const colHead = '<span class="gc-ch d">Start</span><span class="gc-ch d">Due</span><span class="gc-ch n">Days</span>';
+    const colHead = '<span class="gc-ch d" aria-hidden="true">Start</span><span class="gc-ch d" aria-hidden="true">Due</span><span class="gc-ch n" aria-hidden="true">Days</span>';
     root.innerHTML = `<div class="gc lm-${dw >= 26 ? 'day' : dw >= 9 ? 'week' : 'month'}${P ? ' ph' : ''}${TOUCH ? ' touch' : ''}${st.grid ? '' : ' nogrid'}" data-cols="${cols}" style="--gw:${gw}px;--dw:${dw}px;--row:${ROW}px;--hh:${HEAD}px;--w:${W}px;--bh:${G.bh}px">
       <div class="gc-tools" role="toolbar" aria-label="Gantt chart controls">
         <button class="chip-btn gc-b" data-a="today">Today</button>
@@ -463,15 +463,14 @@ TYPE_VIEWS.gantt = (() => {
         <button class="chip-btn gc-b" data-a="fit">Auto fit</button>
         <span class="gc-sp"></span>
         <button class="chip-btn gc-b gc-ib" data-a="grid" aria-pressed="${st.grid}" aria-label="Table" title="Show or hide the table">${ICON.sidebar}<span class="gc-bt">Table</span></button>
-        <button class="chip-btn gc-b" data-a="addsec">${ICON.plus}Section</button>
-        <button class="pill gc-b" data-a="addtask">${ICON.plus}Add task</button>
+        ${hasAny && st.grid ? '' : `<button class="chip-btn gc-b" data-a="addsec">${ICON.plus}Section</button>`}
       </div>
       ${hasAny ? `<div class="gc-box">
         <div class="gc-zoomb" role="group" aria-label="Zoom"><button data-a="zout" aria-label="Zoom out" title="Zoom out">−</button><button data-a="zin" aria-label="Zoom in" title="Zoom in">+</button></div>
         ${st.grid ? `<div class="gc-split" role="separator" aria-orientation="vertical" aria-label="Resize the table" aria-valuenow="${Math.round(gw)}" tabindex="0" style="left:${gw}px"><i></i></div>` : ''}
         <div class="gc-scroll" role="grid" aria-label="Gantt chart. Up and down arrows move between rows; Enter opens a task; ${TOUCH ? 'press and hold a bar to move it' : 'Alt with left or right arrow moves the bar a day, add Shift to move the due date only'}; Delete removes the task." aria-rowcount="${M.rows.length}">
           <div class="gc-in" style="width:${gw + W}px">
-            <div class="gc-head" aria-hidden="true"><div class="gc-corner"><span class="gc-ch nm">Name</span>${colHead}</div><div class="gc-hin" style="width:${W}px">${headerHTML(lo, hi, dw, T)}</div></div>
+            <div class="gc-head"><div class="gc-corner"><button class="gc-cadd" data-a="addsec" title="Add a section">${ICON.plus}Section</button><span class="gc-ch nm" aria-hidden="true">Name</span>${colHead}</div><div class="gc-hin" aria-hidden="true" style="width:${W}px">${headerHTML(lo, hi, dw, T)}</div></div>
             <div class="gc-body" style="min-height:${M.rows.length * ROW}px">
               <div class="gc-lines" aria-hidden="true">${linesHTML(lo, hi, dw)}</div>
               <i class="gc-now" style="left:calc(var(--gw) + ${((T - lo) * dw + dw / 2).toFixed(2)}px)" aria-hidden="true"></i>
@@ -486,6 +485,10 @@ TYPE_VIEWS.gantt = (() => {
     const sc = G.sc = $('.gc-scroll', root);
     bind(root); fitBleed();
     if(!sc) return;
+    /* the today dot hangs below the header, so it hides once it slides under the table */
+    const dot = $('.gc-hdot', sc), dotX = (T - lo) * dw + dw / 2;
+    function nowDot(){ if(dot) dot.style.visibility = st.grid && dotX < sc.scrollLeft + 6 ? 'hidden' : ''; }
+    nowDot();
     for(const sec of $$('.gc-sec', sc)) Sortable.create(sec, {
       group:'gc-rows:' + g.id, draggable:'.gc-row.task', handle: TOUCH || P ? '.gc-g' : '.gc-grip', filter:'input,button.gc-st,button.gc-more,label', preventOnFilter:false, direction:'vertical', animation:RM ? 0 : 150,
       delay:320, delayOnTouchOnly:true, touchStartThreshold:6, fallbackTolerance:4, ghostClass:'gc-ghostrow', chosenClass:'gc-chosen',
@@ -498,7 +501,7 @@ TYPE_VIEWS.gantt = (() => {
     if(V.focus!==undefined && V.focus!==null){ V.ax = V.focus.day - V.focus.frac * visW() / dw; V.focus = null; }
     sc.scrollLeft = Math.max(0, (V.ax - lo) * dw); sc.scrollTop = V.sy || 0;
     let raf = 0;
-    sc.addEventListener('scroll', () => { if(raf) return; raf = requestAnimationFrame(() => { raf = 0; if(G?.sc!==sc) return; V.ax = lo + sc.scrollLeft / dw; V.sy = sc.scrollTop; if(!drag && !th && !S.dragging) extendFor(V.ax); }); }, {passive:true});
+    sc.addEventListener('scroll', () => { if(raf) return; raf = requestAnimationFrame(() => { raf = 0; if(G?.sc!==sc) return; V.ax = lo + sc.scrollLeft / dw; V.sy = sc.scrollTop; nowDot(); if(!drag && !th && !S.dragging) extendFor(V.ax); }); }, {passive:true});
     if(st.selFocus){ const el = st.selFocus; st.selFocus = null; const r = sc.querySelector(el); r?.focus({preventScroll:true}); }
   }
   function saveOrder(g, e){
