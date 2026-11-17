@@ -237,9 +237,19 @@ TYPE_VIEWS.kanban = (() => {
   /* Stacked view: one band per Kanban, all sharing one sideways scroller so the columns line up. */
   /* Done shows as many cards as fit within the tallest other column of its stack (at least one), then "Show N more". */
   const DONE_CAP = 60;
+  /* Search Done: a magnifier in each stack's Done header opens a box that filters its done cards as you type
+     (title, notes, subtasks). While a search is open, every done card of the stack is on the page. */
+  const doneQ = {};   // stack id -> query ('' = box open, empty); absent = closed
+  const doneText = t => [t.title, t.notes, ...(t.checklist||[]).map(c => c.text)].join(' \n').toLowerCase();
+  function filterDone(col){
+    const bid = col.querySelector('[data-dq]')?.dataset.dq; if(!bid) return;
+    const q = (doneQ[bid] || '').trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean); let n = 0;
+    col.querySelectorAll('.cards > .card').forEach(c => { const t = S.tasks.find(x => x.id===c.dataset.id); const hit = !t || words.every(w => doneText(t).includes(w)); c.hidden = !hit; if(hit) n++; });
+    const st = col.querySelector('.dfind-n'); if(st) st.textContent = q ? (n ? n + (n===1 ? ' match' : ' matches') : 'No matches') : '';
+  }
   function fitDone(root){
     $$('.lane', root).forEach(lane => {
-      const done = $('.lcol.done', lane), btn = done && $('.more', done); if(!btn) return;
+      const done = $('.lcol.done', lane), btn = done && $('.more', done); if(!btn || $('[data-dq]', done)) return;
       const lc = $('.lane-cols', lane), cards = $$('.cards > .card', done); cards.forEach(c => { c.hidden = false; });
       lc.classList.add('measuring');   // columns at their natural height (normally they stretch to the tallest)
       try{
@@ -270,9 +280,11 @@ TYPE_VIEWS.kanban = (() => {
         <div class="lane-tabs" role="group" aria-label="Columns of ${esc(b.name)}">${cols.map((c,i) => `<button type="button" class="lane-tab" data-lanetab="${c.id}" aria-pressed="${i===0}">${c.name}<b>${tasksIn(b.id, c.id).filter(keep).length}</b></button>`).join('')}</div>
         <div class="lane-cols" data-hs="lc-${esc(b.id)}">${cols.map(c => {
           let ts = tasksIn(b.id, c.id).filter(keep); const total = ts.length; let more = '';
-          if(c.id==='done' && ts.length>1){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}" data-total="${ts.length}"${all?'':' data-fit'}>${all?'Show fewer':'Show more'}</button>`; if(!all) ts=ts.slice(0,DONE_CAP); }
+          const dq = c.id==='done' && b.id in doneQ;
+          if(c.id==='done' && ts.length>1 && !dq){ const all=showAllDone['lane-'+b.id]; more=`<button class="more" data-act="more" data-board="lane-${esc(b.id)}" data-total="${ts.length}"${all?'':' data-fit'}>${all?'Show fewer':'Show more'}</button>`; if(!all) ts=ts.slice(0,DONE_CAP); }
           return `<div class="lcol col ${c.id}" aria-label="${esc(b.name)}, ${c.name}, ${plural(total,'task')}">
-            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span>${c.id==='done' ? `<span class="count">${total||''}</span>` : ''}${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            <div class="lcol-h" data-sortcol="${c.id}" data-sortboard="${esc(b.id)}" title="${c.id==='done'?'':TOUCH?'Double-tap to sort':'Right-click to sort'}"><span>${c.name}</span>${c.id==='done' ? `<span class="count">${total||''}</span><button class="lcol-add lcol-find" data-dfind="${esc(b.id)}" aria-pressed="${dq}" aria-label="Search done tasks in ${esc(b.name)}" title="Search done">${ICON.search}</button>` : ''}${c.id==='done'?'':`<button class="lcol-add" data-add="${c.id}" aria-label="Add task to ${esc(b.name)}, ${c.name}" title="Add task">${ICON.plus}</button>`}</div>
+            ${dq ? `<div class="dfind"><input type="search" data-dq="${esc(b.id)}" value="${esc(doneQ[b.id])}" placeholder="Search done" aria-label="Search done tasks in ${esc(b.name)}" enterkeyhint="search" autocomplete="off"><span class="dfind-n" role="status"></span></div>` : ''}
             <div class="cards" data-col="${c.id}" data-board="${esc(b.id)}">${ts.map(t=>cardHTML(t,true)).join('')}<div class="drop-hint">None</div></div>
             ${adding?.board===b.id && adding?.col===c.id ? addRowHTML(b.id, c) : ''}
             ${more}
@@ -282,6 +294,7 @@ TYPE_VIEWS.kanban = (() => {
     }).join('') + `</div></div>`;
     bindSortables(root);
     fitDone(root);
+    $$('.lcol.done', root).forEach(filterDone);
     $$('.lane-cols', root).forEach(syncLaneTabs);
   }
   /* phone: each stack is a row of columns, one at a time; the small tabs above it say which one you are on and jump to another */
@@ -352,6 +365,10 @@ TYPE_VIEWS.kanban = (() => {
     if(cb){ e.stopPropagation(); const t=cardOf(cb); if(t){ const id=cb.dataset.cbox; docPatch('tasks', t.id, {checklist:(t.checklist||[]).map(c=>c.id===id?{...c,done:!c.done}:c)}); render(true); restoreFocus(`.card[data-id="${CSS.escape(t.id)}"] [data-cbox="${CSS.escape(id)}"]`); } return true; }
     const add = e.target.closest('[data-add]');
     if(add){ const bid = add.closest('[data-board]')?.dataset.board || add.closest('.col')?.querySelector('.cards')?.dataset.board; if(bid){ adding={board:bid, col:add.dataset.add}; draft=''; render(true); } return true; }
+    const df = e.target.closest('[data-dfind]'); if(df){ const id = df.dataset.dfind;
+      if(id in doneQ){ delete doneQ[id]; render(true); restoreFocus(`[data-dfind="${CSS.escape(id)}"]`); }
+      else { doneQ[id] = ''; render(true); requestAnimationFrame(() => $(`[data-dq="${CSS.escape(id)}"]`)?.focus()); }
+      return true; }
     const more = e.target.closest('[data-act="more"]'); if(more){ const k=more.dataset.board; showAllDone[k]=!showAllDone[k]; render(true); return true; }
     const sb = e.target.closest('[data-send="task"]');
     if(sb){ const el=$('#kbAdd'); const v=el?.value||''; if(adding && v.trim()){ draft=''; addSubmitting=true; addTask(adding.board, adding.col, v); render(true); addSubmitting=false; } else $('#kbAdd')?.focus(); return true; }
@@ -389,7 +406,7 @@ TYPE_VIEWS.kanban = (() => {
     else if(r.top < top + 60) window.scrollBy({top: r.top - top - 60, behavior:'auto'});
   }
   if(window.visualViewport) visualViewport.addEventListener('resize', () => { const a = document.activeElement; if(a && a.id==='kbAdd') keepInView(a); });
-  function input(e){ if(e.target.id==='kbAdd'){ draft = e.target.value; grow(e.target); } if(e.target.matches('.lane-name')) e.target.size = Math.max(3, e.target.value.length+1); }
+  function input(e){ if(e.target.matches?.('[data-dq]')){ doneQ[e.target.dataset.dq] = e.target.value; filterDone(e.target.closest('.lcol')); return; } if(e.target.id==='kbAdd'){ draft = e.target.value; grow(e.target); } if(e.target.matches('.lane-name')) e.target.size = Math.max(3, e.target.value.length+1); }
   function change(e){
     const n = e.target.closest('[data-sname]'); if(!n) return;
     const s = itemById(n.dataset.sname); const v = n.value.trim();
@@ -397,6 +414,8 @@ TYPE_VIEWS.kanban = (() => {
     if(v!==s.name){ const before=s.name; docPatch('items', s.id, {name:v}); render(true); toast('Stack renamed', ()=>docPatch('items', s.id, {name:before})); }
   }
   function keydown(e){
+    if(e.target.matches?.('[data-dq]') && e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); const id = e.target.dataset.dq;
+      if(e.target.value){ e.target.value = ''; doneQ[id] = ''; filterDone(e.target.closest('.lcol')); } else { delete doneQ[id]; render(true); restoreFocus(`[data-dfind="${CSS.escape(id)}"]`); } return; }
     if(e.target.matches?.('.lane-name')){
       if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); }
       if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); const s=itemById(e.target.dataset.sname); if(s) e.target.value=s.name; e.target.blur(); }

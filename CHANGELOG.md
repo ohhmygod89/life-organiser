@@ -2,6 +2,10 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.17] - 2026-11-17
+### Added
+- Kanban: search Done. The magnifier in a stack's Done column filters its done cards by title, notes and subtasks; Esc clears, Esc again closes.
+
 ## [1.0.1-beta.16] - 2026-11-17
 ### Added
 - Ctrl+Z (⌘Z on a Mac) undoes your last change: card moves and reorders, priority, deletes and anything else with an Undo button.

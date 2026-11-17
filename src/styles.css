@@ -2841,3 +2841,13 @@ p.gp-sub .gp-link{color:var(--accent);font-weight:500}
 /* Done fitting: measure columns at their natural height */
 .lane-cols.measuring{align-items:start!important}
 .lane-cols.measuring .lcol .cards{flex:none!important}
+/* Kanban: search Done */
+.lcol-h .lcol-find{margin-left:2px}
+.lcol-h .lcol-find svg{width:14px;height:14px}
+.lcol-find[aria-pressed="true"]{background:var(--fill-2);color:var(--fg)}
+.dfind{display:flex;flex-direction:column;gap:3px;padding:2px 10px 8px}
+.dfind input{width:100%;min-width:0;height:32px;padding:0 10px;border:1px solid var(--sep);border-radius:10px;background:var(--panel);color:var(--fg);font:inherit;font-size:var(--fs-s);text-transform:none;letter-spacing:0}
+.dfind input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+@media (pointer:coarse){.dfind input{font-size:16px;height:38px}}
+.dfind-n{font-size:var(--fs-2xs);color:var(--muted);padding-left:2px;min-height:0}
+.dfind-n:empty{display:none}
