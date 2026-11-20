@@ -54,6 +54,12 @@ TYPE_VIEWS.bills = (() => {
     return out.sort((a,b)=>a.d.date.localeCompare(b.d.date));
   }
   function nextDue(b){ for(const d of dues(b, b.created||'1900-01-01', plusDays(800))){ if(!b.paid?.[d.date]) return d; } return null; }
+  /* Every active recurrence with its next unpaid due date (overdue first), for the Upcoming list and Home.
+     -> [{b, d:{date, amount, inst}, days (negative = overdue), period:'Monthly'…, name, money}] */
+  function upcoming(it){
+    return bills(it).filter(b => b.active!==false && !b.stopped).map(b => { const d = nextDue(b); return d && {b, d, days:dayDiff(d.date), period:pName(b.period), name:billName(b), money:money(d.amount)}; })
+      .filter(Boolean).sort((x, y) => x.d.date.localeCompare(y.d.date));
+  }
   const dueAmount = (b, date) => dues(b, date, date)[0]?.amount ?? b.amount;
   const billName = b => [b.category, b.asset].filter(Boolean).join(NB_DOT) || 'New bill';   // NB_DOT keeps "name · asset" on one line
 
@@ -303,5 +309,5 @@ TYPE_VIEWS.bills = (() => {
   }
   function keydown(e){ if(e.key==='Enter' && e.target.dataset.b){ e.preventDefault(); e.target.blur(); } }
 
-  return {wide:true, render:view, click, change, keydown, pending, newShortcut:addBill, focusStart(it){ if(!bills(it).length) addBill(it); }};
+  return {wide:true, render:view, click, change, keydown, pending, upcoming, newShortcut:addBill, focusStart(it){ if(!bills(it).length) addBill(it); }};
 })();
