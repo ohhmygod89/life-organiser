@@ -48,7 +48,7 @@ const MONTH = ['January','February','March','April','May','June','July','August'
 const DAY = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const CUR_YEAR = new Date().getFullYear();
 const HOME_DAYS = 30;          // collection dates show on Home this many days ahead
-const TASK_DAYS = 14;          // task due dates show on Home this many days ahead
+const TASK_DAYS = 7;           // task due dates show in Home's This week panel this many days ahead
 
 const ICON = {
   kanban:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="4" width="4.5" height="14" rx="1.3"/><rect x="9.75" y="4" width="4.5" height="9" rx="1.3"/><rect x="16" y="4" width="4.5" height="11.5" rx="1.3"/></svg>',
@@ -533,23 +533,7 @@ function renderBar(){
 
 /* ----- phone dock: ☰ always; Filter and + New task only on Kanban pages (CSS shows the dock on phones only) ----- */
 const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', gantt:'pink', page:'green'};   // item page header palette (see REDESIGN.md)
-/* Home tile colours: a per-device preference kept in localStorage ("lo.tileColors", like theme and sort), chosen from a hidden menu
-   (right-click, double-tap on a phone, Menu key / Shift+F10 on a focused tile). Absent = the default below. */
-const TILE_PALS = [['lav','Lavender'],['blue','Sky'],['coral','Coral'],['pink','Rose'],['peach','Peach'],['green','Mint']];
-const TILE_DEFAULT = {open:'lav', overdue:'coral', week:'blue', waiting:'peach', bills:'green'};
-const tilePrefs = () => { try{ const o = JSON.parse(ls.get('lo.tileColors','{}')); return o && typeof o==='object' ? o : {}; }catch(e){ return {}; } };
-const tilePal = id => { const p = tilePrefs()[id]; return TILE_PALS.some(x=>x[0]===p) ? p : (TILE_DEFAULT[id]||'lav'); };
-function tileMenu(tile, at){
-  const id = tile.dataset.tile, cur = tilePrefs()[id] && TILE_PALS.some(x=>x[0]===tilePrefs()[id]) ? tilePrefs()[id] : '';
-  const sw = (k, name) => `<i class="sw pal-${k}" aria-hidden="true"></i><span>${esc(name)}</span>`;
-  openMenu(at, [{head:'Tile colour'}, {html:sw(TILE_DEFAULT[id]||'lav','Default'), label:'Default', value:'', checked:!cur}, {sep:true}, ...TILE_PALS.map(([k,n])=>({html:sw(k,n), label:n, value:k, checked:cur===k}))], v => {
-    const o = tilePrefs(); if(v) o[id] = v; else delete o[id];
-    ls.set('lo.tileColors', JSON.stringify(o)); render(true); restoreFocus(`[data-tile="${id}"]`);
-  }, 'Tile colour', 'menu-pal');
-}
-const tileAnchor = (tile, e) => { const r = tile.getBoundingClientRect(); const x = e && e.clientX ? Math.min(Math.max(e.clientX, r.left+12), r.right-12) : r.left+16;
-  return {getBoundingClientRect:()=>({left:x, right:x, top:r.top+r.height*.55, bottom:r.top+r.height*.55, width:0, height:0}), setAttribute(){}, focus(){}}; };
-let tileTap = null;
+const TILE_PALS = [['lav','Lavender'],['blue','Sky'],['coral','Coral'],['pink','Rose'],['peach','Peach'],['green','Mint']];   // item header colours
 function kbFilterCount(){ const V = S.tasksView; return (V.quick!=='open') + V.boards.size + (V.bb?1:0) + (V.og?1:0); }   // filters away from the defaults
 function renderDock(){
   const it = currentItem(), onK = !!it && it.type==='kanban' && !S.q;
@@ -618,23 +602,6 @@ const QUICK = [
   {id:'waiting', label:'Flagged', cap:'waiting or blocked', test:t=>!!effFlag(t), c:'#ff9500', ic:'flag'},
 ];
 const NB_DOT = '\u00a0·\u00a0';   // "Internet · House": the dot stays with both words, so a title never ends a line on a lone dot
-function comingUp(){
-  const out = [];
-  for(const t of openTasks()) if(t.due && dayDiff(t.due)<=TASK_DAYS) out.push({kind:'task', date:t.due, title:t.title, item:itemById(t.boardId), task:t});
-  for(const it of S.items.filter(i=>i.type==='collection')){
-    const dateFields = (it.fields||[]).filter(f=>f.type==='date' && f.home);
-    if(!dateFields.length) continue;
-    const boxFields = (it.fields||[]).filter(f=>f.type==='checkbox');
-    const titleField = (it.fields||[]).find(f=>f.type==='text');
-    for(const r of S.rows.filter(r=>r.itemId===it.id)){
-      if(boxFields.some(f=>r.values?.[f.id])) continue;     // ticked (e.g. Used) rows drop off Home
-      for(const f of dateFields){ const v=r.values?.[f.id]; if(v && dayDiff(v)<=HOME_DAYS && dayDiff(v)>=-7) out.push({kind:'row', date:v, title:(titleField&&r.values?.[titleField.id])||'Untitled', what:f.name, item:topOf(it), row:r}); }
-    }
-  }
-  for(const it of S.items.filter(i=>i.type==='bills'))
-    for(const p of TYPE_VIEWS.bills.pending(it, HOME_DAYS)) out.push({kind:'bill', date:p.d.date, title:[p.b.category,p.b.asset].filter(Boolean).join(NB_DOT)||'Bill', what:(p.d.inst||p.b.institution||'')+(p.d.amount!==''&&p.d.amount!==undefined?' · $'+fmtNum(p.d.amount,2):''), item:it});
-  return out.sort((a,b)=>a.date.localeCompare(b.date));
-}
 function sparkPath(points, w, h, step){
   if(points.length<2) return '';
   const xs = points.map(p=>new Date(p.date).getTime()), ys = points.map(p=>Number(p.value));
@@ -644,29 +611,108 @@ function sparkPath(points, w, h, step){
   for(let i=1;i<xs.length;i++){ if(step) d += `H${X(xs[i]).toFixed(1)}`; d += `${step?'V':'L'+X(xs[i]).toFixed(1)+','}${Y(ys[i]).toFixed(1)}`; }
   return d;
 }
+/* Home dashboard (1.0.1-beta.18). Colour carries meaning only: red = overdue/blocked, amber = due soon/waiting,
+   green = complete, accent = today/in progress/interactive; everything else is grey. */
+const daysText = n => n<0 ? plural(-n,'day')+' overdue' : n===0 ? 'Today' : n===1 ? 'Tomorrow' : 'in '+n+' days';
+const urgCls = (n, soon=7) => n<0 ? 'is-over' : n<=soon ? 'is-soon' : '';
+const shortDay = s => { const d=new Date(s+'T00:00:00'); return DAY[d.getDay()].slice(0,3)+' '+d.getDate()+' '+MON[d.getMonth()]; };
+/* Collection rows whose date field has "Show on Home" ticked (unticked rows, from a week ago to HOME_DAYS ahead) */
+function homeDates(){
+  const out = [];
+  for(const it of S.items.filter(i=>i.type==='collection')){
+    const dateFields = (it.fields||[]).filter(f=>f.type==='date' && f.home);
+    if(!dateFields.length) continue;
+    const boxFields = (it.fields||[]).filter(f=>f.type==='checkbox'), titleField = (it.fields||[]).find(f=>f.type==='text');
+    for(const r of S.rows.filter(r=>r.itemId===it.id)){
+      if(boxFields.some(f=>r.values?.[f.id])) continue;     // ticked (e.g. Used) rows drop off Home
+      for(const f of dateFields){ const v=r.values?.[f.id]; if(v && dayDiff(v)<=HOME_DAYS && dayDiff(v)>=-7) out.push({kind:'row', date:v, n:dayDiff(v), title:(titleField&&r.values?.[titleField.id])||'Untitled', what:f.name, item:topOf(it), coll:it}); }
+    }
+  }
+  return out;
+}
+const stackLabel = b => { const k = topOf(b); return itemsOf(i=>i.type==='kanban').length>1 && k && k!==b ? k.name+' › '+b.name : b?.name||''; };
+function homeAgenda(){
+  const rows = openTasks().filter(t=>t.due && dayDiff(t.due)<=TASK_DAYS).map(t=>({kind:'task', date:t.due, n:dayDiff(t.due), title:t.title||'Untitled', task:t, item:itemById(t.boardId)}))
+    .concat(homeDates()).sort((a,b)=>a.date.localeCompare(b.date) || (a.kind==='task'?-1:1));
+  const groups = [['over','Overdue',r=>r.n<0], ['today','Today',r=>r.n===0], ['week','Next 7 days',r=>r.n>0 && r.n<=7], ['later','Later',r=>r.n>7]];
+  const row = r => { const f = r.kind==='task' && effFlag(r.task), fl = f && flagOf(f.flag);
+    const right = r.n<0 ? daysText(r.n) : shortDay(r.date);
+    const attrs = r.kind==='task' ? `type="button" data-open="task:${esc(r.task.id)}"` : `href="#i-${esc(r.item.id)}"`, tag = r.kind==='task' ? 'button' : 'a';
+    return `<${tag} class="hrow" ${attrs}><span class="hr-t">${esc(r.title)}${fl?`<span class="hflag ${fl.id==='blocked'?'is-over':'is-soon'}">${esc(flagShort(fl))}${f.who?' · '+esc(f.who):''}</span>`:''}</span><span class="hr-m">${r.kind==='task'?esc(stackLabel(r.item)):esc(r.coll.name||r.item.name)+' · '+esc(r.what)}</span><span class="hr-r ${r.n<0?'is-over':''}">${esc(right)}</span></${tag}>`; };
+  const gs = groups.map(([id,label,test])=>({id,label,list:rows.filter(test)})).filter(g=>g.list.length);
+  return {count:rows.filter(r=>r.n<=7).length, html: gs.map(g=>`<div class="hgroup g-${g.id}" role="group" aria-label="${g.label}"><h3>${g.label}<span>${g.list.length}</span></h3>${g.list.map(row).join('')}</div>`).join('')};
+}
+function homeBills(items){
+  const groups = items.map(it=>({it, list:TYPE_VIEWS.bills.upcoming(it)}));
+  const all = groups.flatMap(g=>g.list), due30 = all.filter(u=>u.days<=30);
+  const sum = due30.reduce((s,u)=>s+(Number(u.d.amount)||0), 0);
+  const row = (u, it) => `<a class="brow ${urgCls(u.days)}" href="#i-${esc(it.id)}"><span class="hb-t">${esc(u.name)}</span><span class="hb-m">${u.money?`<span class="hb-ma">${esc(u.money)} · </span>`:''}${esc(u.period)}${u.d.inst?' · '+esc(u.d.inst):''}</span><span class="hb-a" aria-hidden="true">${esc(u.money||'—')}</span><span class="hb-d"><b>${u.days<0?-u.days:u.days===0?'Today':u.days===1?'Tomorrow':u.days}</b>${u.days<0||u.days>1?`<small>${u.days<0?(u.days===-1?'day overdue':'days overdue'):'days'}</small>`:''}<small class="hb-date">${esc(shortDay(u.d.date))}</small></span></a>`;
+  const body = !all.length ? '' : groups.filter(g=>g.list.length).map(g=>`${items.length>1?`<h3 class="bgrp">${esc(g.it.name||'Bills')}</h3>`:''}${g.list.map(u=>row(u,g.it)).join('')}`).join('');
+  return {all, due30, sum, body};
+}
+function homeBoards(){
+  const ks = itemsOf(i=>i.type==='kanban'), compact = ks.length>2;
+  const tally = ts => ({todo:ts.filter(t=>t.col==='todo'||t.col==='upcoming').length, doing:ts.filter(t=>t.col==='doing').length, ongoing:ts.filter(t=>t.col==='ongoing').length,
+    over:ts.filter(t=>t.due && dayDiff(t.due)<0).length, flag:ts.filter(t=>effFlag(t)).length, n:ts.length});
+  const live = S.tasks.filter(t=>t.col!=='done' && t.col!=='backburner');
+  const bar = c => c.n ? `<span class="sbar" aria-hidden="true">${[['todo','s-todo'],['ongoing','s-on'],['doing','s-doing']].map(([k,cl])=>c[k]?`<i class="${cl}" style="flex:${c[k]}"></i>`:'').join('')}</span>` : `<span class="sbar is-empty" aria-hidden="true"></span>`;
+  const nums = c => `<span class="snum"><b>${c.n}</b> open${c.over?` <em class="is-over">${c.over} overdue</em>`:''}${c.flag?` <em class="is-soon">${c.flag} flagged</em>`:''}</span>`;
+  const sr = c => `${c.todo} to do, ${c.doing} in progress, ${c.ongoing} ongoing`;
+  const line = (label, c, href) => `<a class="srow" href="${href}"><span class="hs-t">${esc(label)}</span>${bar(c)}${nums(c)}<span class="sr-only">${sr(c)}</span></a>`;
+  if(!ks.length) return '';
+  if(compact) return `<div class="srows">${ks.map(k=>{ const ids=new Set(stacksOf(k.id).map(b=>b.id)); return line(k.name||'Untitled', tally(live.filter(t=>ids.has(t.boardId))), '#i-'+esc(k.id)); }).join('')}</div>`;
+  return ks.map(k=>{ const st = stacksOf(k.id);
+    return `<div class="kblock">${ks.length>1?`<h3><a href="#i-${esc(k.id)}">${esc(k.name||'Untitled')}</a></h3>`:''}${st.length?`<div class="srows">${st.map(b=>line(b.name||'Untitled', tally(live.filter(t=>t.boardId===b.id)), '#i-'+esc(k.id))).join('')}</div>`:`<p class="hempty">No stacks yet. <a href="#i-${esc(k.id)}">Add one</a></p>`}</div>`; }).join('');
+}
+function homeProjects(){
+  const gs = itemsOf(i=>i.type==='gantt'), compact = gs.length>2, t0 = today();
+  const DAYMS = 864e5, dnum = s => new Date(s+'T00:00:00').getTime()/DAYMS;
+  return gs.map(g=>{
+    const secs = new Set(sectionsOf(g.id).map(s=>s.id)), ts = S.tasks.filter(t=>secs.has(t.boardId));
+    const work = ts.filter(t=>!t.parentId && !t.milestone);
+    const pct = work.length ? Math.round(work.reduce((s,t)=>s+(t.col==='done'?100:(+t.progress||0)),0)/work.length) : 0;
+    const dates = ts.flatMap(t=>[t.start,t.due]).filter(Boolean).sort();
+    const a = dates[0], b = dates[dates.length-1];
+    const over = ts.filter(t=>t.col!=='done' && t.due && t.due<t0).length;
+    const ms = ts.filter(t=>t.milestone && t.col!=='done' && t.due && t.due>=t0).sort(byDue)[0];
+    const pos = a && b && b>a ? Math.max(0, Math.min(100, (dnum(t0)-dnum(a))/(dnum(b)-dnum(a))*100)) : null;
+    const done = work.length && pct===100;
+    const tl = a ? `<span class="ptrack" aria-hidden="true"><i class="pfill ${done?'is-done':''}" style="width:${pct}%"></i>${pos!==null && t0>=a && t0<=b?`<i class="ptoday" style="left:${pos.toFixed(1)}%"></i>`:''}</span>` : `<span class="ptrack" aria-hidden="true"></span>`;
+    const meta = [a ? dateRange(a,b) : 'No dates yet', ms ? `Next milestone: ${esc(ms.title||'Untitled')}, ${daysText(dayDiff(ms.due)).toLowerCase()}` : ''].filter(Boolean);
+    return `<a class="prow ${compact?'is-compact':''}" href="#i-${esc(g.id)}"><span class="pr-t">${esc(g.name||'Untitled')}</span><span class="pr-p ${done?'is-done':''}"><b>${pct}%</b> done</span>${tl}<span class="pr-m">${meta.map(x=>`<span>${x}</span>`).join('')}${over?`<em class="is-over">${over} overdue</em>`:''}</span><span class="sr-only">${pct}% complete${over?', '+over+' overdue':''}</span></a>`;
+  }).join('');
+}
+function homeTrackers(trackers){
+  return trackers.map(t=>{ const pts=(t.points||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)); const last=pts[pts.length-1], prev=pts[pts.length-2];
+    const fmt = v => t.unit==='$' ? '$'+fmtNum(v,t.decimals) : fmtNum(v,t.decimals);
+    const ch = last && prev ? Number(last.value)-Number(prev.value) : null;
+    return `<a class="tcard" href="#i-${esc(t.id)}"><span class="tc-t">${esc(t.name||'Untitled')}</span><span class="tc-v">${last?fmt(last.value)+(t.unit&&t.unit!=='$'?`<small>${esc(t.unit)}</small>`:''):'—'}</span><span class="tc-m">${last?(ch!==null&&ch!==0?`${ch>0?'Up':'Down'} ${fmtNum(Math.abs(ch),t.decimals)} since ${esc(dateLabel(prev.date))}`:'Since '+esc(dateLabel(last.date))):'No entries yet'}</span>${pts.length>1?`<svg viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true"><path d="${sparkPath(pts.slice(-24),200,36,t.step)}" fill="none" vector-effect="non-scaling-stroke"/></svg>`:''}</a>`; }).join('');
+}
 function renderHome(c){
-  const d = new Date(); const pool = openTasks();
-  const up = comingUp().slice(0,14);
-  const billItems = S.items.filter(i=>i.type==='bills');
-  const billsDue = billItems.reduce((n,i)=>n+TYPE_VIEWS.bills.pending(i,30).length, 0);
-  const trackers = S.items.filter(i=>i.type==='tracker');
-  const touched = i => S.items.filter(x=>x.parent===i.id).reduce((m,x)=>(x.updated||'')>m?x.updated:m, i.updated||i.created||'');   // a page counts its blocks' edits
-  const recent = S.items.filter(isTop).map(i=>({...i, updated:touched(i)})).sort((a,b)=>b.updated.localeCompare(a.updated)).slice(0,6);
-  const tile = (id, attrs, ic, n, label, cap, off) => `<button class="stat pal-${tilePal(id)}" data-tile="${id}" ${attrs} ${off?'aria-disabled="true"':''} aria-keyshortcuts="Shift+F10" title="${TOUCH?'Double-tap':'Right-click'} to change colour"><span class="s-lab"><i class="s-ic" aria-hidden="true">${ICON[ic]}</i><span>${label}</span></span><i class="s-go" aria-hidden="true">${ICON.arrow}</i><b>${n}</b><small class="s-cap">${cap}</small></button>`;
-  c.innerHTML = `<div class="wrap">
-    <div class="hd2"><h1 class="big">Home</h1><p class="eyebrow">${DAY[d.getDay()]}, ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p></div>
-    <div class="stats home-stats ${billItems.length?'five':''}" role="group" aria-label="Summary">${QUICK.map(q=>{const n=pool.filter(q.test).length; return tile(q.id, `data-quick="${q.id}"`, q.ic, n, q.label, q.cap, !n&&q.id!=='open')}).join('')}${billItems.length?tile('bills', `data-open="item:${esc(billItems[0].id)}"`, 'bills', billsDue, 'Bills due in 30 days', 'bills and renewals', false):''}</div>
-    <div class="home-grid">
-      <section class="panel" aria-labelledby="cuH"><div class="panel-h"><h2 id="cuH">Coming up</h2><span class="caption">Tasks due in ${TASK_DAYS} days · bills and collection dates in ${HOME_DAYS}</span></div>
-        ${up.length ? `<div class="list-rows">${up.map(u=>{const dl=dueLabel(u.date); return `<button class="lrow has-ri" data-open="${u.kind}:${esc(u.kind==='task'?u.task.id:u.item.id)}"><i class="ri pal-${u.kind==='task'?'lav':u.kind==='bill'?'coral':'peach'}" aria-hidden="true">${u.kind==='task'?ICON.list:u.kind==='bill'?ICON.bills:ICON.collection}</i><span class="t">${u.kind==='task'?bangHTML(u.task.priority):''}${esc(u.title)}</span><span class="m"><i style="--c:${itemColor(u.item)}"></i>${esc(u.item.name)}${u.what?' · '+esc(u.what):''}</span><span class="r ${dl.cls}">${esc(dl.t)}</span></button>`}).join('')}</div>`
-          : `<div class="empty-state">Nothing due soon. Give tasks a due date, or tick “Show on Home” on a date field in a collection.</div>`}
-      </section>
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-        ${trackers.length?`<section aria-labelledby="trH"><div class="panel-h"><h2 id="trH">Trackers</h2></div><div class="tr-cards">${trackers.map(t=>{const pts=(t.points||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)); const last=pts[pts.length-1]; return `<a class="tr-card" href="#i-${esc(t.id)}" style="text-decoration:none;color:inherit"><span class="caption">${esc(t.name)}</span><span class="v">${last?(t.unit==='$'?'$'+fmtNum(last.value,t.decimals):fmtNum(last.value,t.decimals)+`<small>${esc(t.unit||'')}</small>`):'—'}</span><span class="caption">${last?'Since '+esc(dateLabel(last.date)):'No entries yet'}</span>${pts.length>1?`<svg viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true"><path d="${sparkPath(pts.slice(-24),200,36,t.step)}" fill="none" stroke="${itemColor(t)}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`:''}</a>`}).join('')}</div></section>`:''}
-        <section class="panel" aria-labelledby="reH"><div class="panel-h"><h2 id="reH">Recently edited</h2></div>
-          <div class="list-rows">${recent.map(i=>`<a class="lrow has-ri" href="#i-${esc(i.id)}" style="text-decoration:none;color:inherit"><i class="ri pal-${PALETTE_BY_TYPE[i.type]||'lav'}" aria-hidden="true">${ICON[i.type]}</i><span class="t">${esc(i.name||'Untitled')}</span><span class="m"><i style="--c:${itemColor(i)}"></i>${TYPES[i.type].label}${folderById(i.folderId)?' · '+esc(folderById(i.folderId).name):''}</span><span class="r">${i.updated?esc(shortDate(i.updated)):''}</span></a>`).join('')}</div></section>
-      </div>
-    </div></div>`;
+  const d = new Date(), pool = openTasks();
+  const billItems = itemsOf(i=>i.type==='bills'), trackers = itemsOf(i=>i.type==='tracker');
+  const B = homeBills(billItems), A = homeAgenda(), boards = homeBoards(), projects = homeProjects();
+  const billsOver = B.due30.filter(u=>u.days<0).length;
+  const stacksN = kanbans().length;
+  const KPI = {
+    open:   n => ({cls:'', cap: stacksN ? 'across '+plural(stacksN,'stack') : 'no stacks yet'}),
+    overdue:n => ({cls:n?'is-over':'', cap: n ? 'past their due date' : 'nothing late'}),
+    week:   n => ({cls:n?'is-soon':'', cap: 'due today to '+shortDay(ymd(new Date(Date.now()+7*864e5)))}),
+    waiting:n => ({cls:n?'is-soon':'', cap: 'waiting or blocked'}),
+  };
+  const kpi = (attrs, label, n, k, off) => `<button type="button" class="kpi ${k.cls}" ${attrs} ${off?'aria-disabled="true"':''}><span class="kp-l">${label}</span><b>${n}</b><span class="kp-c">${k.cap}</span></button>`;
+  const panel = (id, title, aside, body, empty, cls='') => `<section class="hpanel ${cls}" aria-labelledby="${id}"><header class="hp-h"><h2 id="${id}">${title}</h2>${aside?`<span class="hp-a">${aside}</span>`:''}</header><div class="hp-b">${body || `<p class="hempty">${empty}</p>`}</div></section>`;
+  const legend = `<span class="slegend" aria-hidden="true"><i class="s-todo"></i>To do<i class="s-on"></i>Ongoing<i class="s-doing"></i>In progress</span>`;
+  c.innerHTML = `<div class="wrap dash-wrap"><div class="dash">
+    <header class="dash-h"><h1>Home</h1><p>${DAY[d.getDay()]} ${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}</p></header>
+    <div class="kpis" role="group" aria-label="Summary">${QUICK.map(q=>{ const n=pool.filter(q.test).length; return kpi(`data-quick="${q.id}"`, q.label, n, KPI[q.id](n), !n&&q.id!=='open'); }).join('')}${billItems.length?kpi(`data-open="item:${esc(billItems[0].id)}"`, 'Bills due in 30 days', B.due30.length, {cls:billsOver?'is-over':B.due30.length?'is-soon':'', cap: billsOver ? billsOver+' overdue' : B.sum ? '$'+fmtNum(B.sum,0)+' in total' : 'nothing due'}, false):''}</div>
+    <div class="dash-g"><div class="dash-c c-1">
+      ${panel('hWeek', 'This week', A.count ? plural(A.count,'item') : '', A.html, 'Nothing due this week. Tasks with a due date in the next 7 days show here, and so do table dates marked “Show on Home”.', 'p-week')}</div><div class="dash-c c-2">
+      ${panel('hBills', 'Bills & renewals', B.sum ? '$'+fmtNum(B.sum,0)+' due in 30 days' : '', B.body, billItems.length ? 'No active bills. Open your Bills item to add one.' : 'No bills yet. Create a Bills item to track recurring bills and renewals.', 'p-bills')}</div><div class="dash-c c-3">
+      ${panel('hBoards', 'Boards', boards ? legend : '', boards, 'No Kanban yet. Create one to track tasks in stacks.', 'p-boards')}
+      ${panel('hProj', 'Projects', '', projects, 'No Gantt charts yet. Create one to plan a project on a timeline.', 'p-proj')}
+      ${panel('hTrk', 'Trackers', '', trackers.length?`<div class="tcards">${homeTrackers(trackers)}</div>`:'', 'No trackers yet. A tracker charts a number over time, like a loan rate.', 'p-trk')}
+    </div></div></div></div>`;
 }
 
 /* ----- All tasks (across every Kanban) ----- */
@@ -839,16 +885,7 @@ content.addEventListener('click', e => {
   { const gt = e.target.closest('a.lrow[data-gtask]'); if(gt) TYPE_VIEWS.gantt.reveal(gt.dataset.gtask); }
   if(S.q && e.target.closest('a.lrow')){ S.q=''; $('#q').value=''; requestAnimationFrame(()=>render(true)); return; }   // a search result: leave search (even for the page already open)
   const it = currentItem(); const V = it && TYPE_VIEWS[it.type];
-  const st = e.target.closest('.home-stats .stat');
-  if(st){
-    const go_ = () => { if(!st.isConnected || st.getAttribute('aria-disabled')==='true') return; const d = st.dataset.open;
-      if(d){ const [k,id] = d.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, st); else go('i-'+id); return; }
-      const k = itemsOf(i=>i.type==='kanban')[0]; S.tasksView.quick = st.dataset.quick; if(k) go('i-'+k.id); };
-    if(TOUCH){   // phone: a double-tap opens the colour menu; a single tap goes on after a beat (same timing as cards)
-      if(tileTap && tileTap.id===st.dataset.tile){ clearTimeout(tileTap.timer); tileTap=null; tileMenu(st, tileAnchor(st, e)); return; }
-      clearTimeout(tileTap?.timer); tileTap = {id:st.dataset.tile, timer:setTimeout(() => { tileTap=null; go_(); }, 260)}; return; }
-    go_(); return;
-  }
+  if(e.target.closest('.kpi[aria-disabled="true"]')) return;
   const op = e.target.closest('[data-open]');
   if(op){ const [k,id]=op.dataset.open.split(':'); if(k==='task') TYPE_VIEWS.kanban.openSheet(id, op); else go('i-'+id); return; }
   const qk = e.target.closest('[data-quick]');
@@ -856,15 +893,6 @@ content.addEventListener('click', e => {
     if(!onK){ const k=itemsOf(i=>i.type==='kanban')[0]; if(k) go('i-'+k.id); } else render(true); return; }
   if(it?.type==='kanban' && kanbanClick(e, it)) return;
   if(V) V.click?.(e, it);
-});
-content.addEventListener('contextmenu', e => {
-  const st = e.target.closest('.home-stats .stat'); if(!st) return;
-  e.preventDefault(); if(TOUCH) return;    // phone: the double-tap opens it (a long-press must not raise the system menu)
-  tileMenu(st, pointAnchor(e));
-});
-content.addEventListener('keydown', e => {
-  const st = e.target.closest?.('.home-stats .stat'); if(!st) return;
-  if(e.key==='ContextMenu' || (e.shiftKey && e.key==='F10')){ e.preventDefault(); e.stopPropagation(); tileMenu(st, st); }
 });
 content.addEventListener('input', e => { if(e.target.id==='itemTitle') fitTitle(e.target); const it=currentItem(); if(it) TYPE_VIEWS[it.type]?.input?.(e, it); });
 content.addEventListener('change', e => {
