@@ -2,6 +2,15 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.18] - 2026-11-19
+### Added
+- Bills & Renewals: an Upcoming view listing every recurring bill with its next due date, amount and days until due (overdue red, within 7 days amber). The view you pick is remembered.
+### Changed
+- Home is now a full-screen dashboard: summary numbers, This week (overdue, today, next 7 days and "Show on Home" dates), Bills & renewals with days until due, Boards, Projects and Trackers. Recently edited and Coming up are gone.
+- Home colours now carry meaning only: red overdue or blocked, amber due soon or waiting, green complete; everything else is neutral. The tile colour menu on Home is gone.
+### Fixed
+- Kanban: after unpinning a card, the pin disappears as soon as the mouse leaves it.
+
 ## [1.0.1-beta.17] - 2026-11-17
 ### Added
 - Kanban: search Done. The magnifier in a stack's Done column filters its done cards by title, notes and subtasks; Esc clears, Esc again closes.
