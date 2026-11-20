@@ -86,7 +86,7 @@ TYPE_VIEWS.bills = (() => {
     sc.scrollLeft = Math.max(0, x - labW - (sc.clientWidth - labW)/2);
   }
   function view(it, root){
-    const s = st(it); if(!s.mode) s.mode = bills(it).some(b=>b.start) ? 'timeline' : 'list';
+    const s = st(it); if(!s.mode) s.mode = ls.get('lo.billsMode.'+it.id) || (bills(it).some(b=>b.start) ? 'timeline' : 'list');   // the last view you picked is remembered per page
     const pend = pending(it, 30); const over = pend.filter(x=>x.s==='over'), soon = pend.filter(x=>x.s!=='over');
     const sum = a => a.reduce((t,x)=>t+(+x.d.amount||0),0);
     const yr = CUR_YEAR, yTot = bills(it).reduce((t,b)=>t+dues(b, yr+'-01-01', yr+'-12-31').reduce((u,d)=>u+(+(b.paid?.[d.date]?.amount ?? d.amount)||0),0),0);
@@ -304,7 +304,7 @@ TYPE_VIEWS.bills = (() => {
   }
   const findB = (it, id) => bills(it).find(b=>b.id===id);
   function click(e, it){
-    const sg = e.target.closest('[data-seg]'); if(sg){ st(it).mode = sg.dataset.seg; render(true); restoreFocus(`[data-seg="${sg.dataset.seg}"]`); return; }
+    const sg = e.target.closest('[data-seg]'); if(sg){ st(it).mode = sg.dataset.seg; ls.set('lo.billsMode.'+it.id, sg.dataset.seg); render(true); restoreFocus(`[data-seg="${sg.dataset.seg}"]`); return; }
     const yr = e.target.closest('[data-yr]'); if(yr){ const d=+yr.dataset.yr; st(it).year = d ? st(it).year+d : CUR_YEAR; st(it).tlx = null; render(true); restoreFocus(`[data-yr="${d||1}"]`); return; }
     if(e.target.closest('[data-act="add"]')) return addBill(it);
     const pay = e.target.closest('[data-pay]');
