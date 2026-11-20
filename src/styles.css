@@ -2823,6 +2823,8 @@ button.up-row:hover{background:var(--fill-2)}
   .up-n{grid-area:n}.up-a{grid-area:a}.up-p{grid-area:p;font-size:var(--fs-xs)}
   .up-x{grid-area:x;flex-direction:row;align-items:baseline;gap:6px;justify-content:flex-end;font-size:var(--fs-s);white-space:normal}
   .up-x span::before{content:"· "}
+}
+
 /* ===== 1.0.1-beta.18: Home dashboard ===== */
 /* Colour means something here: red = overdue/blocked, amber = due soon/waiting, green = complete,
    accent = today/in progress/interactive. Everything else is ink and greys. */
