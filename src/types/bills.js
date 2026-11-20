@@ -98,10 +98,10 @@ TYPE_VIEWS.bills = (() => {
         ${statTile(money(yTot)||'$0', yr+' total', 'paid and scheduled', 'tracker')}
       </div>
       <div class="toolbar">
-        <div class="seg" role="group" aria-label="View"><button data-seg="timeline" aria-pressed="${s.mode==='timeline'}">Timeline</button><button data-seg="list" aria-pressed="${s.mode==='list'}">List</button></div>
+        <div class="seg" role="group" aria-label="View"><button data-seg="timeline" aria-pressed="${s.mode==='timeline'}">Timeline</button><button data-seg="list" aria-pressed="${s.mode==='list'}">List</button><button data-seg="upcoming" aria-pressed="${s.mode==='upcoming'}">Upcoming</button></div>
         ${s.mode==='timeline'?`<div class="yr" role="group" aria-label="Year"><button class="icon-btn" data-yr="-1" aria-label="Previous year">${ICON.chevD}</button><b>${s.year}</b><button class="icon-btn" data-yr="1" aria-label="Next year">${ICON.chevD}</button>${s.year!==CUR_YEAR?`<button class="link" data-yr="0">This year</button>`:''}</div>`:''}
         <span class="spacer"></span><button class="pill" data-act="add">${ICON.plus}Add bill</button></div>
-      ${s.mode==='timeline' ? timelineHTML(it) + paymentsHTML(it) : listHTML(it)}`;
+      ${s.mode==='timeline' ? timelineHTML(it) + paymentsHTML(it) : s.mode==='upcoming' ? upcomingHTML(it) : listHTML(it)}`;
     if(s.mode==='timeline'){ const sc = $('.tl-in', root); if(sc){   // until you scroll it yourself, the timeline opens on today's month; after that your position is kept
       let user = false; ['touchstart','wheel','pointerdown','keydown'].forEach(ev => sc.addEventListener(ev, () => { user = true; }, {passive:true}));
       sc.addEventListener('scroll', () => { if(user) s.tlx = sc.scrollLeft; }, {passive:true});
@@ -146,6 +146,24 @@ TYPE_VIEWS.bills = (() => {
       <div class="tl-row tl-tot"><div class="tl-lab"><span>Total</span></div><div class="tl-track">${months.map((x,i)=>monthTot[i]?`<span class="tl-col" style="left:${x.mid}%;--n:${Math.max(1, Math.round(monthTot[i]/maxTot*8))}" aria-hidden="true"></span><span class="tl-m" style="left:${x.mid}%">${money(Math.round(monthTot[i]))}</span>`:'').join('')}</div></div>
     </div>
     <div class="tl-legend" aria-hidden="true"><span><i class="tl-dot paid">${ICON.check}</i>Paid</span><span><i class="tl-dot up" style="--c:var(--accent)"></i>Upcoming</span><span><i class="tl-dot soon"></i>Due in 30 days</span><span><i class="tl-dot over">!</i>Overdue</span><span><i class="tl-dot pre"></i>Before tracking</span><span><i class="tl-now-k"></i>Today</span></div></section>`;
+  }
+
+  /* Upcoming: every active bill with its next unpaid due date and how many days away it is (overdue in red, within 7 days amber).
+     A row opens the same edit window as the List view. */
+  const daysText = n => n<0 ? `${-n} day${n===-1?'':'s'} overdue` : n===0 ? 'Today' : n===1 ? 'Tomorrow' : `in ${n} days`;
+  function upcomingHTML(it){
+    const rows = upcoming(it);
+    if(!bills(it).length) return `<section class="panel"><div class="empty-state"><b>No bills yet</b>Add each bill once. The app works out every due date from the start date and period.<button class="pill" data-act="add">${ICON.plus}Add bill</button></div></section>`;
+    if(!rows.length) return `<section class="panel"><div class="empty-state"><b>Nothing upcoming</b>Bills show here once they have a start date and are active. Fill in start dates in the List view.<button class="pill" data-seg="list">Go to List</button></div></section>`;
+    return `<section class="panel up" aria-label="Upcoming bills"><div class="up-list">
+      <div class="up-row up-head" aria-hidden="true"><span class="up-n">Bill</span><span class="up-p">Period</span><span class="up-a">Amount</span><span class="up-x">Due</span></div>
+      ${rows.map(r => { const n = r.days, cls = n<0 ? 'overdue' : n<=7 ? 'soon' : ''; const inst = r.d.inst || r.b.institution || ''; const txt = daysText(n);
+        return `<button class="up-row" data-key="up-${esc(r.b.id)}" data-edit="${esc(r.b.id)}" aria-label="Edit ${esc(r.name)}${inst?', '+esc(inst):''}, ${esc(r.period)}, due ${esc(dateLabel(r.d.date))}${r.money?', '+esc(r.money):''}: ${esc(txt)}">
+          <span class="up-n"><b>${esc(r.name)}</b><span>${esc(inst||'No provider yet')}</span></span>
+          <span class="up-p">${esc(r.period)}</span>
+          <span class="up-a">${esc(r.money||'—')}</span>
+          <span class="up-x ${cls}"><b>${esc(txt)}</b><span>${esc(dateLabel(r.d.date))}</span></span></button>`; }).join('')}
+    </div><div class="tbl-foot"><span class="caption">The next unpaid due date of each active bill, soonest first. Tap a bill to edit it.</span></div></section>`;
   }
 
   function payRow(b, d, s){

@@ -819,7 +819,8 @@ html{overscroll-behavior:none}
 /* pin button sits where the tick was: always visible when pinned, on hover (desktop) or faint (touch) otherwise */
 .card .pin{position:absolute;top:8px;right:8px;width:26px;height:26px;padding:0;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;color:var(--muted);opacity:0;transition:opacity .12s,background .12s}
 .card .pin svg{width:15px;height:15px}
-@media (hover:hover){.card:hover .pin,.card:focus-within .pin{opacity:.7}.card .pin:hover{opacity:1;background:var(--fill-2)}}
+/* shown while the mouse is over the card, or when keyboard focus (:focus-visible) is inside it; a mouse click leaves focus on the button but must not keep it showing */
+@media (hover:hover){.card:hover .pin,.card:has(:focus-visible) .pin,.card:focus-visible .pin{opacity:.7}.card .pin:hover{opacity:1;background:var(--fill-2)}}
 .card .pin:focus-visible{opacity:.7}
 .card .pin[aria-pressed="true"]{opacity:1;color:var(--fg)}
 @media (pointer:coarse){.card .pin{opacity:1;color:color-mix(in srgb,var(--muted) 55%,transparent);width:32px;height:32px;top:4px;right:4px;transition:none}.card .pin[aria-pressed="true"]{color:var(--fg)}}
@@ -2851,3 +2852,31 @@ p.gp-sub .gp-link{color:var(--accent);font-weight:500}
 @media (pointer:coarse){.dfind input{font-size:16px;height:38px}}
 .dfind-n{font-size:var(--fs-2xs);color:var(--muted);padding-left:2px;min-height:0}
 .dfind-n:empty{display:none}
+
+/* ===== 1.0.1-beta.18: Bills upcoming list ===== */
+.up-list{display:flex;flex-direction:column}
+.up-row{display:grid;grid-template-columns:minmax(0,1fr) 110px 90px 150px;column-gap:16px;align-items:center;width:100%;min-height:52px;padding:8px 10px;border:0;border-top:1px solid var(--sep);background:none;color:var(--fg);text-align:left;font:inherit;font-size:var(--fs-m);border-radius:var(--r-item)}
+.up-row:first-child{border-top:0}
+button.up-row:hover{background:var(--fill-2)}
+.up-head{min-height:30px;padding-top:2px;padding-bottom:6px;font-size:var(--fs-xs);color:var(--muted);font-weight:500}
+.up-n{display:flex;flex-direction:column;gap:1px;min-width:0}
+.up-n b{font-weight:600;letter-spacing:-.015em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.up-n span{font-size:var(--fs-s);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.up-head .up-n{display:block}.up-head .up-n span{font-size:inherit}
+.up-p{color:var(--muted);font-size:var(--fs-s);white-space:nowrap}
+.up-a{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.up-head .up-a{font-weight:500}
+.up-x{display:flex;flex-direction:column;align-items:flex-end;text-align:right;gap:1px;white-space:nowrap}
+.up-x b{font-weight:500}
+.up-x span{font-size:var(--fs-xs);color:var(--muted)}
+.up-head .up-x{display:block}
+.up-x.soon b{color:var(--warn);font-weight:600}
+.up-x.overdue b{color:var(--down);font-weight:600}
+.up .tbl-foot{padding:8px 10px 2px}
+@media (max-width:760px){
+  .up-head{display:none}
+  .up-row{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"n n a" "p x x";row-gap:6px;column-gap:12px;min-height:44px;padding:12px 6px}
+  .up-n{grid-area:n}.up-a{grid-area:a}.up-p{grid-area:p;font-size:var(--fs-xs)}
+  .up-x{grid-area:x;flex-direction:row;align-items:baseline;gap:6px;justify-content:flex-end;font-size:var(--fs-s);white-space:normal}
+  .up-x span::before{content:"· "}
+}
