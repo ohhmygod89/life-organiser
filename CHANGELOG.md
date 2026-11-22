@@ -2,6 +2,12 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.19] - 2026-11-21
+### Added
+- Phone: an Undo button (↶) in the bottom dock whenever there's something to undo, the same history as Ctrl+Z on a computer, on every page.
+### Changed
+- Kanban on phones: tap the pin to pin or unpin a card. Unpinned cards show a thin, faint outline pin; pinned cards show the solid pin. On a computer, the hover pin is the outline too.
+
 ## [1.0.1-beta.18] - 2026-11-19
 ### Added
 - Bills & Renewals: an Upcoming view listing every recurring bill with its next due date, amount and days until due (overdue red, within 7 days amber). The view you pick is remembered.

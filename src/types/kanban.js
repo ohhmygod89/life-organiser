@@ -73,7 +73,7 @@ TYPE_VIEWS.kanban = (() => {
     const pinned = !!t.pinned && !isDone;
     const mvTop = mvBtn && !left.length && !right.length;   // no footer: ⇄ sits beside the pin rather than adding an empty row
     return `<article class="card ${isDone?'is-done':''} ${compact?'compact':''} ${pinned?'pinned':''} pr-${PLEVEL[t.priority]?t.priority:'low'} ${mvTop?'mv-top':''}" data-id="${esc(t.id)}" data-key="card-${esc(t.id)}" tabindex="0" aria-label="${pinned?'Pinned: ':''}${esc(t.title||'Untitled')}${t.priority&&!isDone?', '+PRIO[t.priority].label+' priority':''}">
-      ${isDone || (TOUCH && !pinned) ? '' : TOUCH ? `<span class="pin" aria-hidden="true">${ICON.pin}</span>` : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${ICON.pin}</button>`}
+      ${isDone ? '' : `<button class="pin" data-pin="" aria-pressed="${pinned}" title="${pinned?'Unpin':'Pin to top of column'}" aria-label="${pinned?'Unpin':'Pin'}: ${esc(t.title)}">${pinned ? ICON.pin : ICON.pinO}</button>`}
       ${mvBtn && !left.length && !right.length ? mvBtn : ''}
       <div class="card-head"><div class="title">${!isDone?prioBtn(t):''}<span class="tt">${esc(t.title||'Untitled')}</span></div>
       ${!isDone ? chipHTML(t,'one') : ''}</div>

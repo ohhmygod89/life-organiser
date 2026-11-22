@@ -78,6 +78,7 @@ const ICON = {
   chevD:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 9 5 5 5-5"/></svg>',
   up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m7 14 5-5 5 5"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 2.5 21.5 8.5l-2 .9-3.6 3.6.6 4.6-1.6 1.6-4-4-5 5-1.2-1.2 5-5-4-4 1.6-1.6 4.6.6 3.6-3.6z"/></svg>',
+  pinO:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round"><path d="M15.5 2.5 21.5 8.5l-2 .9-3.6 3.6.6 4.6-1.6 1.6-4.6-4.6-4.6-4.6 1.6-1.6 4.6.6 3.6-3.6z"/><path d="M10.3 14.6 5 19.9"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"><path d="m5 12 4.5 4.5L19 7"/></svg>',
   cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
@@ -219,15 +220,17 @@ let toastT;
 /* Undo history: every change offered with an Undo button (plus a few quiet ones, like reordering a card) can be
    undone with Ctrl+Z / Cmd+Z, newest first, until the page reloads. Text fields keep their own typing undo. */
 const UNDO = [];
-function pushUndo(msg, fn){ const e = {msg, fn}; UNDO.push(e); if(UNDO.length > 40) UNDO.shift(); return e; }
-function runUndo(e){ const i = UNDO.indexOf(e); if(i < 0) return false; UNDO.splice(i, 1); try{ e.fn(); } finally { render(true); refreshOverlays(); } return true; }
+function pushUndo(msg, fn){ const e = {msg, fn}; UNDO.push(e); if(UNDO.length > 40) UNDO.shift(); syncUndo(); return e; }
+function runUndo(e){ const i = UNDO.indexOf(e); if(i < 0) return false; UNDO.splice(i, 1); try{ e.fn(); } finally { render(true); refreshOverlays(); syncUndo(); } return true; }
+/* undo the newest change: Ctrl+Z / Cmd+Z on a computer, the ↶ button in the phone dock */
+function undoLast(){ const last = UNDO[UNDO.length - 1]; if(!last) return toast('Nothing to undo'); runUndo(last); toast('Undone: ' + last.msg.replace(/[.…]$/, '')); }
+function syncUndo(){ const b = $('#dkUndo'); if(!b) return; const last = UNDO[UNDO.length - 1];
+  b.hidden = !last; b.setAttribute('aria-label', last ? 'Undo: ' + last.msg.replace(/[.…]$/, '') : 'Undo'); b.title = b.getAttribute('aria-label'); }
 document.addEventListener('keydown', e => {
   if(!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase()!=='z' || e.defaultPrevented) return;
   const a = document.activeElement; if(a && (a.matches('input,textarea,select') || a.isContentEditable)) return;
   if(S.dragging) return;
-  e.preventDefault(); const last = UNDO[UNDO.length - 1];
-  if(!last) return toast('Nothing to undo');
-  runUndo(last); toast('Undone: ' + last.msg.replace(/[.…]$/, ''));
+  e.preventDefault(); undoLast();
 });
 function toast(msg, undo, bad, act){
   const t = $('#toast'); t.innerHTML = '';
@@ -938,6 +941,7 @@ $('#sideScrim').addEventListener('click', () => document.body.classList.remove('
 $('#fab').addEventListener('click', () => document.body.classList.toggle('side-open'));
 /* dock: Filter opens the same Filter panel as before; + New task opens the new-task sheet (on a Kanban page) */
 $('#dock').addEventListener('click', e => {
+  if(e.target.closest('#dkUndo')){ undoLast(); return; }
   const k = currentItem(); if(!k || k.type!=='kanban') return;
   if(e.target.closest('#dkFilter')){ S.filtersOpen = !S.filtersOpen; render(true); restoreFocus('#dkFilter'); return; }
   if(e.target.closest('#dkNew')){

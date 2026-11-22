@@ -2992,3 +2992,15 @@ button.up-row:hover{background:var(--fill-2)}
   .prow.is-compact{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t p" "bar bar" "m m";row-gap:6px}
   .brow{column-gap:10px}
 }
+
+/* ===== 1.0.1-beta.19: tap to pin on phones ===== */
+/* Unpinned cards show a thin, faint outline pin you can tap; pinned cards show the solid pin. */
+@media (pointer:coarse){
+  .card .pin{opacity:1;color:var(--muted);pointer-events:auto;-webkit-tap-highlight-color:transparent}
+  .card .pin[aria-pressed="false"] svg{opacity:.4}
+  .card .pin[aria-pressed="true"]{color:var(--fg)}
+  .card .pin::before{content:"";position:absolute;inset:-6px}
+  .card .pin:active{background:var(--fill-2)}
+}
+/* phone dock: ↶ Undo appears while there is something to undo (the same history as Ctrl+Z on a computer) */
+.dk-undo svg{width:20px;height:20px}
