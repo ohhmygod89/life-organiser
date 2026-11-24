@@ -2,6 +2,14 @@
 
 Versions follow [Semantic Versioning](https://semver.org). Everything before 1.0.0 is a beta of the first version.
 
+## [1.0.1-beta.20] - 2026-11-24
+### Added
+- Meal planner, a new item type for trips: days down the side, Breakfast / Lunch / Dinner across. Your restaurant list sits on the right; drag a restaurant into a meal (it greys out in the list once planned), drag meals between days, or back onto the list to take them out. On a phone, tap + in a meal to pick a restaurant.
+- Restaurants are walk-in or reservation, with a reservation link, map link and notes. For each planned reservation you can record booked, the time and the confirmation number.
+- Reservation rules like TableCheck's: "N days in advance", "the following month opens on the 1st at 10:00", or a set date. Paste the restaurant's wording and Read rule fills it in. The planner works out when booking opens for each planned meal, in the destination's local time and in yours.
+- Book now (red) and opening within 7 days (amber) show on the meals, in the sidebar count and in Home's This week.
+- Templates: save a trip's restaurant list as a template, and start new trips from it.
+
 ## [1.0.1-beta.19] - 2026-11-21
 ### Added
 - Phone: an Undo button (↶) in the bottom dock whenever there's something to undo, the same history as Ctrl+Z on a computer, on every page.

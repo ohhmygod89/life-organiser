@@ -97,12 +97,14 @@ const ICON = {
 ICON.page = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M7.5 8h9M7.5 12h9M7.5 16h5" stroke-linecap="round"/></svg>';
 ICON.stack = ICON.kanban;
 ICON.gantt = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 5v14"/><rect x="6.5" y="4.5" width="8" height="4" rx="2"/><rect x="10.5" y="10" width="9" height="4" rx="2"/><rect x="7.5" y="15.5" width="6" height="4" rx="2"/></svg>';
+ICON.meal = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M4.5 3v5a2.5 2.5 0 0 0 5 0V3M7 11v10"/><path d="M17.5 21V3c-2.2 1.3-3.5 4-3.5 7v3.5h3.5"/></svg>';
 const TYPES = {
   kanban:    {label:'Kanban',     color:'slate',  desc:'Stacks of To Do / In Progress / Done columns you drag cards across.'},
   bills:     {label:'Bills',      color:'orange', desc:'Recurring bills and renewals on a yearly timeline, with paid ticks.'},
   tracker:   {label:'Tracker',    color:'indigo', desc:'Dated numbers with a chart: loan rate, balances, weight.'},
   page:      {label:'Page',       color:'amber',  desc:'A page you build from blocks: text, checklists and tables.'},
   gantt:     {label:'Gantt chart',color:'blue',   desc:'Sections of tasks on a timeline: drag bars, link tasks that depend on each other.'},
+  meal:      {label:'Meal planner',color:'green', desc:'Plan breakfast, lunch and dinner for each day of a trip. Drag restaurants in and track bookings.'},
   gsection:  {label:'Section',    color:'blue',   part:true},
   stack:     {label:'Stack',      color:'slate',  part:true},
   note:      {label:'Text',       color:'amber',  part:true},
@@ -464,11 +466,12 @@ function navItemHTML(it){
   if(it.type==='kanban'){ const ids = stacksOf(it.id).map(s=>s.id); ct = S.tasks.filter(t=>ids.includes(t.boardId) && !['done','backburner'].includes(t.col)).length || ''; }
   else if(it.type==='bills') ct = TYPE_VIEWS.bills.pending(it, 30).length || '';
   else if(it.type==='gantt') ct = TYPE_VIEWS.gantt.openCount(it) || '';
+  else if(it.type==='meal') ct = TYPE_VIEWS.meal.openCount(it) || '';   // reservations you can book now
   return `<a class="nav-item" draggable="false" href="#i-${esc(it.id)}" data-id="${esc(it.id)}" ${cur?'aria-current="page"':''} style="--c:${itemColor(it)}"><span class="ti" aria-hidden="true">${ICON[it.type]}</span><span class="nm">${esc(it.name||'Untitled')}</span>${ct!==''?`<span class="ct" aria-label="${esc(String(ct))}">${ct}</span>`:''}${TOUCH&&cur?`<button class="icon-btn mini nav-more" data-act="item-menu" data-iid="${esc(it.id)}" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(it.name)} options">${ICON.more}</button>`:''}</a>`;
 }
 /* Sidebar: Home · custom items (Kanbans, Bills, Trackers; drag to reorder) · folders of Pages (drag folders, and
    drag pages within or between folders) · unfiled Pages. Right-click an item or folder for its options. */
-const TYPE_GROUP = {kanban:'custom', bills:'custom', tracker:'custom', gantt:'custom', page:'page'};
+const TYPE_GROUP = {kanban:'custom', bills:'custom', tracker:'custom', gantt:'custom', meal:'custom', page:'page'};
 const byOrder = (a,b) => (a.order??0)-(b.order??0) || (a.name||'').localeCompare(b.name||'');
 const itemsOf = (pred) => S.items.filter(i=>isTop(i) && pred(i)).sort(byOrder);
 function renderSide(){
@@ -535,7 +538,7 @@ function renderBar(){
 }
 
 /* ----- phone dock: ☰ always; Filter and + New task only on Kanban pages (CSS shows the dock on phones only) ----- */
-const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', gantt:'pink', page:'green'};   // item page header palette (see REDESIGN.md)
+const PALETTE_BY_TYPE = {kanban:'lav', bills:'coral', tracker:'blue', gantt:'pink', meal:'green', page:'green'};   // item page header palette (see REDESIGN.md)
 const TILE_PALS = [['lav','Lavender'],['blue','Sky'],['coral','Coral'],['pink','Rose'],['peach','Peach'],['green','Mint']];   // item header colours
 function kbFilterCount(){ const V = S.tasksView; return (V.quick!=='open') + V.boards.size + (V.bb?1:0) + (V.og?1:0); }   // filters away from the defaults
 function renderDock(){
@@ -636,7 +639,7 @@ function homeDates(){
 const stackLabel = b => { const k = topOf(b); return itemsOf(i=>i.type==='kanban').length>1 && k && k!==b ? k.name+' › '+b.name : b?.name||''; };
 function homeAgenda(){
   const rows = openTasks().filter(t=>t.due && dayDiff(t.due)<=TASK_DAYS).map(t=>({kind:'task', date:t.due, n:dayDiff(t.due), title:t.title||'Untitled', task:t, item:itemById(t.boardId)}))
-    .concat(homeDates()).sort((a,b)=>a.date.localeCompare(b.date) || (a.kind==='task'?-1:1));
+    .concat(homeDates(), TYPE_VIEWS.meal.homeRows()).sort((a,b)=>a.date.localeCompare(b.date) || (a.kind==='task'?-1:1));
   const groups = [['over','Overdue',r=>r.n<0], ['today','Today',r=>r.n===0], ['week','Next 7 days',r=>r.n>0 && r.n<=7], ['later','Later',r=>r.n>7]];
   const row = r => { const f = r.kind==='task' && effFlag(r.task), fl = f && flagOf(f.flag);
     const right = r.n<0 ? daysText(r.n) : shortDay(r.date);
@@ -1150,6 +1153,7 @@ function buildItem(type, name, folderId, parent){
   if(type==='collection') Object.assign(base, TYPE_VIEWS.collection.template('blank'));
   if(type==='tracker') Object.assign(base, {unit:'', decimals:1, step:false, points:[]});
   if(type==='bills') base.bills = [];
+  if(type==='meal') Object.assign(base, {tz:'Asia/Tokyo', start:'', end:'', shops:[], plan:{}});
   if(type==='checklist') base.entries = [];
   return base;
 }

@@ -4,7 +4,7 @@
    Data is fictional sample data and stays in this browser (localStorage).
    ============================================================ */
 function DemoDB(){
-  const KEY = 'lo.demo.v7';   // v7: added the Gantt chart demo (v6: demo tasks gained start dates, beta.28)
+  const KEY = 'lo.demo.v8';   // v8: added the Meal planner demo (v7: the Gantt chart demo; v6: demo tasks gained start dates)
   const ago = n => { const d=new Date(); d.setDate(d.getDate()-n); return ymd(d); };
   const ahead = n => ago(-n);
   const iso = nowIso();
@@ -37,6 +37,25 @@ Press ? for keyboard shortcuts.`},
         {id:'demokanbanwork1', type:'stack', parent:'demokanban0001', name:'Work', folderId:'', order:1, created:iso, updated:iso},
         {id:'demokanbanside1', type:'stack', parent:'demokanban0001', name:'Side Business', folderId:'', order:2, created:iso, updated:iso},
         {id:'demogantt000001', type:'gantt', name:'Kitchen renovation', folderId:F.p, order:3, nav:1, created:iso, updated:iso},
+        /* Meal planner: a 6-day trip starting in ~3 weeks. Fictional restaurants. Rules show each booking state: open now, opening this week, later, booked. */
+        {id:'demomealjapan01', type:'meal', name:'Japan trip', folderId:F.p, order:4, nav:1, created:iso, updated:iso, tz:'Asia/Tokyo', start:ahead(21), end:ahead(26),
+          shops:[
+            {id:'dms1', name:'Sushi Hanabi', area:'Ginza', cuisine:'Sushi omakase', kind:'reserve', link:'https://www.tablecheck.com/', maps:'', notes:'Counter seats only', rule:{type:'rolling', days:30, time:'10:00', text:'Reservations open 30 days in advance at 10:00 JST.'}},
+            {id:'dms2', name:'Tempura Kogane', area:'Asakusa', cuisine:'Tempura', kind:'reserve', link:'', maps:'', notes:'', rule:{type:'rolling', days:14, time:'00:00', text:'Bookings open 14 days ahead.'}},
+            {id:'dms3', name:'Kaiseki Tsuki', area:'Gion, Kyoto', cuisine:'Kaiseki', kind:'reserve', link:'', maps:'', notes:'Card required', rule:{type:'monthly', day:1, ahead:1, time:'10:00', text:'Reservations for the following month open on the 1st at 10:00 JST.'}},
+            {id:'dms4', name:'Ramen Kaze', area:'Shinjuku', cuisine:'Ramen', kind:'walkin', link:'', maps:'', notes:'Queue from 10:30', rule:{type:'none'}},
+            {id:'dms5', name:'Kissa Mori', area:'Kyoto', cuisine:'Coffee and toast', kind:'walkin', link:'', maps:'', notes:'', rule:{type:'none'}},
+            {id:'dms6', name:'Yakitori Ren', area:'Ebisu', cuisine:'Yakitori', kind:'reserve', link:'', maps:'', notes:'', rule:{type:'rolling', days:60, time:'00:00'}},
+            {id:'dms7', name:'Udon Sora', area:'Osaka', cuisine:'Udon', kind:'walkin', link:'', maps:'', notes:'', rule:{type:'none'}},
+            {id:'dms8', name:'Bistro Kumo', area:'Nakameguro', cuisine:'French', kind:'reserve', link:'', maps:'', notes:'', rule:{type:'none'}},
+          ],
+          plan:{[ahead(21)]:{d:[{id:'dmp1', sid:'dms6', booked:true, time:'19:00', ref:'TC-48213', note:''}]},
+                [ahead(22)]:{b:[{id:'dmp2', sid:'dms5', booked:false, time:'', ref:'', note:''}], l:[{id:'dmp3', sid:'dms4', booked:false, time:'', ref:'', note:''}], d:[{id:'dmp4', sid:'dms1', booked:false, time:'', ref:'', note:''}]},
+                [ahead(24)]:{d:[{id:'dmp5', sid:'dms2', booked:false, time:'', ref:'', note:''}]},
+                [ahead(25)]:{l:[{id:'dmp6', sid:'dms7', booked:false, time:'', ref:'', note:''}], d:[{id:'dmp7', sid:'dms3', booked:false, time:'', ref:'', note:''}]}}},
+        {id:'demomealtmpl001', type:'meal', template:true, name:'Japan restaurants', folderId:F.p, order:5, nav:1, created:iso, updated:iso, tz:'Asia/Tokyo',
+          shops:[{id:'dmt1', name:'Sushi Hanabi', area:'Ginza', cuisine:'Sushi omakase', kind:'reserve', link:'', maps:'', notes:'', rule:{type:'rolling', days:30, time:'10:00'}},
+                 {id:'dmt2', name:'Ramen Kaze', area:'Shinjuku', cuisine:'Ramen', kind:'walkin', link:'', maps:'', notes:'', rule:{type:'none'}}], plan:{}},
         {id:'demogsecplan001', type:'gsection', parent:'demogantt000001', name:'Design and ordering', order:0, created:iso, updated:iso},
         {id:'demogsecbuild01', type:'gsection', parent:'demogantt000001', name:'Build', order:1, created:iso, updated:iso},
         {id:'demopagejapan01', type:'page', name:'Japan Trip', folderId:F.p, order:1, created:iso, updated:iso},
